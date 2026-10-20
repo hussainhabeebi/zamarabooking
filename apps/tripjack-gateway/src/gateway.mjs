@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 export const ROUTES = new Map([
-  // Canonical Poomas v1 alias paths
+  // Canonical ZamraBooking v1 alias paths
   ["/v1/air/search", "/fms/v1/air-search-all"],
   ["/v1/air/fare-detail", "/fms/v2/farerule"],
   ["/v1/air/review", "/fms/v1/review"],

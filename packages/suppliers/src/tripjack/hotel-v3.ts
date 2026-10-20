@@ -4,7 +4,7 @@
 // Booking Details (poll until terminal). Every call carries the same
 // client-generated correlationId from Listing to Review.
 //
-// Calls go through the Poomas TripJack gateway (fixed, whitelisted IP), which
+// Calls go through the ZamraBooking TripJack gateway (fixed, whitelisted IP), which
 // forwards /hms/* to the hotel search host and /oms/v3/hotel/* to the hotel
 // booker host. Auth is the `apikey` header.
 

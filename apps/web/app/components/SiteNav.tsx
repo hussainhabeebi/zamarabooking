@@ -58,8 +58,8 @@ export default function SiteNav() {
       }
     }
     void loadAccountName();
-    window.addEventListener("poomas:profile-updated", loadAccountName);
-    return () => { cancelled = true; window.removeEventListener("poomas:profile-updated", loadAccountName); };
+    window.addEventListener("zamrabooking:profile-updated", loadAccountName);
+    return () => { cancelled = true; window.removeEventListener("zamrabooking:profile-updated", loadAccountName); };
   }, [pathname]);
 
   const accountLabel = accountName || "Account";

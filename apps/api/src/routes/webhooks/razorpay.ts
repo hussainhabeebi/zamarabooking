@@ -1,5 +1,5 @@
 import type { Handler } from "hono";
-import { bookings, payments, walletAccounts, walletTransactions } from "@poomas/db/schema";
+import { bookings, payments, walletAccounts, walletTransactions } from "@zamrabooking/db/schema";
 import { eq } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 

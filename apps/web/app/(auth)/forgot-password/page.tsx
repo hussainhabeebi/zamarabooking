@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
     <div className="wa-desktop-fallback">
       <div className="wa-desktop-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="72" height="68" />
+        <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="68" height="68" />
         <h1 className="login-title">Forgot your password?</h1>
         <p className="login-intro">Enter the email you use for ZamraBooking and we&apos;ll send you a link to choose a new one.</p>
         {sent ? (

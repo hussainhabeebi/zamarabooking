@@ -3,13 +3,13 @@
 
 import { emailBookingFailed } from "./lib/transactional-emails.js";
 import type { Env } from "./types.js";
-import { createDb } from "@poomas/db";
+import { createDb } from "@zamrabooking/db";
 import {
   bookings, bookingPassengers, payments, walletAccounts, walletTransactions,
   tenants, tenantSupplierConfigs, leadvyneConfigs,
-} from "@poomas/db/schema";
+} from "@zamrabooking/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { getBookableAdapter, TripjackClient } from "@poomas/suppliers";
+import { getBookableAdapter, TripjackClient } from "@zamrabooking/suppliers";
 import { normalizeBookingResponse } from "./lib/booking-response.js";
 import { resolveFlightSuppliers } from "./routes/search.js";
 import {
@@ -788,9 +788,9 @@ async function bookPaidBooking(
         })),
         totalAmount:  Number(booking.totalAmount),
         currency:     booking.currency,
-        brandName:    tenantRow?.name ?? "POOMAS Traveldays",
+        brandName:    tenantRow?.name ?? "Zamra Travels",
         brandLogo:    tenantRow?.logoUrl ?? undefined,
-        primaryColor: tenantRow?.primaryColor ?? "#E31E24",
+        primaryColor: tenantRow?.primaryColor ?? "#0D4B96",
         supportEmail: tenantRow?.supportEmail ?? undefined,
       });
     }
@@ -855,7 +855,7 @@ async function handleNotifyOtp(
   if (leadvyne?.chatwootBaseUrl && leadvyne.chatwootInboxId && leadvyne.chatwootApiToken) {
     await sendWhatsApp({
       phone:            data.phone,
-      message:          `Your POOMAS OTP is: *${data.otp}*\nValid for 10 minutes. Do not share this with anyone.`,
+      message:          `Your ZamraBooking OTP is: *${data.otp}*\nValid for 10 minutes. Do not share this with anyone.`,
       chatwootBaseUrl:  leadvyne.chatwootBaseUrl,
       chatwootInboxId:  leadvyne.chatwootInboxId,
       chatwootApiToken: leadvyne.chatwootApiToken,
@@ -934,7 +934,7 @@ async function handleNotifyBookingConfirmation(
   if (booking.contactPhone && leadvyne?.chatwootBaseUrl && leadvyne.chatwootInboxId && leadvyne.chatwootApiToken) {
     try {
       const waMessage = buildBookingConfirmationMessage({
-        brandName:    tenantRow?.name ?? "POOMAS",
+        brandName:    tenantRow?.name ?? "ZamraBooking",
         pnr:          booking.pnr ?? "",
         origin:       fd.origin as string,
         destination:  fd.destination as string,

@@ -19,7 +19,7 @@ export const tenantSupplierConfigs = pgTable("tenant_supplier_configs", {
   priority:  integer("priority").notNull().default(1),  // 1 = highest; failover order
 
   // Credentials encrypted at rest (AES-256-GCM in the Worker)
-  // null = use platform-level credentials (Poomas shared contract)
+  // null = use platform-level credentials (ZamraBooking shared contract)
   credentials: jsonb("credentials"),   // { apiKey, secretKey, baseUrl }
 
   // Per-tenant overrides

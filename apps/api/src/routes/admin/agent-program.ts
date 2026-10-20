@@ -18,7 +18,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { agentDocuments, agentRequestMessages, agentRequests, agents, auditLogs, bookings, tenants, users, walletAccounts } from "@poomas/db/schema";
+import { agentDocuments, agentRequestMessages, agentRequests, agents, auditLogs, bookings, tenants, users, walletAccounts } from "@zamrabooking/db/schema";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import {

@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "POOMAS Admin",
-  description: "POOMAS platform super-admin panel",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "POOMAS Admin" },
+  title: "ZamraBooking Admin",
+  description: "ZamraBooking platform super-admin panel",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "ZamraBooking Admin" },
 };
 
 export const viewport: Viewport = {

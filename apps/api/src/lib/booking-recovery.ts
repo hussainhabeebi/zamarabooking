@@ -5,8 +5,8 @@
 // - While the customer waits on the confirmation page, a paid booking still in
 //   PAYMENT_PENDING after a few minutes is booked directly (bypassing the queue).
 
-import { payments } from "@poomas/db/schema";
-import type { Db } from "@poomas/db";
+import { payments } from "@zamrabooking/db/schema";
+import type { Db } from "@zamrabooking/db";
 import { and, desc, eq } from "drizzle-orm";
 import type { Env } from "../types.js";
 

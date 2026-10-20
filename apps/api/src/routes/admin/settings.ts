@@ -18,7 +18,7 @@ import { z } from "zod";
 import type { Env, Variables } from "../../types.js";
 import { RAZORPAY_ENABLED } from "../../lib/payment-gateway.js";
 import { DEFAULT_EMAIL_SETTINGS, emailLayout, getEmailSettings, resendKey, saveEmailSettings, sendMail } from "../../lib/email.js";
-import { emailLogs } from "@poomas/db/schema";
+import { emailLogs } from "@zamrabooking/db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { FOREIGN_CURRENCIES, getFx, getFxSettings, readAutoRates, refreshAutoRates, saveFxSettings, type FxSettings } from "../../lib/fx.js";
 
@@ -224,7 +224,7 @@ settingsAdminRoutes.get("/eticket", async (c) => {
     autoSendOnConfirm:  true,
     channels:           ["WHATSAPP", "EMAIL"],
     emailFrom:          "tickets@zamrabooking.com",
-    emailFromName:      "POOMAS Flights",
+    emailFromName:      "ZamraBooking",
     includeItinerary:   true,
     includeBaggage:     true,
     includeCheckinLink: false,

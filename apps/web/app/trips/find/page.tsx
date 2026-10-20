@@ -36,11 +36,11 @@ export default function FindBookingPage() {
           <label style={label}>Email
             <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" style={input} />
           </label>
-          <button type="submit" disabled={loading} style={{ background: "#E31E24", color: "#fff", border: 0, borderRadius: 10, padding: 13, fontWeight: 800, fontSize: 15, cursor: "pointer", opacity: loading ? .7 : 1, fontFamily: "inherit" }}>
+          <button type="submit" disabled={loading} style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 10, padding: 13, fontWeight: 800, fontSize: 15, cursor: "pointer", opacity: loading ? .7 : 1, fontFamily: "inherit" }}>
             {loading ? "Looking up…" : "Find booking"}
           </button>
         </form>
-        <p style={{ margin: "16px 0 0", fontSize: 13, color: "#64748b" }}>Have an account? <a href="/trips" style={{ color: "#E31E24", fontWeight: 700 }}>See all your trips</a></p>
+        <p style={{ margin: "16px 0 0", fontSize: 13, color: "#64748b" }}>Have an account? <a href="/trips" style={{ color: "#0D4B96", fontWeight: 700 }}>See all your trips</a></p>
       </section>
     </main>
   );

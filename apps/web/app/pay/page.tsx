@@ -73,11 +73,11 @@ export default function PayHeldFarePage() {
       {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
       {payable && (
         <button type="button" onClick={pay} disabled={busy}
-          style={{ width: "100%", height: 52, border: 0, borderRadius: 14, background: "#E31E24", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? .7 : 1 }}>
+          style={{ width: "100%", height: 52, border: 0, borderRadius: 14, background: "#0D4B96", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? .7 : 1 }}>
           {busy ? "Opening payment…" : "Pay now"}
         </button>
       )}
-      <p style={{ marginTop: 18 }}><a href="/" style={{ color: "#E31E24", fontWeight: 700, textDecoration: "none" }}>← Search flights</a></p>
+      <p style={{ marginTop: 18 }}><a href="/" style={{ color: "#0D4B96", fontWeight: 700, textDecoration: "none" }}>← Search flights</a></p>
     </main>
   );
 }

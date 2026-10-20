@@ -1,4 +1,4 @@
-import type { BookResult } from "@poomas/suppliers";
+import type { BookResult } from "@zamrabooking/suppliers";
 
 // HTTP success means the request was accepted, not necessarily ticketed.
 export function normalizeBookingResponse(raw: unknown, sessionId: string): Omit<BookResult, "status"> & { status: BookResult["status"] | "PENDING" } {

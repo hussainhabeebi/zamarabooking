@@ -25,7 +25,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
-      - run: pnpm --filter @poomas/api typecheck
+      - run: pnpm --filter @zamrabooking/api typecheck
         working-directory: .
       - run: pnpm exec wrangler deploy
         env:

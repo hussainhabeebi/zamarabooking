@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Hono } from "hono";
 import { bookDirectRoutes } from "../src/routes/book.js";
-import { bookings, bookingPassengers, payments, markupRules } from "@poomas/db/schema";
+import { bookings, bookingPassengers, payments, markupRules } from "@zamrabooking/db/schema";
 
 const input = { fareId: "fare-1", supplier: "TRIPJACK", passengers: [{ type: "ADULT", firstName: "Arun", lastName: "Kumar" }], contactEmail: "test@example.com", contactPhone: "+919999999999", origin: "COK", destination: "BLR", departureDate: "2026-10-10", totalFare: 99999, currency: "INR" };
 async function request(total: unknown, cached = true, extras = false) {

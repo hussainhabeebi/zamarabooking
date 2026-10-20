@@ -264,7 +264,7 @@ const inp: React.CSSProperties = {
   borderRadius: 8, padding: "9px 12px", fontSize: 13,
 };
 const btn: React.CSSProperties = {
-  background: "#E31E24", color: "#fff", border: "none",
+  background: "#0D4B96", color: "#fff", border: "none",
   borderRadius: 8, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer",
 };
 const th: React.CSSProperties = {

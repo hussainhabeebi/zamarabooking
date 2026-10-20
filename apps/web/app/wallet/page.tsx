@@ -8,7 +8,7 @@ interface Tx { id: string; type: string; amount: string; note: string | null; cr
 interface Coupon { id: string; code: string; amount: string; status: string; expiresAt: string; redeemedAt: string | null }
 
 const TX_LABEL: Record<string, string> = {
-  BOOKING_BONUS: "Booking bonus", ADMIN_CREDIT: "Added by POOMAS", BOOKING_DEBIT: "Paid for booking",
+  BOOKING_BONUS: "Booking bonus", ADMIN_CREDIT: "Added by ZamraBooking", BOOKING_DEBIT: "Paid for booking",
   REFUND_CREDIT: "Refund", COUPON_DEBIT: "Coupon created", COUPON_CREDIT: "Coupon redeemed", COUPON_REFUND: "Coupon returned",
 };
 const DEBITS = new Set(["BOOKING_DEBIT", "COUPON_DEBIT"]);

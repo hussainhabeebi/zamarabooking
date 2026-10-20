@@ -23,7 +23,7 @@ export default function MarketingPage() {
   const [status, setStatus] = useState("");
   const [o, d, oCity, dCity] = ROUTES[route];
   const cur = me?.agent.currency ?? "INR";
-  const color = me?.settings.brandColor || "#E31E24";
+  const color = me?.settings.brandColor || "#0D4B96";
   const name = me?.settings.displayName || me?.agent.businessName || "";
   const phone = me?.settings.contactPhone || me?.agent.whatsapp || me?.agent.phone || "";
 

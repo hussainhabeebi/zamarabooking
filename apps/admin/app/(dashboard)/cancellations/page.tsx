@@ -74,7 +74,7 @@ export default function CancellationsPage() {
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {["", "SUBMITTED", "PROCESSING", "SUCCESS", "REJECTED", "FAILED"].map((s) => (
-          <button key={s} onClick={() => setStatus(s)} style={{ ...chip, background: status === s ? "#E31E24" : "#1e293b" }}>{s || "All"}</button>
+          <button key={s} onClick={() => setStatus(s)} style={{ ...chip, background: status === s ? "#0D4B96" : "#1e293b" }}>{s || "All"}</button>
         ))}
       </div>
       {error && <div style={errBox}>{error}</div>}
@@ -131,6 +131,6 @@ export default function CancellationsPage() {
 
 const card: React.CSSProperties = { background: "#1e293b", borderRadius: 12, padding: 16, border: "1px solid #334155" };
 const chip: React.CSSProperties = { color: "#fff", border: "1px solid #334155", borderRadius: 20, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" };
-const btn: React.CSSProperties = { background: "#E31E24", color: "#fff", border: 0, borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" };
+const btn: React.CSSProperties = { background: "#0D4B96", color: "#fff", border: 0, borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { ...btn, background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0" };
 const errBox: React.CSSProperties = { background: "rgba(239,68,68,.1)", border: "1px solid #7f1d1d", color: "#fca5a5", borderRadius: 8, padding: "10px 12px", fontSize: 13, marginBottom: 12 };

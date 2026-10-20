@@ -3,7 +3,7 @@
 // Booking flow:   Search → Create Booking → Get Booking Detail (policy IDs + COI links)
 // Amendment flow: Raise (priced quote) → Confirm → Get Booking Detail
 //
-// Calls go through the Poomas TripJack gateway (fixed, whitelisted IP), which
+// Calls go through the ZamraBooking TripJack gateway (fixed, whitelisted IP), which
 // forwards /insurance/v2/* 1:1 to TripJack's main host. Auth is the `apikey`
 // header. Every exchange is handed to the recorder verbatim so TripJack
 // certification logs can be produced (separate request / response JSON files).

@@ -76,6 +76,6 @@ fareRoutes.get("/alerts/:id/stop", async (c) => {
     : "This price alert has already ended.";
   return c.html(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Price alert stopped</title>
 <body style="font-family:Arial,sans-serif;max-width:480px;margin:48px auto;padding:0 16px;color:#0f172a">
-<h2 style="color:#E31E24">Price alert stopped</h2><p>${escapeHtml(text)}</p>
-<p><a href="${WEB_URL}" style="color:#E31E24;font-weight:bold">Search flights on ZamraBooking →</a></p></body>`);
+<h2 style="color:#0D4B96">Price alert stopped</h2><p>${escapeHtml(text)}</p>
+<p><a href="${WEB_URL}" style="color:#0D4B96;font-weight:bold">Search flights on ZamraBooking →</a></p></body>`);
 });

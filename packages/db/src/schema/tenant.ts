@@ -9,7 +9,7 @@ import {
 export const tenants = pgTable("tenants", {
   id:             text("id").primaryKey().default(sql`gen_random_uuid()`),
   name:           text("name").notNull(),
-  slug:           text("slug").notNull(),                 // skyjet → skyjet.poomas.com
+  slug:           text("slug").notNull(),                 // skyjet → skyjet.zamrabooking.com
   customDomain:   text("custom_domain"),                  // flights.skyjetagency.com (CNAME)
 
   // Self-referential: a tenant can be a reseller with sub-tenants
@@ -26,14 +26,14 @@ export const tenants = pgTable("tenants", {
   // ── White-label branding ──
   logoUrl:        text("logo_url"),
   faviconUrl:     text("favicon_url"),
-  primaryColor:   text("primary_color").notNull().default("#E31E24"),    // POOMAS red
-  secondaryColor: text("secondary_color").notNull().default("#F7941D"),  // POOMAS orange
-  accentColor:    text("accent_color").notNull().default("#F5C518"),     // POOMAS yellow
+  primaryColor:   text("primary_color").notNull().default("#0D4B96"),    // Zamra navy
+  secondaryColor: text("secondary_color").notNull().default("#1E88D9"),  // Zamra blue
+  accentColor:    text("accent_color").notNull().default("#66B8E8"),     // Zamra sky blue
   fontFamily:     text("font_family").notNull().default("Inter"),
   companyName:    text("company_name"),
   tagline:        text("tagline"),
 
-  // Controls "Powered by Poomas" badge — shown on TRIAL/STARTER, hidden on PROFESSIONAL+
+  // Controls "Powered by ZamraBooking" badge — shown on TRIAL/STARTER, hidden on PROFESSIONAL+
   showPoweredBy:  boolean("show_powered_by").notNull().default(true),
 
   // ── Communication / sender identity ──
@@ -70,7 +70,7 @@ export const tenants = pgTable("tenants", {
   // ── Payment gateway config (null = inherit platform defaults) ──
   paymentConfig: jsonb("payment_config"),   // { razorpay: {...}, nomod: {...} }
 
-  // ── Billing (Poomas charges this tenant/reseller) ──
+  // ── Billing (ZamraBooking charges this tenant/reseller) ──
   subscriptionFee:    decimal("subscription_fee", { precision: 14, scale: 2 }).notNull().default("0"),
   perBookingFee:      decimal("per_booking_fee",  { precision: 14, scale: 4 }).notNull().default("0"),
   perBookingFeeType:  text("per_booking_fee_type").notNull().default("PERCENTAGE"),

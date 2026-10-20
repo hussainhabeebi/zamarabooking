@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { tenants, tenantSupplierConfigs, bookings, agents } from "@poomas/db/schema";
+import { tenants, tenantSupplierConfigs, bookings, agents } from "@zamrabooking/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";

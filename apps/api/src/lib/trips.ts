@@ -7,9 +7,9 @@
 
 import { emailCancellation } from "./transactional-emails.js";
 import type { Context } from "hono";
-import { TripjackClient, type ExchangeRecorder } from "@poomas/suppliers";
+import { TripjackClient, type ExchangeRecorder } from "@zamrabooking/suppliers";
 import { persistExchanges, persistInBackground } from "./api-exchanges.js";
-import { bookings, bookingPassengers, payments, bookingAmendments } from "@poomas/db/schema";
+import { bookings, bookingPassengers, payments, bookingAmendments } from "@zamrabooking/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { resolveFlightSuppliers } from "../routes/search.js";
@@ -275,7 +275,7 @@ export function originalRefundMethod(paid: { gateway: string; gatewayPaymentId?:
 }
 
 export const REFUND_METHOD_LABEL: Record<RefundMethod, string> = {
-  WALLET: "your POOMAS wallet (instant)",
+  WALLET: "your ZamraBooking wallet (instant)",
   AGENT_WALLET: "your agency wallet (instant)",
   NOMOD:  "your original card / payment method (usually 5–10 working days)",
   MANUAL: "your original payment method (our team will process it)",

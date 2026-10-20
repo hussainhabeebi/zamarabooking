@@ -110,6 +110,6 @@ function NomodPaymentResult() {
 }
 
 const button: React.CSSProperties = {
-  display: "inline-block", background: "#e31e24", color: "#fff", textDecoration: "none",
+  display: "inline-block", background: "#0D4B96", color: "#fff", textDecoration: "none",
   borderRadius: 10, padding: "12px 20px", fontWeight: 800, fontSize: 14,
 };

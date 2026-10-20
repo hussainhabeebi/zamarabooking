@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { getBookableAdapter, parseTripjackReview, parseTripjackSeatMap, reviewTotalFare, seatTotal, ssrTotal, TripjackClient, type ReviewSummary, type SegmentSeatMap } from "@poomas/suppliers";
+import { getBookableAdapter, parseTripjackReview, parseTripjackSeatMap, reviewTotalFare, seatTotal, ssrTotal, TripjackClient, type ReviewSummary, type SegmentSeatMap } from "@zamrabooking/suppliers";
 import { normalizeBookingResponse } from "../lib/booking-response.js";
 import { resolveFlightSuppliers } from "./search.js";
 import { logSupplierCall } from "../lib/supplier-logger.js";
@@ -14,7 +14,7 @@ import { optionalCustomerId } from "../lib/optional-customer.js";
 import { optionalAgent } from "../lib/agent-markup.js";
 import { resolveAgentNumber } from "../lib/agent-number.js";
 import { AgentBlocked, agentPricing, assertAgentCanBook } from "../lib/agent-program.js";
-import { bookings, bookingPassengers } from "@poomas/db/schema";
+import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { collectExchanges, persistExchanges, persistInBackground, type ExchangeCollector } from "../lib/api-exchanges.js";
@@ -715,7 +715,7 @@ async function customerPrice(
 ): Promise<number> {
   try {
     const { applyMarkup } = await import("../lib/markup.js");
-    const { markupRules } = await import("@poomas/db/schema");
+    const { markupRules } = await import("@zamrabooking/db/schema");
     const { rulesFor } = await import("../lib/agent-program.js");
     // Company-wide rules, plus this agency's own rules when an agency books.
     const rules = rulesFor(await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId)), agentId);

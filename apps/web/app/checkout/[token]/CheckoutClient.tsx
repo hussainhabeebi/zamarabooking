@@ -123,14 +123,14 @@ export default function CheckoutClient({
         order_id:    orderId,
         amount,
         currency:    cur,
-        name:        "POOMAS Flights",
+        name:        "ZamraBooking",
         description: `Booking ${bookingId}`,
         image:       "/logo.png",
         prefill: {
           email: contactEmail,
           contact: contactPhone,
         },
-        theme: { color: "#E31E24" },
+        theme: { color: "#0D4B96" },
         handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
           setState("polling");
           try {
@@ -196,7 +196,7 @@ export default function CheckoutClient({
         </h2>
         {pnr && (
           <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", margin: "0 0 8px" }}>
-            PNR: <span style={{ color: "#E31E24" }}>{pnr}</span>
+            PNR: <span style={{ color: "#0D4B96" }}>{pnr}</span>
           </div>
         )}
         <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 24px" }}>
@@ -204,7 +204,7 @@ export default function CheckoutClient({
           {contactEmail ? ` and ${contactEmail}` : ""}.
         </p>
         <a href="/" style={{
-          background: "#E31E24", color: "white", textDecoration: "none",
+          background: "#0D4B96", color: "white", textDecoration: "none",
           padding: "12px 28px", borderRadius: 8, fontWeight: 700, display: "inline-block",
         }}>
           Back to Home
@@ -304,7 +304,7 @@ function GatewayOption({ id, label, subtitle, icon, active, onClick }: {
     <div
       onClick={onClick}
       style={{
-        flex: 1, border: `2px solid ${active ? "#E31E24" : "#E2E8F0"}`,
+        flex: 1, border: `2px solid ${active ? "#0D4B96" : "#E2E8F0"}`,
         borderRadius: 10, padding: "12px 14px", cursor: "pointer",
         background: active ? "#FFF1F2" : "white", transition: "all .12s",
       }}
@@ -316,8 +316,8 @@ function GatewayOption({ id, label, subtitle, icon, active, onClick }: {
           <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{subtitle}</div>
         </div>
         <div style={{ marginLeft: "auto", width: 16, height: 16, borderRadius: "50%",
-          border: `2px solid ${active ? "#E31E24" : "#CBD5E1"}`,
-          background: active ? "#E31E24" : "white", flexShrink: 0 }} />
+          border: `2px solid ${active ? "#0D4B96" : "#CBD5E1"}`,
+          background: active ? "#0D4B96" : "white", flexShrink: 0 }} />
       </div>
     </div>
   );
@@ -329,7 +329,7 @@ const card: React.CSSProperties = {
 };
 
 const primaryBtn: React.CSSProperties = {
-  background: "#E31E24", color: "white", border: "none", borderRadius: 8,
+  background: "#0D4B96", color: "white", border: "none", borderRadius: 8,
   padding: "12px 24px", fontWeight: 700, fontSize: 15, cursor: "pointer",
 };
 

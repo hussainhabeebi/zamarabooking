@@ -94,7 +94,7 @@ export default async function AdminBookingsPage({
 
         <button
           type="submit"
-          style={{ background: "#E31E24", color: "white", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          style={{ background: "#0D4B96", color: "white", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
         >
           Filter
         </button>

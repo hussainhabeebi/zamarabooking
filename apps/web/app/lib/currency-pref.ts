@@ -7,7 +7,7 @@ import { isDisplayCurrency, type DisplayCurrency } from "./fx";
 
 export type PrefCurrency = DisplayCurrency;
 export const CURRENCY_COOKIE = "fp_cur";
-export const CURRENCY_EVENT = "poomas:currency";
+export const CURRENCY_EVENT = "zamrabooking:currency";
 const LEGACY_KEY = "pref_currency";
 
 export const isPrefCurrency = (v: unknown): v is PrefCurrency => isDisplayCurrency(v);

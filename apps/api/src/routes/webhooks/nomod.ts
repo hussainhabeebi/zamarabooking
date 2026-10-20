@@ -1,6 +1,6 @@
 import type { Handler } from "hono";
 import { emailAgentTopup } from "../../lib/transactional-emails.js";
-import { payments, bookings, walletTransactions } from "@poomas/db/schema";
+import { payments, bookings, walletTransactions } from "@zamrabooking/db/schema";
 import { creditAgentWallet } from "../../lib/agent-program.js";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";

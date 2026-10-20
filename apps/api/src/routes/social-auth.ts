@@ -4,7 +4,7 @@ import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { SignJWT } from "jose";
 import { and, eq, gt, lt } from "drizzle-orm";
-import { users, socialAuthChallenges } from "@poomas/db/schema";
+import { users, socialAuthChallenges } from "@zamrabooking/db/schema";
 import { hashProof, verifySocialIdentity, type SocialProvider } from "../lib/social-identity.js";
 import type { Env, Variables } from "../types.js";
 

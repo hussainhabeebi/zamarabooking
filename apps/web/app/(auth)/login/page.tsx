@@ -275,7 +275,7 @@ export default function LoginPage() {
       <div className="wa-desktop-fallback">
         <div className="wa-desktop-card">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="72" height="68" />
+          <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="68" height="68" />
           <h1 className="login-title">Welcome back</h1>
           <p className="login-intro">Sign in to continue to your ZamraBooking account.</p>
           <DesktopLoginForm />
@@ -333,7 +333,7 @@ function DesktopLoginForm() {
       <label className="login-field">Password
         <input type="password" name="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} required />
       </label>
-      <a href={`/forgot-password${email ? `?email=${encodeURIComponent(email.trim())}` : ""}`} style={{ alignSelf: "flex-end", marginTop: -6, fontSize: 13, color: "#E31E24", fontWeight: 600 }}>Forgot password?</a>
+      <a href={`/forgot-password${email ? `?email=${encodeURIComponent(email.trim())}` : ""}`} style={{ alignSelf: "flex-end", marginTop: -6, fontSize: 13, color: "#0D4B96", fontWeight: 600 }}>Forgot password?</a>
       <button
         type="submit" disabled={loading} className="login-submit"
       >

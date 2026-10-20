@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { and, eq } from "drizzle-orm";
-import { tenantApiKeys } from "@poomas/db/schema";
+import { tenantApiKeys } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 
 export type PartnerApiScope = "search" | "booking" | "eticket" | "webhook";

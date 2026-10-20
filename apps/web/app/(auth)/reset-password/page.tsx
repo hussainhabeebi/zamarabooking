@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
     <div className="wa-desktop-fallback">
       <div className="wa-desktop-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="72" height="68" />
+        <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="68" height="68" />
         <h1 className="login-title">Choose a new password</h1>
         {email && <p className="login-intro">For {email}</p>}
         {checking && <p className="login-intro">Checking your link…</p>}

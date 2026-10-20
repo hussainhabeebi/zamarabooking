@@ -50,7 +50,7 @@ export default function SupportPage() {
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {["", ...STATUSES].map((s) => (
-          <button key={s} onClick={() => setFilter(s)} style={{ ...chip, background: filter === s ? "#E31E24" : "#1e293b" }}>{s ? s.replace("_", " ") : "All"}</button>
+          <button key={s} onClick={() => setFilter(s)} style={{ ...chip, background: filter === s ? "#0D4B96" : "#1e293b" }}>{s ? s.replace("_", " ") : "All"}</button>
         ))}
       </div>
       {error && <div style={errBox}>{error}</div>}

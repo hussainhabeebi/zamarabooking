@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { emailAgencyStatus } from "../../lib/transactional-emails.js";
 import { HTTPException } from "hono/http-exception";
-import { agents, tenants, agentDocuments, bookings } from "@poomas/db/schema";
+import { agents, tenants, agentDocuments, bookings } from "@zamrabooking/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";

@@ -9,7 +9,7 @@
 // customer sees on the results page), in the search currency.
 
 import type { Env } from "../types.js";
-import type { Db } from "@poomas/db";
+import type { Db } from "@zamrabooking/db";
 import { API_URL, WEB_URL, emailShell, escapeHtml, money, notifyCustomer } from "./customer-notify.js";
 
 type KV = Env["FARE_CACHE_KV"];

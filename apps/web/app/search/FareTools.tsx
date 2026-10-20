@@ -144,10 +144,10 @@ const css = `.fare-tools{display:flex;flex-direction:column;gap:10px;margin-bott
 .ft-cal-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
 .ft-day{flex:0 0 auto;min-width:74px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 6px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#334155;font-size:11px}
 .ft-day strong{font-size:13px;color:#0f172a}.ft-day.low{background:#f0fdf4;border-color:#86efac}.ft-day.low strong{color:#15803d}
-.ft-day.on{border-color:#E31E24;box-shadow:0 0 0 1px #E31E24}
+.ft-day.on{border-color:#0D4B96;box-shadow:0 0 0 1px #0D4B96}
 .ft-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
 .ft-btn{background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;color:#0f172a;cursor:pointer}
-.ft-btn.primary{background:#E31E24;border-color:#E31E24;color:#fff}.ft-btn:disabled{opacity:.6;cursor:default}
+.ft-btn.primary{background:#0D4B96;border-color:#0D4B96;color:#fff}.ft-btn:disabled{opacity:.6;cursor:default}
 .ft-link{border:1px solid #cbd5e1;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;color:#0f172a;text-decoration:none;background:#fff}
 .ft-alert{flex:1 1 320px;display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;font-size:13px}
 .ft-alert label{display:flex;flex-direction:column;gap:4px;font-weight:700;color:#475569}

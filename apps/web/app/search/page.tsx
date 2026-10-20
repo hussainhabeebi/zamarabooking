@@ -399,7 +399,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
   const arrNextDay = dep.getUTCDate() !== arr.getUTCDate();
 
   const cabinLabel = String(fare.cabinClass ?? "ECONOMY").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-  const badgeColor = fare.__badge === "Best overall" ? "#E31E24" : fare.__badge === "Lowest fare" ? "#0f172a" : "#0369a1";
+  const badgeColor = fare.__badge === "Best overall" ? "#0D4B96" : fare.__badge === "Lowest fare" ? "#0f172a" : "#0369a1";
 
   return (
     <div className="fare-card-v2" style={{ position: "relative" }}>

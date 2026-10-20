@@ -151,9 +151,9 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           color: #e2e8f0;
         }
         .admin-nav-link.active {
-          background: rgba(227,30,36,.08);
+          background: rgba(13,75,150,.08);
           color: #f1f5f9;
-          border-left-color: #E31E24;
+          border-left-color: #0D4B96;
           font-weight: 600;
         }
         .admin-nav-link-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
@@ -220,7 +220,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           white-space: nowrap;
           transition: color 0.15s;
         }
-        .admin-bottom-nav-link.active { color: #E31E24; }
+        .admin-bottom-nav-link.active { color: #0D4B96; }
         .admin-bottom-nav-icon { font-size: 18px; line-height: 1; }
 
         @media (max-width: 767px) {
@@ -236,7 +236,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         <nav className="admin-sidebar">
           <div className="admin-sidebar-header">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="POOMAS Admin" />
+            <img src="/logo.png" alt="ZamraBooking Admin" />
             <div className="role-badge">{me ? me.roleLabel : "Admin"}</div>
             {me?.user.name && <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>{me.user.name}</div>}
           </div>

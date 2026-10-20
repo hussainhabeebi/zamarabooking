@@ -9,8 +9,8 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 import {
   agents, auditLogs, bookingAmendments, bookings, commissions, markupRules, supportRequests,
   users, walletAccounts, walletCoupons, walletTransactions,
-} from "@poomas/db/schema";
-import type { Db } from "@poomas/db";
+} from "@zamrabooking/db/schema";
+import type { Db } from "@zamrabooking/db";
 import type { Env } from "../types.js";
 import { forgetAgentNumber } from "./agent-number.js";
 import { audit } from "./agent-program.js";

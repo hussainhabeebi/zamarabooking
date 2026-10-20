@@ -17,7 +17,7 @@ async function getTenants() {
 
 const STATUS_COLOR: Record<string, string> = {
   ACTIVE:      "#10B981",
-  ONBOARDING:  "#F7941D",
+  ONBOARDING:  "#1E88D9",
   SUSPENDED:   "#EF4444",
   TRIAL_EXPIRED: "#9CA3AF",
   CLOSED:      "#6B7280",
@@ -31,7 +31,7 @@ export default async function TenantsPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: "white", margin: 0 }}>Tenants</h1>
         <a href="/tenants/new" style={{
-          background: "#E31E24", color: "white", borderRadius: 8,
+          background: "#0D4B96", color: "white", borderRadius: 8,
           padding: "10px 20px", textDecoration: "none", fontWeight: 600, fontSize: 14,
         }}>
           + New Tenant
@@ -84,7 +84,7 @@ export default async function TenantsPage() {
                   {new Date(t.createdAt).toLocaleDateString("en-IN")}
                 </td>
                 <td style={{ padding: "14px 20px" }}>
-                  <a href={`/tenants/${t.id}`} style={{ color: "#E31E24", fontSize: 13 }}>Manage →</a>
+                  <a href={`/tenants/${t.id}`} style={{ color: "#0D4B96", fontSize: 13 }}>Manage →</a>
                 </td>
               </tr>
             ))}

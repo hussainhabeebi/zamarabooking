@@ -9,7 +9,7 @@ const agent = {
   id: "ag1", businessName: "Aiingo <Travels>", ownerName: "Hussain", email: "h@aiingo.com", phone: "+971500000001",
   region: "GCC", currency: "AED", agentNumber: "FPA10010", iataCode: null, creditLimit: "25000", settings: { address: "Dubai" },
 };
-const cfg = { ...DEFAULT_ONBOARDING, company: { ...DEFAULT_ONBOARDING.company, legalName: "Poomas Travel LLC", signatory: "Habeeb" }, extraClauses: "Monthly sales review\n\n" };
+const cfg = { ...DEFAULT_ONBOARDING, company: { ...DEFAULT_ONBOARDING.company, legalName: "Zamra Travels LLC", signatory: "Habeeb" }, extraClauses: "Monthly sales review\n\n" };
 
 test("the MOU is generated from the agency's details, escaped, with configurable law", () => {
   const m = renderMou({ cfg, tenant: { name: "ZamraBooking" }, agent, program: DEFAULT_PROGRAM, date: new Date("2026-10-03T00:00:00Z") });

@@ -22,8 +22,8 @@ export default function AdminDashboard() {
   }, []);
 
   const STATS = [
-    { label: "Total Bookings",    key: "bookings" as const, color: "#E31E24", icon: "📋" },
-    { label: "Active Tenants",    key: "tenants"  as const, color: "#F7941D", icon: "🏢" },
+    { label: "Total Bookings",    key: "bookings" as const, color: "#0D4B96", icon: "📋" },
+    { label: "Active Tenants",    key: "tenants"  as const, color: "#1E88D9", icon: "🏢" },
     { label: "Registered Agents", key: "agents"   as const, color: "#6366f1", icon: "👥" },
   ];
 
@@ -86,8 +86,8 @@ export default function AdminDashboard() {
               textDecoration: "none", transition: "border-color 0.15s, background 0.15s",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#E31E24";
-              (e.currentTarget as HTMLAnchorElement).style.background = "rgba(227,30,36,.05)";
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#0D4B96";
+              (e.currentTarget as HTMLAnchorElement).style.background = "rgba(13,75,150,.05)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLAnchorElement).style.borderColor = "#334155";

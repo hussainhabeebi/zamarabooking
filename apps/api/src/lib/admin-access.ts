@@ -5,7 +5,7 @@
 // token expires.
 
 import { eq } from "drizzle-orm";
-import { users } from "@poomas/db/schema";
+import { users } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 
 type Db = Variables["db"];

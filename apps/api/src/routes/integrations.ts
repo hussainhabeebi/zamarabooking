@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
-import { bookings, bookingPassengers } from "@poomas/db/schema";
+import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import { agentNumberFrom, resolveAgentNumber, trackAgentActivity } from "../lib/agent-number.js";
 import { agentStats } from "../lib/agent-analytics.js";
@@ -29,7 +29,7 @@ function normalizePassenger(raw:any){
  };
 }
 
-// Secure Leadvyne → Poomas booking-form handoff.
+// Secure Leadvyne → ZamraBooking booking-form handoff.
 // PII is stored briefly in KV; the WhatsApp URL contains only a random opaque token.
 integrationRoutes.post("/checkout-sessions",async(c)=>{
  if(!validIntegrationKey(c))return c.json({error:"Unauthorized integration"},401);

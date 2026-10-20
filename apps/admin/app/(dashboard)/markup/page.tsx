@@ -330,7 +330,7 @@ const card: React.CSSProperties = { background: "#1e293b", borderRadius: 12, pad
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 };
 const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "10px 14px",
   background: "#0f172a", border: "1.5px solid #334155", borderRadius: 8, color: "#e2e8f0", fontSize: 14 };
-const primaryBtn: React.CSSProperties = { background: "#E31E24", color: "white", border: "none", borderRadius: 8,
+const primaryBtn: React.CSSProperties = { background: "#0D4B96", color: "white", border: "none", borderRadius: 8,
   padding: "9px 20px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const ghostBtn: React.CSSProperties = { background: "transparent", color: "#cbd5e1", border: "1px solid #334155",
   borderRadius: 8, padding: "9px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" };

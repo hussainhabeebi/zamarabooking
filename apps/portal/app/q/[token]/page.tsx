@@ -20,7 +20,7 @@ export default function PublicQuotePage() {
   if (error) return <main className="auth"><div className="auth-card"><h1>Quote not found</h1><p className="sub">{error}</p></div></main>;
   if (!d) return <main className="auth"><span className="spin" /></main>;
   const { quote: q, agency: a } = d;
-  const color = a?.color ?? "#E31E24";
+  const color = a?.color ?? "#0D4B96";
   const wa = (a?.phone ?? "").replace(/\D/g, "");
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 48px" }}>

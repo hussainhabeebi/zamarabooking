@@ -67,7 +67,7 @@ export function Rebook({ tripId, origin, destination }: { tripId: string; origin
       <small style={{ color: "#64748b" }}>Traveller names and saved passport details are filled in for you — please check them before paying.</small>
       {error && <small style={{ color: "#b91c1c" }}>{error}</small>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" disabled={busy} style={{ ...btn, background: "#E31E24", color: "#fff", borderColor: "#E31E24" }}>{busy ? "Searching…" : "Search flights"}</button>
+        <button type="submit" disabled={busy} style={{ ...btn, background: "#0D4B96", color: "#fff", borderColor: "#0D4B96" }}>{busy ? "Searching…" : "Search flights"}</button>
         <button type="button" onClick={() => setOpen(false)} style={btn}>Cancel</button>
       </div>
     </form>

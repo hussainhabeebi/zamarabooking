@@ -1,17 +1,17 @@
-// POOMAS Traveldays brand palette
+// Zamra Travels brand palette
 // Applied as CSS custom properties — override per-tenant via server-side injection
 export const BRAND = {
-  red:    "#E31E24",
-  orange: "#F7941D",
-  yellow: "#F5C518",
+  navy:   "#0D4B96",
+  blue:   "#1E88D9",
+  sky:    "#66B8E8",
   dark:   "#1A1A1A",
   white:  "#FFFFFF",
 } as const;
 
 export const DEFAULT_THEME = {
-  primaryColor:   BRAND.red,
-  secondaryColor: BRAND.orange,
-  accentColor:    BRAND.yellow,
+  primaryColor:   BRAND.navy,
+  secondaryColor: BRAND.blue,
+  accentColor:    BRAND.sky,
   fontFamily:     "Inter",
   borderRadius:   "8px",
 } as const;

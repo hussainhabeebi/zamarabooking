@@ -1,5 +1,5 @@
 import type { KVNamespace, R2Bucket, Queue, Hyperdrive, DurableObjectNamespace } from "@cloudflare/workers-types";
-import type { Db } from "@poomas/db";
+import type { Db } from "@zamrabooking/db";
 
 export interface Env {
   ENVIRONMENT:          string;

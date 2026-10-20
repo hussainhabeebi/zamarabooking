@@ -369,7 +369,7 @@ function ErrorBanner({ children }: { children: React.ReactNode }) {
   );
 }
 function saveBtn(disabled: boolean): React.CSSProperties {
-  return { background: "#E31E24", color: "white", border: "none", borderRadius: 8,
+  return { background: "#0D4B96", color: "white", border: "none", borderRadius: 8,
     padding: "9px 20px", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: disabled ? 0.7 : 1 };
 }
 

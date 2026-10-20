@@ -17,7 +17,7 @@ import { z } from "zod";
 import {
   HOTEL_TERMINAL_STATUSES, validHotelId, isHotelError, normalizeOption, parseHotelBookingDetails,
   type TripjackHotelV3Client,
-} from "@poomas/suppliers";
+} from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../types.js";
 import { logSupplierCall } from "../lib/supplier-logger.js";
 import {

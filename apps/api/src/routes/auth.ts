@@ -6,7 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { SignJWT } from "jose";
-import { users, userSessions } from "@poomas/db/schema";
+import { users, userSessions } from "@zamrabooking/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { socialAuthRoutes } from "./social-auth.js";
@@ -257,7 +257,7 @@ authRoutes.post("/admin-init", async (c) => {
     await db.insert(users).values({
       tenantId,
       email:         adminEmail,
-      name:          "POOMAS Admin",
+      name:          "ZamraBooking Admin",
       role:          "SUPER_ADMIN",
       passwordHash,
       isActive:      true,

@@ -100,7 +100,7 @@ export function CertificationExport() {
       )}
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
         <button type="button" disabled={busy || !picked.size} onClick={download}
-          style={{ background: "#E31E24", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer", opacity: busy || !picked.size ? .6 : 1 }}>
+          style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer", opacity: busy || !picked.size ? .6 : 1 }}>
           {busy ? "Preparing ZIP…" : `Download ${picked.size} booking${picked.size === 1 ? "" : "s"} (ZIP)`}
         </button>
         <span style={{ color: "#64748b", fontSize: 12 }}>Up to 30 bookings per ZIP.</span>

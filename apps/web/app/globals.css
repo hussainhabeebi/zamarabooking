@@ -2,9 +2,9 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {
-  --color-primary:   #E31E24;
-  --color-secondary: #F7941D;
-  --color-accent:    #F5C518;
+  --color-primary:   #0D4B96;
+  --color-secondary: #1E88D9;
+  --color-accent:    #66B8E8;
   --font-body:       Inter, system-ui, -apple-system, sans-serif;
   --radius-sm:  6px;
   --radius-md:  10px;
@@ -39,8 +39,8 @@ img { max-width: 100%; display: block; }
 .site-logo { height: 34px; width: auto; flex-shrink: 0; transition: transform .22s ease; }
 .site-brand-name { display: inline; color: #14233a; font-size: 16px; font-weight: 800; letter-spacing: -.025em; white-space: nowrap; transition: color .22s ease; }
 .site-logo-link:hover .site-logo { transform: scale(1.05); }
-.site-logo-link:hover .site-brand-name, .site-logo-link:focus-visible .site-brand-name { color: #b91c1c; }
-.site-logo-link:focus-visible { outline: 2px solid #b91c1c; outline-offset: 4px; }
+.site-logo-link:hover .site-brand-name, .site-logo-link:focus-visible .site-brand-name { color: #0A3A75; }
+.site-logo-link:focus-visible { outline: 2px solid #0A3A75; outline-offset: 4px; }
 @media (prefers-reduced-motion: reduce) { .site-logo, .site-brand-name { transition: none; } .site-logo-link:hover .site-logo { transform: none; } }
 .site-nav       { display: flex; gap: 16px; align-items: center; }
 .nav-link {
@@ -676,30 +676,30 @@ select.currency-more option { color: #111827; background: #fff; }
 .login-form { display: flex; flex-direction: column; gap: 16px; }
 .login-field { display: flex; flex-direction: column; gap: 8px; color: #243a55; font-size: 13px; font-weight: 700; }
 .login-field input { width: 100%; min-height: 48px; padding: 11px 14px; border: 1px solid #cad5e2; border-radius: 10px; outline: 0; background: #fff; color: #10233e; font: 400 16px var(--font-body); }
-.login-field input:focus-visible { border-color: var(--color-primary); box-shadow: 0 0 0 3px #fee2e2; }
+.login-field input:focus-visible { border-color: var(--color-primary); box-shadow: 0 0 0 3px #DCE8F6; }
 .login-submit { width: 100%; min-height: 48px; margin-top: 3px; border: 0; border-radius: 10px; background: var(--color-primary); color: #fff; font: 700 15px var(--font-body); cursor: pointer; transition: background .2s, box-shadow .2s; }
-.login-submit:hover:not(:disabled) { background: #c91a20; box-shadow: 0 6px 14px rgba(227, 30, 36, .16); }
+.login-submit:hover:not(:disabled) { background: #0A3A75; box-shadow: 0 6px 14px rgba(13,75,150, .16); }
 .login-submit:disabled { opacity: .7; cursor: default; }
-.login-submit:focus-visible, .login-signup-prompt a:focus-visible { outline: 3px solid #f7941d; outline-offset: 3px; }
+.login-submit:focus-visible, .login-signup-prompt a:focus-visible { outline: 3px solid #1E88D9; outline-offset: 3px; }
 .login-signup-prompt { margin: 24px 0 0; color: #60718a; text-align: center; font-size: 14px; }
-.login-signup-prompt a { color: #c91a20; font-weight: 700; text-decoration: none; border-radius: 3px; }
+.login-signup-prompt a { color: #0A3A75; font-weight: 700; text-decoration: none; border-radius: 3px; }
 .login-signup-prompt a:hover { text-decoration: underline; }
 
 .account-entry-page { min-height: calc(100dvh - 66px); display: grid; place-items: center; padding: 42px 20px; background: #f3f7fb; }
 .account-entry-card { width: min(100%, 660px); padding: 38px 42px 30px; border: 1px solid #e0e8f1; border-radius: 18px; background: #fff; box-shadow: 0 14px 40px rgba(20, 35, 58, .07); text-align: center; }
 .account-entry-logo { display: block; width: 64px; height: auto; margin: 0 auto 19px; }
-.account-entry-eyebrow { margin: 0 0 10px; color: #b91c1c; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.account-entry-eyebrow { margin: 0 0 10px; color: #1C63B9; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
 .account-entry-card h1 { margin: 0; color: #10233e; font-size: clamp(25px, 3vw, 31px); line-height: 1.2; letter-spacing: -.03em; }
 .account-entry-intro { max-width: 470px; margin: 13px auto 25px; color: #60718a; font-size: 15px; line-height: 1.6; }
 .account-entry-actions { display: flex; justify-content: center; gap: 12px; }
 .account-entry-actions a { display: grid; place-items: center; min-width: 155px; min-height: 48px; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 800; text-decoration: none; transition: background .2s, border-color .2s, box-shadow .2s; }
 .account-entry-primary { background: var(--color-primary); color: #fff; }
-.account-entry-primary:hover { background: #c91a20; box-shadow: 0 6px 14px rgba(227, 30, 36, .16); }
-.account-entry-secondary { border: 1px solid #cbd5e1; color: #b91c1c; background: #fff; }
-.account-entry-secondary:hover { border-color: #e31e24; background: #fff7f7; }
-.account-entry-actions a:focus-visible { outline: 3px solid #f7941d; outline-offset: 3px; }
+.account-entry-primary:hover { background: #0A3A75; box-shadow: 0 6px 14px rgba(13,75,150, .16); }
+.account-entry-secondary { border: 1px solid #cbd5e1; color: #1C63B9; background: #fff; }
+.account-entry-secondary:hover { border-color: #0D4B96; background: #EEF4FB; }
+.account-entry-actions a:focus-visible { outline: 3px solid #1E88D9; outline-offset: 3px; }
 .account-entry-benefits { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9eef5; color: #526580; font-size: 12px; font-weight: 600; }
-.account-entry-benefits span::before { content: "✓"; margin-right: 6px; color: #c91a20; font-weight: 800; }
+.account-entry-benefits span::before { content: "✓"; margin-right: 6px; color: #0A3A75; font-weight: 800; }
 @media (max-width: 480px) {
   .account-entry-page { padding: 24px 16px; }
   .account-entry-card { padding: 28px 22px 24px; }
@@ -746,8 +746,8 @@ html { scroll-behavior: smooth; }
 .benefits-section { padding-top: 24px; }
 .benefit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 28px; }
 .benefit-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; transition: transform .18s, box-shadow .18s, border-color .18s; }
-.benefit-card:hover { transform: translateY(-4px); border-color: #fecaca; box-shadow: 0 15px 34px rgba(15,23,42,.08); }
-.benefit-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #fff1f2; font-size: 20px; }
+.benefit-card:hover { transform: translateY(-4px); border-color: #CDE2FB; box-shadow: 0 15px 34px rgba(15,23,42,.08); }
+.benefit-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #F2F7FE; font-size: 20px; }
 .benefit-icon-desktop { display: none; }
 .benefit-card h3 { margin: 16px 0 7px; color: #0f172a; font-size: 16px; }
 .benefit-card p { margin: 0; color: #64748b; font-size: 13px; line-height: 1.55; }
@@ -766,7 +766,7 @@ html { scroll-behavior: smooth; }
 .wa-cta p { margin: 0; max-width: 650px; color: #ccfbf1; line-height: 1.55; }
 .wa-cta > a { z-index: 1; flex-shrink: 0; display: inline-flex; gap: 9px; align-items: center; background: #fff; color: #075e54; padding: 13px 17px; border-radius: 11px; text-decoration: none; font-weight: 900; }
 
-.route-card:hover { border-color: #fca5a5; box-shadow: 0 12px 28px rgba(15,23,42,.08); transform: translateY(-2px); }
+.route-card:hover { border-color: #A9CDF8; box-shadow: 0 12px 28px rgba(15,23,42,.08); transform: translateY(-2px); }
 .route-card { transition: border-color .18s, box-shadow .18s, transform .18s; }
 
 @media (max-width: 860px) {
@@ -795,32 +795,32 @@ html { scroll-behavior: smooth; }
 
 /* ── Responsive live-search feedback ──────────────────────────────────── */
 .search-btn { position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center; gap:9px; }
-.search-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(227,30,36,.22); }
+.search-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(13,75,150,.22); }
 .search-btn:disabled { cursor: wait; opacity: 1; }
-.search-btn-loading { background: linear-gradient(100deg,#c4141a,#ef4444,#c4141a); background-size:200% 100%; animation: searchButtonGlow 1.25s linear infinite; }
+.search-btn-loading { background: linear-gradient(100deg,#0A3A75,#4491EF,#0A3A75); background-size:200% 100%; animation: searchButtonGlow 1.25s linear infinite; }
 .search-spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,.38); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
-.search-progress { display:flex; align-items:center; gap:14px; margin-top:14px; padding:12px 14px; border-radius:12px; background:#fff7f7; border:1px solid #fecaca; color:#7f1d1d; animation:searchReveal .25s ease both; }
+.search-progress { display:flex; align-items:center; gap:14px; margin-top:14px; padding:12px 14px; border-radius:12px; background:#F8FBFE; border:1px solid #CDE2FB; color:#1D497F; animation:searchReveal .25s ease both; }
 .search-progress strong { display:block; font-size:13px; }
-.search-progress small { display:block; margin-top:2px; color:#991b1b; opacity:.72; font-size:11px; }
-.search-progress-track { width:92px; height:4px; position:relative; background:#fecaca; border-radius:10px; overflow:visible; flex-shrink:0; }
-.search-progress-track i { display:block; width:45%; height:100%; background:#e31e24; border-radius:10px; animation:progressSweep 1.3s ease-in-out infinite; }
-.search-plane { position:absolute; z-index:2; top:-12px; left:0; color:#e31e24; font-size:18px; animation:planeFly 1.3s ease-in-out infinite; }
+.search-progress small { display:block; margin-top:2px; color:#1B5499; opacity:.72; font-size:11px; }
+.search-progress-track { width:92px; height:4px; position:relative; background:#CDE2FB; border-radius:10px; overflow:visible; flex-shrink:0; }
+.search-progress-track i { display:block; width:45%; height:100%; background:#0D4B96; border-radius:10px; animation:progressSweep 1.3s ease-in-out infinite; }
+.search-plane { position:absolute; z-index:2; top:-12px; left:0; color:#0D4B96; font-size:18px; animation:planeFly 1.3s ease-in-out infinite; }
 .search-shortcuts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px 18px; margin-top:13px; color:#64748b; font-size:11px; font-weight:700; }
 
 .search-loading-page { text-align:center; padding-top:50px; }
 .search-loading-page h1 { margin:14px 0 6px; font-size:clamp(22px,5vw,32px); color:#0f172a; }
 .search-loading-page > p { margin:0; color:#64748b; font-size:14px; }
-.loading-orbit { position:relative; width:72px; height:72px; margin:0 auto; border:2px dashed #fecaca; border-radius:50%; animation:spin 3.5s linear infinite; }
-.loading-orbit:after { content:""; position:absolute; inset:12px; border-radius:50%; background:#fff1f2; }
-.loading-orbit span { position:absolute; z-index:2; top:-8px; left:27px; color:#e31e24; font-size:22px; transform:rotate(90deg); }
+.loading-orbit { position:relative; width:72px; height:72px; margin:0 auto; border:2px dashed #CDE2FB; border-radius:50%; animation:spin 3.5s linear infinite; }
+.loading-orbit:after { content:""; position:absolute; inset:12px; border-radius:50%; background:#F2F7FE; }
+.loading-orbit span { position:absolute; z-index:2; top:-8px; left:27px; color:#0D4B96; font-size:22px; transform:rotate(90deg); }
 .loading-steps { display:flex; justify-content:center; gap:0; margin:24px auto 28px; max-width:520px; }
 .loading-steps span { flex:1; position:relative; padding-top:18px; color:#94a3b8; font-size:11px; font-weight:800; }
 .loading-steps span:before { content:""; position:absolute; top:0; left:calc(50% - 6px); width:12px; height:12px; border-radius:50%; background:#e2e8f0; z-index:2; }
 .loading-steps span:not(:last-child):after { content:""; position:absolute; height:2px; background:#e2e8f0; left:50%; right:-50%; top:5px; }
 .loading-steps .done:before { background:#16a34a; }
 .loading-steps .done:after { background:#16a34a; }
-.loading-steps .active { color:#e31e24; }
-.loading-steps .active:before { background:#e31e24; box-shadow:0 0 0 6px #fee2e2; animation:pulseDot 1.2s ease-in-out infinite; }
+.loading-steps .active { color:#0D4B96; }
+.loading-steps .active:before { background:#0D4B96; box-shadow:0 0 0 6px #DCE8F6; animation:pulseDot 1.2s ease-in-out infinite; }
 .fare-skeleton-list { display:flex; flex-direction:column; gap:12px; margin-top:8px; }
 .fare-skeleton { display:grid; grid-template-columns:1.1fr 1.5fr 1fr .8fr; gap:18px; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; min-height:92px; text-align:left; }
 .skeleton { height:14px; border-radius:8px; background:linear-gradient(90deg,#eef2f7 25%,#f8fafc 50%,#eef2f7 75%); background-size:200% 100%; animation:skeletonMove 1.25s infinite linear; }
@@ -832,7 +832,7 @@ html { scroll-behavior: smooth; }
 @keyframes searchReveal { from { opacity:0; transform:translateY(-5px); } }
 @keyframes progressSweep { 0%,100% { transform:translateX(0); } 50% { transform:translateX(120%); } }
 @keyframes planeFly { 0%,100% { transform:translateX(0); } 50% { transform:translateX(70px); } }
-@keyframes pulseDot { 50% { box-shadow:0 0 0 10px rgba(254,226,226,.25); } }
+@keyframes pulseDot { 50% { box-shadow:0 0 0 10px rgba(227,239,253,.25); } }
 @keyframes skeletonMove { to { background-position:-200% 0; } }
 
 @media(max-width:620px){
@@ -850,27 +850,27 @@ html { scroll-behavior: smooth; }
 .result-tools.is-loading { opacity:.72; }
 .date-switcher { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
 .date-switcher button { position:relative; min-width:0; padding:9px 4px; border:1px solid #e2e8f0; border-radius:11px; background:#fff; color:#64748b; cursor:pointer; transition:transform .16s, border-color .16s, background .16s; }
-.date-switcher button:hover { transform:translateY(-2px); border-color:#fca5a5; }
+.date-switcher button:hover { transform:translateY(-2px); border-color:#A9CDF8; }
 .date-switcher button span,.date-switcher button strong { display:block; }
 .date-switcher button span { font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
 .date-switcher button strong { margin-top:2px; color:#0f172a; font-size:13px; }
 .date-switcher button i { display:block; margin-top:3px; font-size:8px; font-style:normal; font-weight:800; text-transform:uppercase; letter-spacing:.07em; }
-.date-switcher button.active { color:#fff; border-color:#e31e24; background:linear-gradient(135deg,#e31e24,#ef4444); box-shadow:0 6px 16px rgba(227,30,36,.22); }
+.date-switcher button.active { color:#fff; border-color:#0D4B96; background:linear-gradient(135deg,#0D4B96,#4491EF); box-shadow:0 6px 16px rgba(13,75,150,.22); }
 .date-switcher button.active strong { color:#fff; }
 .result-tool-row { display:grid; grid-template-columns:1fr 38px 1fr; gap:8px; align-items:end; margin-top:12px; }
 .airport-select span { display:block; margin:0 0 5px 2px; color:#64748b; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
 .airport-select select,.filter-scroll select { width:100%; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc; color:#0f172a; font:inherit; font-size:12px; font-weight:700; outline:none; }
 .airport-select select { height:40px; padding:0 9px; }
-.airport-select select:focus,.filter-scroll select:focus { border-color:#e31e24; box-shadow:0 0 0 3px #fee2e2; }
-.result-swap { width:38px; height:40px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; color:#e31e24; font-size:20px; cursor:pointer; transition:transform .2s, background .2s; }
-.result-swap:hover { transform:rotate(180deg); background:#fff1f2; }
+.airport-select select:focus,.filter-scroll select:focus { border-color:#0D4B96; box-shadow:0 0 0 3px #DCE8F6; }
+.result-swap { width:38px; height:40px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; color:#0D4B96; font-size:20px; cursor:pointer; transition:transform .2s, background .2s; }
+.result-swap:hover { transform:rotate(180deg); background:#F2F7FE; }
 .filter-scroll { display:flex; gap:7px; margin-top:12px; overflow-x:auto; padding:1px 0 3px; scrollbar-width:none; }
 .filter-scroll::-webkit-scrollbar { display:none; }
 .filter-scroll select,.filter-scroll button { flex:0 0 auto; height:36px; padding:0 12px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; color:#334155; font-size:11px; font-weight:800; cursor:pointer; }
 .filter-scroll select { width:auto; }
-.filter-scroll button.active { border-color:#e31e24; background:#fff1f2; color:#c4141a; box-shadow:inset 0 0 0 1px #fecaca; }
-.result-refresh { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; color:#e31e24; font-size:11px; font-weight:800; animation:searchReveal .2s ease both; }
-.result-refresh span { width:13px; height:13px; border:2px solid #fecaca; border-top-color:#e31e24; border-radius:50%; animation:spin .65s linear infinite; }
+.filter-scroll button.active { border-color:#0D4B96; background:#EEF4FB; color:#0A3A75; box-shadow:inset 0 0 0 1px #C3D8F0; }
+.result-refresh { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; color:#0D4B96; font-size:11px; font-weight:800; animation:searchReveal .2s ease both; }
+.result-refresh span { width:13px; height:13px; border:2px solid #C3D8F0; border-top-color:#0D4B96; border-radius:50%; animation:spin .65s linear infinite; }
 
 @media(max-width:620px) {
   .result-tools { margin-left:-2px; margin-right:-2px; padding:10px; border-radius:14px; }
@@ -975,7 +975,7 @@ html { scroll-behavior: smooth; }
 }
 .stops-btn.active {
   border-color: var(--color-primary);
-  background: #fff1f2;
+  background: #F2F7FE;
   color: var(--color-primary);
 }
 .time-bands {
@@ -998,7 +998,7 @@ html { scroll-behavior: smooth; }
 }
 .time-band.active {
   border-color: var(--color-primary);
-  background: #fff1f2;
+  background: #F2F7FE;
   color: var(--color-primary);
 }
 .time-band-title { display: block; font-size: 9px; color: #94a3b8; }
@@ -1166,7 +1166,7 @@ html { scroll-behavior: smooth; }
   cursor: pointer;
 }
 .fare-card-v2-expand-row::-webkit-details-marker { display: none; }
-.fare-card-v2-expand-row:focus-visible { outline: 2px solid #b91c1c; outline-offset: -3px; }
+.fare-card-v2-expand-row:focus-visible { outline: 2px solid #1C63B9; outline-offset: -3px; }
 .fare-card-v2-supplier { min-width: 0; font-size: 11px; color: #64748b; overflow-wrap: anywhere; }
 .fare-card-v2-expand-indicator { display: inline-block; font-size: 16px; line-height: 1; transition: transform .2s ease; }
 .fare-card-v2-details[open] .fare-card-v2-expand-indicator { transform: rotate(180deg); }
@@ -1245,7 +1245,7 @@ html { scroll-behavior: smooth; }
   font-family: var(--font-body);
   user-select: none;
 }
-.toggle-pill.on { border-color: var(--color-primary); background: #fff1f2; color: var(--color-primary); }
+.toggle-pill.on { border-color: var(--color-primary); background: #EEF4FB; color: var(--color-primary); }
 .toggle-pill input { display: none; }
 .toggle-pill-icon { font-size: 14px; }
 .special-fare-select {
@@ -1478,7 +1478,7 @@ html { scroll-behavior: smooth; }
 
 /* Phase 1: homepage presentation only. Shared public-page controls retain their rules. */
 .home-account-link { display: none; }
-.site-nav .nav-link-active { color: #b91c1c; font-weight: 700; }
+.site-nav .nav-link-active { color: #1C63B9; font-weight: 700; }
 
 @media (min-width: 1024px) {
   body:has(.home-phase1) .site-header {
@@ -1500,8 +1500,8 @@ html { scroll-behavior: smooth; }
   body:has(.home-phase1) .site-logo-link .site-logo { transition: transform .22s ease; }
   body:has(.home-phase1) .site-logo-link:hover .site-logo { transform: scale(1.05); }
   body:has(.home-phase1) .site-logo-link:hover .site-brand-name,
-  body:has(.home-phase1) .site-logo-link:focus-visible .site-brand-name { color: #b91c1c; }
-  body:has(.home-phase1) .site-logo-link:focus-visible { outline: 2px solid #b91c1c; outline-offset: 4px; }
+  body:has(.home-phase1) .site-logo-link:focus-visible .site-brand-name { color: #0A3A75; }
+  body:has(.home-phase1) .site-logo-link:focus-visible { outline: 2px solid #0A3A75; outline-offset: 4px; }
   body:has(.home-phase1) .site-nav { gap: 6px; }
   body:has(.home-phase1) .site-nav .nav-link {
     border-radius: 9px;
@@ -1513,11 +1513,11 @@ html { scroll-behavior: smooth; }
   body:has(.home-phase1) .site-nav .nav-link:hover,
   body:has(.home-phase1) .site-nav .nav-link:focus-visible {
     background: #f1f5f9;
-    color: #b91c1c;
+    color: #1C63B9;
   }
   body:has(.home-phase1) .site-nav .nav-link-active {
-    background: #fff1f2;
-    color: #b91c1c;
+    background: #F2F7FE;
+    color: #1C63B9;
   }
   body:has(.home-phase1) .site-nav .home-account-link {
     display: inline-flex;
@@ -1567,13 +1567,13 @@ html { scroll-behavior: smooth; }
   .home-phase1 .search-widget .toggle-pill { width: fit-content; padding-inline: 14px; }
   .home-phase1 .search-widget .special-fare-select { padding-left: 14px; padding-right: 32px; }
   .home-phase1 .search-widget .search-btn {
-    background: #d71920;
+    background: var(--color-primary);
     min-width: 186px;
     min-height: 54px;
     border-radius: 9px;
-    box-shadow: 0 6px 15px rgba(215, 25, 32, .17);
+    box-shadow: 0 6px 15px rgba(13,75,150,.17);
   }
-  .home-phase1 .search-widget .search-btn:hover { background: #b91c1c; }
+  .home-phase1 .search-widget .search-btn:hover { background: #0A3A75; }
 
   .home-phase1 .trust-bar {
     gap: clamp(16px, 2.8vw, 44px);
@@ -1632,7 +1632,7 @@ html { scroll-behavior: smooth; }
 .popular-route-arrow { display: none; }
 .popular-route-journey, .popular-route-view { display: none; }
 .popular-route-card:focus-visible {
-  outline: 3px solid #b91c1c;
+  outline: 3px solid #1C63B9;
   outline-offset: 3px;
 }
 
@@ -1653,7 +1653,7 @@ html { scroll-behavior: smooth; }
   .home-phase1 .benefit-card + .benefit-card { border-left: 1px solid #e2e8f0; }
   .home-phase1 .benefit-card:hover { transform: none; border-color: #e2e8f0; box-shadow: none; }
   .home-phase1 .benefit-icon { display: none; }
-  .home-phase1 .benefit-icon-desktop { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: #fff1f2; color: #b91c1c; }
+  .home-phase1 .benefit-icon-desktop { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: #F2F7FE; color: #1C63B9; }
   .home-phase1 .benefit-symbol { width: 23px; height: 23px; }
   .home-phase1 .benefit-card h3 { margin-top: 18px; font-size: 16px; }
   .home-phase1 .benefit-card p { max-width: 260px; font-size: 14px; line-height: 1.6; }
@@ -1725,7 +1725,7 @@ html { scroll-behavior: smooth; }
     height: 34px;
     border-radius: 50%;
     background: #fff;
-    color: #a31621;
+    color: #1656A3;
     box-shadow: 0 2px 9px rgba(15, 23, 42, .18);
     transform: translate(-50%, -50%);
     transition: transform .22s ease;
@@ -1762,7 +1762,7 @@ html { scroll-behavior: smooth; }
   .home-phase1 .popular-route-card:hover .popular-route-plane,
   .home-phase1 .popular-route-card:focus-visible .popular-route-plane { transform: translate(calc(-50% + 3px), -50%); }
   .home-phase1 .popular-route-card:hover .popular-route-view,
-  .home-phase1 .popular-route-card:focus-visible .popular-route-view { color: #a31621; }
+  .home-phase1 .popular-route-card:focus-visible .popular-route-view { color: #1656A3; }
   .home-phase1 .popular-routes-section > .text-link {
     display: inline-block;
     margin-top: 18px;
@@ -1848,8 +1848,8 @@ html { scroll-behavior: smooth; }
     border-radius: 8px;
     font-size: 14px;
   }
-  body:has(.home-phase1) .home-mobile-menu-panel .nav-link-active { background: #fff1f2; }
-  body:has(.home-phase1) .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+  body:has(.home-phase1) .home-mobile-menu-panel .nav-link-active { background: #F2F7FE; }
+  body:has(.home-phase1) .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 
   .home-phase1 .home-shell { padding-inline: 20px; }
   .home-phase1 .hero-photo { min-height: 520px; }
@@ -1865,7 +1865,7 @@ html { scroll-behavior: smooth; }
   .home-phase1 .popular-route-city::after { position: absolute; inset: 35% 0 0; content: ""; background: linear-gradient(transparent, rgba(8, 22, 42, .72)); }
   .home-phase1 .popular-route-city img { width: 100%; height: 100%; object-fit: cover; }
   .home-phase1 .popular-route-city-name { position: absolute; z-index: 1; bottom: 10px; left: 10px; right: 6px; color: #fff; font-size: 14px; font-weight: 700; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
-  .home-phase1 .popular-route-plane { position: absolute; z-index: 2; top: 50%; left: 50%; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #fff; color: #a31621; box-shadow: 0 2px 9px rgba(15,23,42,.18); transform: translate(-50%, -50%); }
+  .home-phase1 .popular-route-plane { position: absolute; z-index: 2; top: 50%; left: 50%; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #fff; color: #1656A3; box-shadow: 0 2px 9px rgba(15,23,42,.18); transform: translate(-50%, -50%); }
   .home-phase1 .popular-route-title { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .home-phase1 .popular-route-details { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 3px 2px; }
   .home-phase1 .popular-route-fare { font-size: 13px; font-weight: 650; }
@@ -1877,7 +1877,7 @@ html { scroll-behavior: smooth; }
   .home-phase1 .benefit-card { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
   .home-phase1 .benefit-card:hover { transform: none; border: 0; box-shadow: none; }
   .home-phase1 .benefit-icon { display: none; }
-  .home-phase1 .benefit-icon-desktop { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: #fff1f2; color: #b91c1c; }
+  .home-phase1 .benefit-icon-desktop { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: #F2F7FE; color: #1C63B9; }
   .home-phase1 .benefit-symbol { width: 23px; height: 23px; }
   .home-phase1 .journey-card::after { display: none; }
 }
@@ -2005,7 +2005,7 @@ html { scroll-behavior: smooth; }
   border: 1px solid #e2e8f0; border-radius: 9px; background: #fff;
   color: #334155; font-size: 12px;
 }
-.flight-results-page .search-page-modify-link:hover { border-color: #e31e24; color: #b91c1c; }
+.flight-results-page .search-page-modify-link:hover { border-color: #0D4B96; color: #0A3A75; }
 .flight-results-page .search-results-layout { grid-template-columns: minmax(250px,270px) minmax(0,1fr); gap: 22px; }
 .flight-results-page .search-results-column { min-width: 0; }
 .flight-results-page .filter-sidebar { top: 82px; padding: 20px; border-color: #e2e8f0; box-shadow: 0 4px 18px rgba(15,23,42,.035); }
@@ -2014,7 +2014,7 @@ html { scroll-behavior: smooth; }
 .flight-results-page .filter-sidebar-title a { font-size: 11px; }
 .flight-results-page .filter-section { padding: 16px 0; border-color: #e2e8f0; }
 .flight-results-page .filter-section-label { margin-bottom: 10px; color: #334155; font-size: 11px; }
-.flight-results-page .filter-section :is(.stops-btn,.time-band,.airport-select select):focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+.flight-results-page .filter-section :is(.stops-btn,.time-band,.airport-select select):focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 .flight-results-page .filter-option { border-radius: 6px; }
 .flight-results-page .date-switcher { margin-bottom: 18px !important; }
 .flight-results-page .date-switcher button { min-height: 54px; border-radius: 9px; }
@@ -2026,7 +2026,7 @@ html { scroll-behavior: smooth; }
 .flight-results-page .filter-option input[type="checkbox"] { width: 17px; height: 17px; }
 .flight-results-page .sort-tabs { align-items: center; gap: 5px; padding: 5px; margin-bottom: 14px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff; }
 .flight-results-page .sort-tab { margin: 0; padding: 10px 14px; border: 0; border-radius: 8px; font-size: 12px; }
-.flight-results-page .sort-tab.active { background: #fff1f2; color: #b91c1c; }
+.flight-results-page .sort-tab.active { background: #F2F7FE; color: #1C63B9; }
 .flight-results-page .results-count-badge { margin-left: auto; white-space: nowrap; }
 .flight-results-page .fare-card-v2 { border-width: 1px; }
 .flight-results-page .fare-card-v2-main { grid-template-columns: minmax(105px,135px) minmax(225px,1fr) minmax(90px,auto) minmax(130px,auto); gap: 14px; padding: 20px; }
@@ -2040,18 +2040,18 @@ html { scroll-behavior: smooth; }
 .flight-results-page .fare-card-v2-tags { align-items: flex-start; }
 .flight-results-page .no-results { max-width: 720px; margin-inline: 0; padding: 24px 28px; border-width: 1px; text-align: left; box-shadow: 0 4px 18px rgba(15,23,42,.035); }
 .flight-results-page .no-results-journey { display: flex; align-items: center; gap: 12px; color: #0f172a; font-size: 19px; font-weight: 800; letter-spacing: -.025em; }
-.flight-results-page .no-results-route-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #fff1f2; color: #b91c1c; font-size: 15px; }
+.flight-results-page .no-results-route-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #F2F7FE; color: #1C63B9; font-size: 15px; }
 .flight-results-page .no-results-trip-meta { margin: 5px 0 18px; padding-bottom: 17px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 12px; line-height: 1.5; }
 .flight-results-page .no-results h2 { margin: 0 0 6px; font-size: 19px; }
 .flight-results-page .no-results p { max-width: 570px; margin: 0 0 17px; line-height: 1.5; }
 .flight-results-page .no-results-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .flight-results-page .no-results-action { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; margin: 0; padding: 9px 18px; border-radius: 9px; text-decoration: none; }
 .flight-results-page .no-results-secondary { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 9px 14px; border: 1px solid #dbe3ec; border-radius: 9px; background: #fff; color: #334155; font: inherit; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
-.flight-results-page .no-results-secondary:hover { border-color: #b91c1c; color: #b91c1c; }
+.flight-results-page .no-results-secondary:hover { border-color: #1C63B9; color: #1C63B9; }
 .flight-results-page .no-results .no-results-reference { margin: 16px 0 0; color: #64748b; font-size: 11px; overflow-wrap: anywhere; }
-.flight-results-page .no-results-actions :is(a,button):focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+.flight-results-page .no-results-actions :is(a,button):focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 .flight-results-page .filter-backdrop, .flight-results-page .filter-close, .flight-results-page .filter-apply { display: none; }
-.flight-results-page :is(.sort-tab,.mobile-filter-toggle,.filter-close,.filter-apply,.fare-card-v2-book,.search-page-modify-link):focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+.flight-results-page :is(.sort-tab,.mobile-filter-toggle,.filter-close,.filter-apply,.fare-card-v2-book,.search-page-modify-link):focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 
 /* All public routes use the shared navigation's same route-derived active state. */
 @media (max-width: 767px) {
@@ -2067,8 +2067,8 @@ html { scroll-behavior: smooth; }
   body:not(:has(.home-phase1)) .home-mobile-menu-icon i { width: 17px; height: 2px; border-radius: 2px; background: currentColor; }
   body:not(:has(.home-phase1)) .home-mobile-menu-panel { position: absolute; z-index: 100; top: calc(100% + 7px); right: 0; width: min(300px,calc(100vw - 24px)); display: grid; padding: 8px; border: 1px solid #dbe3ec; border-radius: 12px; background: #fff; box-shadow: 0 14px 36px rgba(15,23,42,.18); }
   body:not(:has(.home-phase1)) .home-mobile-menu-panel .nav-link { display: block; padding: 12px 14px; border-radius: 8px; font-size: 14px; }
-  body:not(:has(.home-phase1)) .home-mobile-menu-panel .nav-link-active { background: #fff1f2; }
-  body:not(:has(.home-phase1)) .site-nav :is(a,summary):focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+  body:not(:has(.home-phase1)) .home-mobile-menu-panel .nav-link-active { background: #F2F7FE; }
+  body:not(:has(.home-phase1)) .site-nav :is(a,summary):focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 }
 
 @media (max-width: 1150px) and (min-width: 901px) {
@@ -2083,7 +2083,7 @@ html { scroll-behavior: smooth; }
   .flight-results-page .filter-backdrop { display: block; position: fixed; inset: 0; z-index: 80; background: rgba(8,22,42,.5); border: 0; cursor: pointer; }
   .flight-results-page .filter-sidebar.open { display: block; position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 81; width: 100%; max-height: min(88vh,820px); overflow-y: auto; border-radius: 18px 18px 0 0; padding: 22px max(20px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)); }
   .flight-results-page .filter-close { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #334155; font-size: 23px; cursor: pointer; }
-  .flight-results-page .filter-apply { display: block; width: 100%; min-height: 48px; margin-top: 12px; border: 0; border-radius: 9px; background: #e31e24; color: #fff; font-weight: 700; cursor: pointer; }
+  .flight-results-page .filter-apply { display: block; width: 100%; min-height: 48px; margin-top: 12px; border: 0; border-radius: 9px; background: #0D4B96; color: #fff; font-weight: 700; cursor: pointer; }
   .flight-results-page .fare-card-v2-main { grid-template-columns: minmax(0,1fr) minmax(155px,auto); grid-template-rows: auto auto auto; gap: 14px; }
   .flight-results-page .fare-card-v2-airline { grid-column: 1 / -1; grid-row: 1; flex-direction: row; align-items: center; gap: 9px; }
   .flight-results-page .fare-card-v2-airline-logo { margin: 0; }
@@ -2153,7 +2153,7 @@ html { scroll-behavior: smooth; }
   }
   body .site-nav > .nav-link:hover,
   body .site-nav > .nav-link:focus-visible,
-  body .site-nav > .nav-link-active { color: #b91c1c; background: transparent; }
+  body .site-nav > .nav-link-active { color: #1C63B9; background: transparent; }
   body .site-nav > .nav-link:not(.home-account-link):hover { background: #f7f9fc; border-radius: 9px; }
   body:has(.home-phase1) .site-nav > .nav-link { min-height: 52px; padding: 14px 13px; border-radius: 0; font-size: 14px; }
   body .site-nav > .nav-link-active::after {
@@ -2164,7 +2164,7 @@ html { scroll-behavior: smooth; }
     left: 13px;
     height: 3px;
     border-radius: 2px;
-    background: #b91c1c;
+    background: #1C63B9;
   }
   body .site-nav > .home-account-link {
     display: inline-flex;
@@ -2185,7 +2185,7 @@ html { scroll-behavior: smooth; }
     background: #dbe3ec;
   }
   body .site-nav > .home-account-link:hover,
-  body .site-nav > .home-account-link:focus-visible { color: #b91c1c; background: #f7f9fc; }
+  body .site-nav > .home-account-link:focus-visible { color: #1C63B9; background: #f7f9fc; }
   body .home-account-link .site-account-icon-wrap {
     display: grid;
     place-items: center;
@@ -2196,7 +2196,7 @@ html { scroll-behavior: smooth; }
     background: #f7f9fc;
     transition: border-color .22s ease, background-color .22s ease;
   }
-  body .home-account-link:hover .site-account-icon-wrap { border-color: #e7b9bc; background: #fff1f2; }
+  body .home-account-link:hover .site-account-icon-wrap { border-color: #B9CEE7; background: #F2F7FE; }
   body:has(.home-phase1) .site-nav > .nav-link:hover,
   body:has(.home-phase1) .site-nav > .nav-link:focus-visible,
   body:has(.home-phase1) .site-nav > .nav-link-active { background: transparent; }
@@ -2235,7 +2235,7 @@ html { scroll-behavior: smooth; }
   body .home-mobile-account-link .site-account-icon-wrap { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #f3f6fa; }
   body .home-mobile-menu summary { background: #f5f7fa; }
   body:has(.home-phase1) .home-mobile-menu summary { background: #f5f7fa; }
-  body .home-mobile-menu[open] summary { border-color: #b91c1c; color: #b91c1c; background: #fff; }
+  body .home-mobile-menu[open] summary { border-color: #1C63B9; color: #1C63B9; background: #fff; }
   body .home-mobile-menu summary { list-style: none; }
   body .home-mobile-menu summary::-webkit-details-marker { display: none; }
   body .home-mobile-menu-icon { display: grid; gap: 3px; width: 17px; }
@@ -2254,8 +2254,8 @@ html { scroll-behavior: smooth; }
     box-shadow: 0 18px 42px rgba(15,23,42,.16);
   }
   body .home-mobile-menu-panel .nav-link { display: block; min-height: 48px; padding: 14px 16px; border-radius: 9px; font-size: 14px; font-weight: 650; }
-  body .home-mobile-menu-panel .nav-link:hover { color: #b91c1c; background: #f7f9fc; }
-  body .home-mobile-menu-panel .nav-link-active { color: #b91c1c; background: transparent; box-shadow: inset 3px 0 #b91c1c; }
+  body .home-mobile-menu-panel .nav-link:hover { color: #1C63B9; background: #f7f9fc; }
+  body .home-mobile-menu-panel .nav-link-active { color: #1C63B9; background: transparent; box-shadow: inset 3px 0 #1C63B9; }
   body:has(.home-phase1) .home-mobile-menu-panel { border-radius: 14px; box-shadow: 0 18px 42px rgba(15,23,42,.16); }
   body:has(.home-phase1) .home-mobile-menu-panel .nav-link { min-height: 48px; padding: 14px 16px; border-radius: 9px; font-weight: 650; }
   body:has(.home-phase1) .home-mobile-menu-panel .nav-link-active { background: transparent; }
@@ -2270,7 +2270,7 @@ html { scroll-behavior: smooth; }
   body .home-mobile-menu summary { padding-inline: 9px; font-size: 12px; }
 }
 
-body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   body .site-nav > .nav-link,
   body .home-account-link .site-account-icon-wrap { transition: none; }
@@ -2313,12 +2313,12 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
     transition: color .22s ease, background-color .22s ease;
   }
   body .site-nav-links .nav-link:hover,
-  body .site-nav-links .nav-link:focus-visible { color: #bd1e2d; background: #fff5f5; }
+  body .site-nav-links .nav-link:focus-visible { color: #1E66BD; background: #F6FAFE; }
   body .site-nav-links .nav-link-active,
   body:has(.home-phase1) .site-nav-links .nav-link-active,
   body .site-nav-links .nav-link-active:hover {
-    color: #bf1e2a;
-    background: #fff0f1;
+    color: #1E67BF;
+    background: #F1F7FE;
   }
   body .site-nav > .home-account-link,
   body:has(.home-phase1) .site-nav > .home-account-link {
@@ -2336,7 +2336,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
   }
   body .site-nav > .home-account-link::before { content: none; }
   body .home-account-link .site-account-icon-wrap { width: 29px; height: 29px; background: #f5f7fa; }
-  body .site-nav > .home-account-link:hover { border-color: #e8b6bc; background: #fff7f7; }
+  body .site-nav > .home-account-link:hover { border-color: #B6CDE8; background: #F8FBFE; }
 }
 @media (max-width: 1023px) {
   body .site-nav-links { display: none; }
@@ -2353,8 +2353,8 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
   }
   body .home-mobile-menu-panel .nav-link-active,
   body:has(.home-phase1) .home-mobile-menu-panel .nav-link-active {
-    color: #bf1e2a;
-    background: #fff0f1;
+    color: #1E67BF;
+    background: #F1F7FE;
     box-shadow: none;
   }
   body .home-mobile-menu-panel .home-menu-account-link { margin-top: 5px; border-top: 1px solid #e7edf4; border-radius: 0 0 9px 9px; }
@@ -2377,7 +2377,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .flight-results-page .search-page-summary h1 { font-size: clamp(27px,2.6vw,35px); color: #14243d; letter-spacing: -.04em; }
 .flight-results-page .results-meta { margin: 5px 0 14px; color: #344b68; font-size: 14px; font-weight: 500; }
 .flight-results-page .search-page-modify-link { width: fit-content; min-height: 42px; padding: 9px 16px; border-color: #d7e3ef; color: #182d49; font-size: 13px; box-shadow: 0 2px 5px rgba(25,46,70,.035); }
-.flight-results-page .search-page-modify-link span { color: #c51b28; font-size: 18px; line-height: 1; }
+.flight-results-page .search-page-modify-link span { color: #1B68C5; font-size: 18px; line-height: 1; }
 .flight-results-page .search-results-layout { grid-template-columns: minmax(270px, 316px) minmax(0,1fr); gap: 20px; }
 .flight-results-page .filter-sidebar { top: 16px; padding: 19px 18px 10px; border-color: #d9e4f0; border-radius: 16px; box-shadow: 0 5px 22px rgba(22,46,78,.035); }
 .flight-results-page .filter-sidebar-title { margin: 0 0 10px; font-size: 18px; font-weight: 800; }
@@ -2390,7 +2390,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .flight-results-page .airport-select select, .flight-results-page .result-swap, .flight-results-page .stops-btn, .flight-results-page .time-band { border-color: #d5e0ee; }
 .flight-results-page .sort-tabs { gap: 0; min-height: 47px; margin: 0 0 16px; padding: 0 4px; border: 0; border-bottom: 1px solid #dce6f0; border-radius: 0; background: transparent; }
 .flight-results-page .sort-tab { min-height: 46px; padding: 12px 18px 10px; border-bottom: 2px solid transparent; border-radius: 0; color: #263a52; font-size: 13px; text-decoration: none; }
-.flight-results-page .sort-tab.active { border-bottom-color: #e31e24; background: transparent; color: #cc1721; }
+.flight-results-page .sort-tab.active { border-bottom-color: #0D4B96; background: transparent; color: #0A3A75; }
 .flight-results-page .results-count-badge { padding: 5px 12px; border-radius: 18px; background: #eef3f9; color: #374b63; font-size: 12px; font-weight: 700; }
 .flight-results-page .fare-card-v2 { border-color: #dce6f1; border-radius: 16px; box-shadow: 0 4px 17px rgba(18,43,75,.035); }
 .flight-results-page .fare-card-v2-main { gap: 16px; padding: 22px; }
@@ -2405,13 +2405,13 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .flight-results-page .no-results-airport { display: flex; flex-direction: column; min-width: 0; }
 .flight-results-page .no-results-airport strong { overflow: hidden; color: #1c304c; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .flight-results-page .no-results-airport span { color: #71839a; font-size: 11px; }
-.flight-results-page .no-results-route-icon { width: auto; height: auto; background: none; color: #bf2530; font-size: 15px; white-space: nowrap; }
+.flight-results-page .no-results-route-icon { width: auto; height: auto; background: none; color: #256BBF; font-size: 15px; white-space: nowrap; }
 .flight-results-page .no-results-trip-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 7px 0; width: 100%; margin: 10px 0 0; padding: 11px 0 13px; border-top: 1px solid #e0e9f4; border-bottom: 0; color: #2f4560; font-size: 12px; font-weight: 600; }
 .flight-results-page .no-results-trip-meta span { padding: 0 12px; }
 .flight-results-page .no-results-trip-meta span + span { border-left: 1px solid #ccd8e8; }
 .flight-results-page .no-results-actions { justify-content: center; width: min(670px,100%); margin-top: 17px; gap: 10px; }
 .flight-results-page .no-results-actions > * { flex: 1 1 150px; }
-.flight-results-page .no-results-action { min-height: 48px; background: #e31e24; font-size: 13px; }
+.flight-results-page .no-results-action { min-height: 48px; background: #0D4B96; font-size: 13px; }
 .flight-results-page .no-results-secondary { min-height: 48px; border-color: #d2dfef; color: #243750; font-size: 13px; }
 .flight-results-page .no-results .no-results-reference { margin: 15px 0 0; color: #697e95; text-align: center; }
 
@@ -2454,9 +2454,9 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .flight-results-page .date-navigation .date-switcher button span { font-size: 9px; }
 .flight-results-page .date-navigation .date-switcher button strong { font-size: 11px; }
 .flight-results-page .date-range-arrow { display: grid; place-items: center; padding: 0; border: 1px solid #d9e4f1; border-radius: 9px; background: #fff; color: #263a52; font: inherit; font-size: 21px; cursor: pointer; }
-.flight-results-page .date-range-arrow:hover:not(:disabled) { border-color: #e31e24; color: #b91c1c; }
+.flight-results-page .date-range-arrow:hover:not(:disabled) { border-color: #0D4B96; color: #0A3A75; }
 .flight-results-page .date-range-arrow:disabled, .flight-results-page .date-switcher button:disabled { opacity: .45; cursor: not-allowed; }
-.flight-results-page .date-navigation button:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+.flight-results-page .date-navigation button:focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 .flight-results-page .filter-sidebar > .result-refresh { justify-content: flex-start; margin: -2px 0 10px; }
 @media (max-width: 900px) {
   .flight-results-page .date-navigation { grid-template-columns: 44px minmax(0,1fr) 44px; gap: 6px; }
@@ -2465,7 +2465,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 
 /* Multi-city uses full-width segment rows; the other trip modes keep their layout. */
 .home-phase1 .search-widget .sw-grid-multicity { gap: 0; }
-.sw-grid-multicity .sw-flight-label { color: #a91b31; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sw-grid-multicity .sw-flight-label { color: #1B5BA9; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .sw-grid-multicity .sw-field-label { font-size: 11px; color: #6b7280; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .sw-grid-multicity .sw-multicity { min-width: 0; display: flex; flex-direction: column; gap: 0; }
 .sw-grid-multicity .sw-leg-heading { display: flex; align-items: center; justify-content: space-between; grid-column: 1 / -1; min-height: 28px; }
@@ -2508,11 +2508,11 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 }
 
 /* ── Plain-language trip search (✨ box above the flight form) ─────────── */
-.ai-search { margin-bottom: 16px; padding: 12px; border-radius: 14px; background: linear-gradient(135deg,#fff7ed,#fef2f2); border: 1px solid #fed7aa; }
+.ai-search { margin-bottom: 16px; padding: 12px; border-radius: 14px; background: linear-gradient(135deg,#fff7ed,#F2F7FE); border: 1px solid #fed7aa; }
 .ai-search-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ai-search-icon { font-size: 18px; flex-shrink: 0; }
 .ai-search-input { flex: 1; min-width: 0; height: 44px; border: 1px solid #fdba74; border-radius: 10px; padding: 0 12px; font-size: 15px; background: #fff; color: #0f172a; }
-.ai-search-input:focus { outline: none; border-color: #e31e24; box-shadow: 0 0 0 3px rgba(227,30,36,.12); }
+.ai-search-input:focus { outline: none; border-color: #0D4B96; box-shadow: 0 0 0 3px rgba(13,75,150,.12); }
 .ai-search-btn { flex-shrink: 0; height: 44px; border: 0; border-radius: 10px; padding: 0 16px; background: #0f172a; color: #fff; font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 .ai-search-btn:disabled { opacity: .55; cursor: default; }
 .ai-search-hint { margin: 6px 2px 0; font-size: 12px; color: #9a3412; }
@@ -2521,12 +2521,12 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .ai-search-result b { display: block; font-size: 14px; color: #0f172a; }
 .ai-search-result small { display: block; margin-top: 2px; font-size: 12px; color: #b45309; }
 .ai-search-ready { border-color: #86efac; }
-.ai-search-go { border: 0; border-radius: 10px; padding: 10px 16px; background: #e31e24; color: #fff; font-weight: 800; cursor: pointer; }
+.ai-search-go { border: 0; border-radius: 10px; padding: 10px 16px; background: #0D4B96; color: #fff; font-weight: 800; cursor: pointer; }
 @media (max-width: 560px) { .ai-search-row { flex-wrap: wrap; } .ai-search-input { flex-basis: calc(100% - 30px); } .ai-search-btn { width: 100%; justify-content: center; } }
 
 /* Fare options of the same flight (Saver / Standard / Flexi…) */
 .fare-options { border-top: 1px solid #eef2f7; }
-.fare-options > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; font-size: 13px; font-weight: 800; color: #b91c1c; background: #fff7f7; }
+.fare-options > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; font-size: 13px; font-weight: 800; color: #1C63B9; background: #F8FBFE; }
 .fare-options > summary::-webkit-details-marker { display: none; }
 .fare-options[open] .fare-options-toggle { transform: rotate(180deg); }
 .fare-options-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(170px, 1fr); gap: 10px; overflow-x: auto; padding: 12px 16px 14px; scroll-snap-type: x mandatory; }
@@ -2538,14 +2538,14 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .fare-option ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #334155; }
 .fare-option li.no { color: #94a3b8; }
 .fare-option-price { font-size: 17px; font-weight: 800; color: #0f172a; margin-top: auto; }
-.fare-option-book { display: block; text-align: center; background: #E31E24; color: #fff; font-weight: 800; font-size: 14px; border-radius: 10px; padding: 9px; text-decoration: none; }
+.fare-option-book { display: block; text-align: center; background: #0D4B96; color: #fff; font-weight: 800; font-size: 14px; border-radius: 10px; padding: 9px; text-decoration: none; }
 /* Same flight, several fares: radio list, cheapest selected, "+N more fares". */
 .fare-variants { padding: 4px 16px 14px; }
 .fare-variants-box { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; position: relative; padding-bottom: 18px; }
 .fare-variant { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid #eef2f7; }
 .fare-variant:last-of-type { border-bottom: 0; }
-.fare-variant.selected { background: #fff7f7; }
-.fare-variant input[type=radio] { accent-color: #E31E24; width: 20px; height: 20px; margin: 3px 0 0; flex-shrink: 0; }
+.fare-variant.selected { background: #F8FBFE; }
+.fare-variant input[type=radio] { accent-color: #0D4B96; width: 20px; height: 20px; margin: 3px 0 0; flex-shrink: 0; }
 .fare-variant-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .fare-variant-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .fare-variant-price { font-size: 18px; font-weight: 800; color: #0f172a; }
@@ -2553,7 +2553,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .fare-variant-diff { font-size: 11px; font-weight: 700; color: #b45309; }
 .fare-variant-perks { font-size: 12px; color: #64748b; }
 .fare-variant .fare-rules { margin-top: 2px; }
-.fare-variant-book { align-self: center; background: #E31E24; color: #fff; font-weight: 800; font-size: 14px; border-radius: 10px; padding: 10px 20px; text-decoration: none; text-transform: uppercase; flex-shrink: 0; }
+.fare-variant-book { align-self: center; background: #0D4B96; color: #fff; font-weight: 800; font-size: 14px; border-radius: 10px; padding: 10px 20px; text-decoration: none; text-transform: uppercase; flex-shrink: 0; }
 .fare-variants-toggle { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 50%); border: 0; border-radius: 999px; background: #475569; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
 .fare-variants-seats { margin-top: 16px; font-size: 12px; font-weight: 700; color: #d97706; }
 .fare-rules button { background: none; border: 0; padding: 0; color: #1d4ed8; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
@@ -2568,7 +2568,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
   color: #1d2939; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
 }
 .nav-currency select:hover { border-color: #98a2b3; }
-.nav-currency select:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+.nav-currency select:focus-visible { outline: 2px solid #1C63B9; outline-offset: 2px; }
 .nav-currency .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Keep the two desktop account controls aligned without changing mobile navigation. */
@@ -2602,8 +2602,8 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .footer-agent-cta {
   position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
   transform: translateY(-36px); margin-bottom: -12px; padding: 28px 32px; border-radius: 20px; color: #fff;
-  background: radial-gradient(circle at 92% 10%, rgba(245,197,24,.35), transparent 42%), linear-gradient(120deg, var(--color-primary) 0%, #c8141a 45%, var(--color-secondary) 100%);
-  box-shadow: 0 18px 40px -18px rgba(227,30,36,.6);
+  background: radial-gradient(circle at 92% 10%, rgba(102,184,232,.35), transparent 42%), linear-gradient(120deg, var(--color-primary) 0%, #0A3A75 45%, var(--color-secondary) 100%);
+  box-shadow: 0 18px 40px -18px rgba(13,75,150,.6);
 }
 .footer-agent-cta::after { content: ""; position: absolute; right: -60px; bottom: -80px; width: 220px; height: 220px; border-radius: 50%; border: 36px solid rgba(255,255,255,.08); pointer-events: none; }
 .footer-agent-copy { position: relative; z-index: 1; min-width: 0; flex: 1 1 380px; }
@@ -2614,7 +2614,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #b91c1c; outli
 .footer-agent-perks svg { flex-shrink: 0; color: var(--color-accent); }
 .footer-agent-actions { position: relative; z-index: 1; display: flex; gap: 10px; flex-wrap: wrap; }
 .footer-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 20px; border-radius: 12px; font-weight: 700; font-size: 14px; white-space: nowrap; transition: transform .2s ease, background .2s ease, box-shadow .2s ease; }
-.site-footer .footer-btn-primary { background: #fff; color: #b91c1c; box-shadow: 0 6px 16px -6px rgba(0,0,0,.35); }
+.site-footer .footer-btn-primary { background: #fff; color: #1C63B9; box-shadow: 0 6px 16px -6px rgba(0,0,0,.35); }
 .site-footer .footer-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -8px rgba(0,0,0,.45); }
 .site-footer .footer-btn-primary svg { transition: transform .2s ease; }
 .site-footer .footer-btn-primary:hover svg { transform: translateX(3px); }

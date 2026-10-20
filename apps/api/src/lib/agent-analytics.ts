@@ -3,7 +3,7 @@
 // bookings tagged with the agency (flight_data.leadAgent.id).
 
 import { and, eq, gte, inArray, or, sql } from "drizzle-orm";
-import { agentActivityDaily, bookings } from "@poomas/db/schema";
+import { agentActivityDaily, bookings } from "@zamrabooking/db/schema";
 import type { Variables } from "../types.js";
 
 type Db = Variables["db"];

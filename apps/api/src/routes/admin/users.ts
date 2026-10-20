@@ -13,7 +13,7 @@ import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { users } from "@poomas/db/schema";
+import { users } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../../types.js";
 import {
   ADMIN_ROLES, adminUrl, forgetAdminUser, loadAdminUser, STAFF_SECTION_KEYS, STAFF_SECTIONS, tempPassword,

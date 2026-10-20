@@ -22,9 +22,9 @@ import { SignJWT } from "jose";
 import {
   agentDocuments, agentQuotes, agentRequestMessages, agentRequests, agentTravellers, agents, bookings, payments,
   users, walletAccounts, walletTransactions, markupRules, tenants,
-} from "@poomas/db/schema";
+} from "@zamrabooking/db/schema";
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
-import type { Db } from "@poomas/db";
+import type { Db } from "@zamrabooking/db";
 import type { Env, Variables } from "../types.js";
 import { pbkdf2HashPassword } from "./auth.js";
 import {
@@ -92,7 +92,7 @@ export function logoUrl(agentId: string, s: AgentSettings) {
 export function publicBranding(a: { id: string; businessName: string; phone: string; email: string; whatsapp: string | null; settings: unknown }) {
   const s = settingsOf(a);
   return {
-    agentId: a.id, name: s.displayName || a.businessName, logoUrl: logoUrl(a.id, s), color: s.brandColor || "#E31E24",
+    agentId: a.id, name: s.displayName || a.businessName, logoUrl: logoUrl(a.id, s), color: s.brandColor || "#0D4B96",
     phone: s.contactPhone || a.whatsapp || a.phone, email: s.contactEmail || a.email, address: s.address ?? null,
   };
 }
@@ -666,7 +666,7 @@ agentPortalRoutes.get("/bookings/:id/invoice", async (c) => {
   const [b] = await db.select().from(bookings).where(and(eq(bookings.id, c.req.param("id")), eq(bookings.tenantId, tenantId))).limit(1);
   if (!b || !b.agentId || !scope.includes(b.agentId)) return c.json({ error: "Booking not found" }, 404);
   const [a] = await db.select().from(agents).where(eq(agents.id, b.agentId)).limit(1);
-  const { bookingPassengers, bookingAmendments } = await import("@poomas/db/schema");
+  const { bookingPassengers, bookingAmendments } = await import("@zamrabooking/db/schema");
   const [pax, refunds] = await Promise.all([
     db.select({ firstName: bookingPassengers.firstName, lastName: bookingPassengers.lastName, type: bookingPassengers.passengerType }).from(bookingPassengers).where(eq(bookingPassengers.bookingId, b.id)),
     db.select({ id: bookingAmendments.id, refundAmount: bookingAmendments.refundAmount, supplierCharges: bookingAmendments.supplierCharges, refundedAt: bookingAmendments.refundedAt, refundStatus: bookingAmendments.refundStatus })

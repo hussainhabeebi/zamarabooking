@@ -2,7 +2,7 @@
 // idempotency key so a retried job or a double click never sends it twice.
 
 import { eq } from "drizzle-orm";
-import { agents, bookingAmendments, bookingPassengers, bookings } from "@poomas/db/schema";
+import { agents, bookingAmendments, bookingPassengers, bookings } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import { emailLayout, sendMail } from "./email.js";
 import { escapeHtml, WEB_URL } from "./customer-notify.js";

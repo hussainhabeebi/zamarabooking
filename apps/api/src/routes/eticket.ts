@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { bookings, bookingPassengers } from "@poomas/db/schema";
+import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 

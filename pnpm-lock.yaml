@@ -26,7 +26,7 @@ importers:
 
   apps/admin:
     dependencies:
-      '@poomas/ui':
+      '@zamrabooking/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
@@ -75,10 +75,10 @@ importers:
       '@neondatabase/serverless':
         specifier: ^0.10.0
         version: 0.10.4
-      '@poomas/db':
+      '@zamrabooking/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@poomas/suppliers':
+      '@zamrabooking/suppliers':
         specifier: workspace:*
         version: link:../../packages/suppliers
       drizzle-orm:
@@ -106,7 +106,7 @@ importers:
 
   apps/portal:
     dependencies:
-      '@poomas/ui':
+      '@zamrabooking/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
@@ -151,7 +151,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@poomas/ui':
+      '@zamrabooking/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
@@ -222,7 +222,7 @@ importers:
 
   packages/suppliers:
     dependencies:
-      '@poomas/types':
+      '@zamrabooking/types':
         specifier: workspace:*
         version: link:../types
     devDependencies:

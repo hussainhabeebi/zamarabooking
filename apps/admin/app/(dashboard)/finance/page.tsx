@@ -52,7 +52,7 @@ export default async function FinancePage() {
           <p style={{ color: "#64748b", fontSize: 13, marginBottom: 16 }}>
             Review and process cancellation refunds awaiting approval.
           </p>
-          <a href="/cancellations" style={{ color: "#E31E24", fontSize: 13, textDecoration: "none", fontWeight: 600 }}>
+          <a href="/cancellations" style={{ color: "#0D4B96", fontSize: 13, textDecoration: "none", fontWeight: 600 }}>
             View Cancellations & Refunds →
           </a>
         </div>

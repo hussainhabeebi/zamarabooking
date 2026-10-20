@@ -6,8 +6,8 @@
 // (a non-JSON response keeps its raw text and gets a .txt name), plus an index row in
 // supplier_exchanges so admin can list them per booking or search.
 
-import type { ExchangeRecorder, SupplierExchange } from "@poomas/suppliers";
-import { supplierExchanges } from "@poomas/db/schema";
+import type { ExchangeRecorder, SupplierExchange } from "@zamrabooking/suppliers";
+import { supplierExchanges } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 
 export interface ExchangeCollector { recorder: ExchangeRecorder; exchanges: SupplierExchange[] }

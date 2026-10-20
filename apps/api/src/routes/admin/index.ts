@@ -71,7 +71,7 @@ adminRoutes.get("/dashboard", async (c) => {
   requireRole("SUPER_ADMIN")(c.get("userRole"));
 
   const db = c.get("db");
-  const { bookings, tenants, agents } = await import("@poomas/db/schema");
+  const { bookings, tenants, agents } = await import("@zamrabooking/db/schema");
   const { count, sql } = await import("drizzle-orm");
 
   const [bookingCount] = await db.select({ count: count() }).from(bookings);

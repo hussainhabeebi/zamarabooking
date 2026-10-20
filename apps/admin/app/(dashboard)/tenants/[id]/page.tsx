@@ -15,7 +15,7 @@ interface Detail {
   suppliers: Array<{ supplier: string; isEnabled: boolean; priority: number }>;
 }
 
-const STATUS_COLOR: Record<string, string> = { ACTIVE: "#10B981", ONBOARDING: "#F7941D", SUSPENDED: "#EF4444", TRIAL_EXPIRED: "#9CA3AF", CLOSED: "#6B7280" };
+const STATUS_COLOR: Record<string, string> = { ACTIVE: "#10B981", ONBOARDING: "#1E88D9", SUSPENDED: "#EF4444", TRIAL_EXPIRED: "#9CA3AF", CLOSED: "#6B7280" };
 
 export default function TenantDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -117,7 +117,7 @@ export default function TenantDetailPage() {
             ))}
           </div>
         )}
-        <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Manage supplier credentials on the <a href="/suppliers" style={{ color: "#E31E24" }}>Suppliers</a> page.</p>
+        <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Manage supplier credentials on the <a href="/suppliers" style={{ color: "#0D4B96" }}>Suppliers</a> page.</p>
       </div>
 
       <div style={card}>
@@ -152,7 +152,7 @@ const dl: React.CSSProperties = { display: "grid", gridTemplateColumns: "160px 1
 const pill: React.CSSProperties = { background: "#0f172a", border: "1px solid #334155", borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 700 };
 const lbl: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, color: "#94a3b8", fontSize: 12 };
 const input: React.CSSProperties = { background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "8px 10px", color: "#f1f5f9", fontSize: 14 };
-const btn: React.CSSProperties = { background: "#E31E24", color: "#fff", border: 0, borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const btn: React.CSSProperties = { background: "#0D4B96", color: "#fff", border: 0, borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { ...btn, background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0" };
 const errBox: React.CSSProperties = { background: "rgba(239,68,68,.1)", border: "1px solid #7f1d1d", color: "#fca5a5", borderRadius: 8, padding: "10px 12px", fontSize: 13, margin: "12px 0" };
 const okBox: React.CSSProperties = { ...errBox, background: "rgba(74,222,128,.1)", border: "1px solid #166534", color: "#86efac" };

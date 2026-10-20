@@ -5,7 +5,7 @@ import { API, apiHeaders } from "../../../../lib/api";
 
 export default function NewTenantPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", slug: "", customDomain: "", plan: "TRIAL", region: "INDIA", defaultCurrency: "INR", supportEmail: "", primaryColor: "#E31E24" });
+  const [form, setForm] = useState({ name: "", slug: "", customDomain: "", plan: "TRIAL", region: "INDIA", defaultCurrency: "INR", supportEmail: "", primaryColor: "#0D4B96" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -51,7 +51,7 @@ export default function NewTenantPage() {
         </div>
         <label style={lbl}>Support email<input type="email" value={form.supportEmail} onChange={set("supportEmail")} style={input} /></label>
         <label style={lbl}>Primary colour<input value={form.primaryColor} onChange={set("primaryColor")} style={input} /></label>
-        <button disabled={busy} style={{ background: "#E31E24", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>
+        <button disabled={busy} style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>
           {busy ? "Creating…" : "Create tenant"}
         </button>
       </form>

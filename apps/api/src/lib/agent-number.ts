@@ -6,7 +6,7 @@
 // searches, checkout links and bookings.
 
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { agentActivityDaily, agents } from "@poomas/db/schema";
+import { agentActivityDaily, agents } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import type { DisplayCurrency } from "./fx.js";
 

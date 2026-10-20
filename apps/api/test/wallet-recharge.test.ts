@@ -5,7 +5,7 @@ import { bankAccountSchema, visibleAccounts, type BankAccount } from "../src/lib
 import { agentPortalRoutes } from "../src/routes/agent-portal.js";
 
 const acct = (over: Partial<BankAccount>): BankAccount => ({
-  ...bankAccountSchema.parse({ label: "ENBD · AED", bankName: "Emirates NBD", accountName: "Poomas Travel LLC", accountNumber: "1015123456789", currency: "AED" }),
+  ...bankAccountSchema.parse({ label: "ENBD · AED", bankName: "Emirates NBD", accountName: "Zamra Travels LLC", accountNumber: "1015123456789", currency: "AED" }),
   id: "a1", createdAt: "", updatedAt: "", ...over,
 });
 

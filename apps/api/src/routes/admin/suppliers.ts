@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { tenantSupplierConfigs, tenants } from "@poomas/db/schema";
+import { tenantSupplierConfigs, tenants } from "@zamrabooking/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";

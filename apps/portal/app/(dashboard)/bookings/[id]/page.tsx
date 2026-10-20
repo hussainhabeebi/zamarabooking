@@ -185,7 +185,7 @@ export default function BookingDetailPage() {
       {/* Printable branded e-ticket / invoice */}
       {print && (
         <div className="print-only" style={{ fontFamily: "Inter, Arial, sans-serif", color: "#0f172a" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `3px solid ${brand?.color ?? "#E31E24"}`, paddingBottom: 12, marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `3px solid ${brand?.color ?? "#0D4B96"}`, paddingBottom: 12, marginBottom: 16 }}>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {brand?.logoUrl && <img src={brand.logoUrl} alt="" style={{ height: 48 }} />}

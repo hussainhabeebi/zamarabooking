@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { parseHotelBookingDetails } from "@poomas/suppliers";
+import { parseHotelBookingDetails } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
 import { cityIndexStatus, hotelClient, hotelExchanges, hotelRecorder, syncCityIndex } from "../../lib/hotels.js";
 import { hotelError, logged, pollDetails } from "../hotel.js";

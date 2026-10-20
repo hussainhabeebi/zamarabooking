@@ -5,9 +5,9 @@
 import {
   TripjackHotelV3Client, validHotelId, normalizeContent, normalizeOption,
   type HotelV3Content, type HotelV3Option, type HotelV3Room,
-} from "@poomas/suppliers";
+} from "@zamrabooking/suppliers";
 import type { Env } from "../types.js";
-import type { ExchangeRecorder } from "@poomas/suppliers";
+import type { ExchangeRecorder } from "@zamrabooking/suppliers";
 import { collectExchanges, persistExchanges, persistInBackground } from "./api-exchanges.js";
 
 // ── Credentials / environment ───────────────────────────────────────────────
@@ -26,7 +26,7 @@ export async function hotelClient(env: Env, tenantId: string, recorder?: Exchang
   const saved = await savedTripjack(env, tenantId);
   return new TripjackHotelV3Client({
     apiKey:   saved?.apiKey || env.TRIPJACK_API_KEY,
-    baseUrl:  env.TRIPJACK_API_BASE_URL,   // the Poomas TripJack gateway
+    baseUrl:  env.TRIPJACK_API_BASE_URL,   // the ZamraBooking TripJack gateway
     proxyKey: env.TRIPJACK_PROXY_KEY,
     ...(recorder ? { recorder } : {}),
   });

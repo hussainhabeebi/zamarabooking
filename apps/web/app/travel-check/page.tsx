@@ -87,5 +87,5 @@ const css = `.tc{max-width:760px;padding:28px 16px 48px}.tc h1{margin:0 0 6px;fo
 .tc-list{margin:8px 0 0;padding-left:18px;color:#334155;font-size:14px;line-height:1.55}
 .tc-visa{background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:8px}.tc-visa p{margin:8px 0 0}
 .tc-badge{display:inline-block;font-size:12px;font-weight:800;border-radius:999px;padding:3px 10px}
-.tc-note{font-size:12px;color:#64748b}.tc-back{color:#E31E24;font-weight:700;text-decoration:none}
+.tc-note{font-size:12px;color:#64748b}.tc-back{color:#0D4B96;font-weight:700;text-decoration:none}
 @media(max-width:520px){.tc-facts div{grid-template-columns:1fr}}`;

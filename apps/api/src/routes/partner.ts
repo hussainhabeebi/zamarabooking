@@ -3,7 +3,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { bookings, bookingPassengers, webhookConfigs } from "@poomas/db/schema";
+import { bookings, bookingPassengers, webhookConfigs } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import { requirePartnerScope } from "../middleware/partner-api-key.js";
 import { searchRoutes } from "./search.js";

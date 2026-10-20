@@ -1,5 +1,5 @@
 {
-  "name": "@poomas/api",
+  "name": "@zamrabooking/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "hono": "^4.6.0",
     "@hono/zod-validator": "^0.4.0",
     "zod": "^3.23.0",
-    "@poomas/db": "workspace:*",
-    "@poomas/suppliers": "workspace:*",
+    "@zamrabooking/db": "workspace:*",
+    "@zamrabooking/suppliers": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "@neondatabase/serverless": "^0.10.0",
     "jose": "^5.9.0"

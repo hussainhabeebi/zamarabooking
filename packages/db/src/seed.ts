@@ -4,24 +4,24 @@ import { tenants, users, tenantSupplierConfigs, markupRules } from "./schema/ind
 const db = createDb(process.env.DATABASE_URL!);
 
 async function seed() {
-  console.log("🌱 Seeding POOMAS platform...");
+  console.log("🌱 Seeding ZamraBooking platform...");
 
-  // Platform tenant (POOMAS Traveldays itself)
+  // Platform tenant (Zamra Travels itself)
   const [platformTenant] = await db
     .insert(tenants)
     .values({
-      name:           "POOMAS Traveldays",
+      name:           "Zamra Travels",
       slug:           "poomas",
       status:         "ACTIVE",
       plan:           "ENTERPRISE",
       region:         "INDIA",
       defaultCurrency: "INR",
       defaultLanguage: "en",
-      companyName:    "POOMAS Traveldays",
+      companyName:    "Zamra Travels",
       tagline:        "Your Trusted Travel Partner",
-      primaryColor:   "#E31E24",
-      secondaryColor: "#F7941D",
-      accentColor:    "#F5C518",
+      primaryColor:   "#0D4B96",
+      secondaryColor: "#1E88D9",
+      accentColor:    "#66B8E8",
       showPoweredBy:  false,
       supportEmail:   "support@zamrabooking.com",
       allowB2C:       true,
@@ -86,7 +86,7 @@ async function seed() {
   await db.insert(users).values({
     tenantId:      platformTenant.id,
     email:         process.env.PLATFORM_ADMIN_EMAIL ?? "admin@zamrabooking.com",
-    name:          "POOMAS Admin",
+    name:          "ZamraBooking Admin",
     role:          "SUPER_ADMIN",
     emailVerified: true,
     isActive:      true,

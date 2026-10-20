@@ -1,4 +1,4 @@
--- POOMAS Platform — initial seed data
+-- ZamraBooking Platform — initial seed data
 -- Creates the platform tenant + admin user + default supplier configs + markup rule
 
 INSERT INTO "tenants" (
@@ -7,15 +7,15 @@ INSERT INTO "tenants" (
   "show_powered_by", "support_email", "allow_b2c", "allow_b2b", "allow_whatsapp",
   "is_setup_complete", "onboarding_step"
 ) VALUES (
-  'POOMAS Traveldays', 'poomas', 'ACTIVE', 'ENTERPRISE', 'INDIA', 'INR', 'en',
-  'POOMAS Traveldays', 'Your Trusted Travel Partner', '#E31E24', '#F7941D', '#F5C518',
+  'Zamra Travels', 'poomas', 'ACTIVE', 'ENTERPRISE', 'INDIA', 'INR', 'en',
+  'Zamra Travels', 'Your Trusted Travel Partner', '#0D4B96', '#1E88D9', '#66B8E8',
   FALSE, 'support@zamrabooking.com', TRUE, TRUE, TRUE,
   TRUE, 5
 ) ON CONFLICT ("slug") DO NOTHING;
 
 -- Super-admin user (no password — set via admin panel or update manually)
 INSERT INTO "users" ("tenant_id", "email", "name", "role", "is_active", "email_verified")
-SELECT id, 'admin@zamrabooking.com', 'POOMAS Admin', 'SUPER_ADMIN', TRUE, TRUE
+SELECT id, 'admin@zamrabooking.com', 'ZamraBooking Admin', 'SUPER_ADMIN', TRUE, TRUE
 FROM "tenants" WHERE "slug" = 'poomas'
 ON CONFLICT ("tenant_id", "email") DO NOTHING;
 

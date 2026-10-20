@@ -19,7 +19,7 @@ export const authInput: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "#0f172a", color: "#e2e8f0",
 };
 export const authButton = (busy: boolean): React.CSSProperties => ({
-  background: "#E31E24", color: "white", border: "none", borderRadius: 8, padding: "13px",
+  background: "#0D4B96", color: "white", border: "none", borderRadius: 8, padding: "13px",
   fontWeight: 700, fontSize: 15, cursor: "pointer", opacity: busy ? 0.7 : 1,
 });
 export const authNote = (ok: boolean): React.CSSProperties => ({

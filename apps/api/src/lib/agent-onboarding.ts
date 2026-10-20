@@ -7,7 +7,7 @@
 // exact signed HTML is kept in R2 together with its SHA-256 hash.
 
 import { eq } from "drizzle-orm";
-import { agentDocuments } from "@poomas/db/schema";
+import { agentDocuments } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import { escapeHtml } from "./customer-notify.js";
 import type { ProgramConfig } from "./agent-program.js";
