@@ -1,0 +1,66 @@
+/* TripSafe travel insurance pages */
+.ts-page { max-width: 1080px; margin: 0 auto; padding: 24px 16px 56px; }
+.ts-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.ts-hero h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; color: #0f172a; }
+.ts-hero p { margin: 4px 0 0; color: #64748b; font-size: 14px; }
+.ts-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 12px; font-weight: 700; }
+.ts-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.ts-card + .ts-card { margin-top: 14px; }
+.ts-card h2 { margin: 0 0 12px; font-size: 16px; color: #0f172a; }
+.ts-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.ts-tab { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ts-tab[aria-pressed="true"] { background: #0f172a; border-color: #0f172a; color: #fff; }
+.ts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.ts-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ts-field > span { font-size: 12px; font-weight: 700; color: #475569; }
+.ts-field input, .ts-field select { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #fff; color: #0f172a; font-size: 14px; outline: none; }
+.ts-field input:focus, .ts-field select:focus { border-color: var(--color-primary, #e31e24); box-shadow: 0 0 0 3px #ffe4e6; }
+.ts-field small { color: #64748b; font-size: 12px; }
+.ts-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ts-chip { display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px; padding: 5px 10px; font-size: 13px; color: #0f172a; }
+.ts-chip button { border: 0; background: none; cursor: pointer; color: #64748b; font-size: 15px; line-height: 1; padding: 0; }
+.ts-chip-toggle { cursor: pointer; }
+.ts-chip-toggle[aria-pressed="true"] { background: #0f172a; border-color: #0f172a; color: #fff; }
+.ts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ts-btn { border: 0; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; background: var(--color-primary, #e31e24); color: #fff; }
+.ts-btn:disabled { opacity: .55; cursor: not-allowed; }
+.ts-btn-ghost { background: #fff; color: #0f172a; border: 1px solid #cbd5e1; }
+.ts-btn-small { padding: 7px 12px; font-size: 13px; }
+.ts-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 10px 12px; border-radius: 10px; font-size: 14px; margin-top: 12px; }
+.ts-note { background: #f0f9ff; border: 1px solid #bae6fd; color: #075985; padding: 10px 12px; border-radius: 10px; font-size: 14px; margin-top: 12px; }
+.ts-ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.ts-plans { display: grid; gap: 12px; margin-top: 16px; }
+.ts-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 18px; align-items: start; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 16px; }
+.ts-plan[data-selected="true"] { border-color: var(--color-primary, #e31e24); box-shadow: 0 0 0 3px #ffe4e6; }
+.ts-plan h3 { margin: 0; font-size: 18px; color: #0f172a; }
+.ts-plan-meta { color: #64748b; font-size: 13px; margin-top: 2px; }
+.ts-plan-price { text-align: right; }
+.ts-plan-price strong { display: block; font-size: 22px; color: #0f172a; }
+.ts-plan-price small { color: #64748b; font-size: 12px; }
+.ts-plan ul { grid-column: 1 / -1; margin: 0; padding-left: 18px; color: #334155; font-size: 13px; columns: 2 220px; }
+.ts-plan details { grid-column: 1 / -1; font-size: 13px; color: #334155; }
+.ts-plan details summary { cursor: pointer; font-weight: 600; color: #0f172a; }
+.ts-benefit { padding: 6px 0; border-bottom: 1px dashed #e2e8f0; }
+.ts-benefit b { display: block; }
+.ts-traveller { border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }
+.ts-traveller + .ts-traveller { margin-top: 12px; }
+.ts-traveller h3 { margin: 0 0 10px; font-size: 14px; color: #0f172a; }
+.ts-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px 16px; font-size: 14px; }
+.ts-summary div span { display: block; font-size: 12px; color: #64748b; }
+.ts-summary div strong { color: #0f172a; word-break: break-word; }
+.ts-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ts-table th, .ts-table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.ts-table th { font-size: 12px; color: #64748b; font-weight: 700; }
+.ts-status { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #f1f5f9; color: #334155; }
+.ts-status[data-tone="ok"] { background: #dcfce7; color: #166534; }
+.ts-status[data-tone="wait"] { background: #fef9c3; color: #854d0e; }
+.ts-status[data-tone="bad"] { background: #fee2e2; color: #991b1b; }
+.ts-links { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; }
+.ts-links a { color: #1d4ed8; }
+@media (max-width: 560px) {
+  .ts-plan { grid-template-columns: 1fr; }
+  .ts-plan-price { text-align: left; }
+  .ts-table thead { display: none; }
+  .ts-table tr { display: block; border-bottom: 1px solid #e2e8f0; padding: 8px 0; }
+  .ts-table td { display: block; border: 0; padding: 3px 0; }
+}

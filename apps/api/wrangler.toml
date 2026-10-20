@@ -1,0 +1,93 @@
+name = "poomas-api"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "32263d4999a1bc702f9d0052d7bd281b"
+workers_dev = false
+
+# ── Custom Domain ────────────────────────────────────────────────
+# api.flypoomas.com is dedicated to this Worker. Use a Worker Custom Domain
+# instead of a route that depends on a separate proxied DNS origin record.
+# This prevents Cloudflare 530 / error 1016 (Origin DNS error).
+routes = [
+  { pattern = "api.flypoomas.com", custom_domain = true }
+]
+
+# ── KV Namespaces ────────────────────────────────────────────────
+[[kv_namespaces]]
+binding    = "SESSIONS_KV"
+id         = "a7f844a2120b4a2a826ac8d1548786bd"
+preview_id = "a7f844a2120b4a2a826ac8d1548786bd"
+
+[[kv_namespaces]]
+binding    = "TENANT_CACHE_KV"
+id         = "0dfe7a31727b4fcab7403541fa13c0d1"
+preview_id = "0dfe7a31727b4fcab7403541fa13c0d1"
+
+[[kv_namespaces]]
+binding    = "FARE_CACHE_KV"
+id         = "8defdd47b8024c7288b4f82f90584f13"
+preview_id = "8defdd47b8024c7288b4f82f90584f13"
+
+# ── R2 Buckets ───────────────────────────────────────────────────
+[[r2_buckets]]
+binding     = "DOCUMENTS_R2"
+bucket_name = "poomas-documents"
+
+[[r2_buckets]]
+binding     = "PUBLIC_ASSETS_R2"
+bucket_name = "poomas-public"
+
+# ── Queues ───────────────────────────────────────────────────────
+[[queues.producers]]
+binding = "BOOKING_QUEUE"
+queue   = "poomas-bookings"
+
+[[queues.producers]]
+binding = "NOTIFY_QUEUE"
+queue   = "poomas-notifications"
+
+[[queues.consumers]]
+queue             = "poomas-bookings"
+max_batch_size    = 10
+max_batch_timeout = 5
+max_retries       = 3
+
+[[queues.consumers]]
+queue             = "poomas-notifications"
+max_batch_size    = 50
+max_batch_timeout = 2
+
+# ── Hyperdrive (Neon Postgres connection pooling at edge) ─────────
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id      = "4cd8c2e342f4419590460c43c1b25943"
+
+# ── Durable Objects (per-tenant rate limiter) ─────────────────────
+[[durable_objects.bindings]]
+name       = "TENANT_RATE_LIMITER"
+class_name = "TenantRateLimiter"
+
+# new_sqlite_classes required for free plan Durable Objects
+[[migrations]]
+tag                = "v1"
+new_sqlite_classes = ["TenantRateLimiter"]
+
+# ── Cron: fare-alert sweep (re-checks alert routes nobody searched lately) ──
+[triggers]
+crons = ["17 */4 * * *"]
+
+# ── Environment Variables (non-secret) ───────────────────────────
+[vars]
+ENVIRONMENT          = "production"
+PLATFORM_TENANT_SLUG = "poomas"
+
+# ── Secrets (set via `wrangler secret put <NAME>`) ────────────────
+# DATABASE_URL, JWT_SECRET, RIYA_API_KEY, RIYA_API_SECRET, RIYA_API_BASE_URL,
+# TRIPJACK_API_KEY, TRIPJACK_API_BASE_URL, TRIPJACK_PROXY_KEY, SERP_API_KEY, DUFFEL_API_KEY,
+# RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET,
+# NOMOD_API_KEY, NOMOD_API_SECRET, NOMOD_WEBHOOK_SECRET,
+# RESEND_API_KEY,
+# LEADVYNE_API_KEY, LEADVYNE_API_SECRET, LEADVYNE_BASE_URL,
+# LEADVYNE_INSTANCE_ID, LEADVYNE_WEBHOOK_SECRET
+

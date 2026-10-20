@@ -1,0 +1,128 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main]
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  deploy-api:
+    name: Deploy API Worker
+    needs: migrate-db
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm --filter @poomas/api typecheck
+        working-directory: .
+      - run: pnpm exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  migrate-db:
+    name: Run DB Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check database configuration
+        id: database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "DATABASE_URL is required before deploying the social sign-in schema."
+            exit 1
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install psql client
+        if: steps.database.outputs.configured == 'true'
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply migrations
+        if: steps.database.outputs.configured == 'true'
+        run: |
+          for f in packages/db/drizzle/migrations/*.sql; do
+            echo "Applying $f..."
+            psql "$DATABASE_URL" -f "$f" || echo "Warning: $f may already be applied, continuing..."
+          done
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Require social sign-in schema
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f packages/db/drizzle/migrations/0003_customer_social_signin.sql
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  deploy-web:
+    name: Deploy Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm exec opennextjs-cloudflare build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.flypoomas.com' }}
+      - run: pnpm exec wrangler deploy
+
+  deploy-portal:
+    name: Deploy Portal
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/portal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm exec opennextjs-cloudflare build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.flypoomas.com' }}
+      - run: pnpm exec wrangler deploy
+
+  deploy-admin:
+    name: Deploy Admin
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm exec opennextjs-cloudflare build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.flypoomas.com' }}
+      - run: pnpm exec wrangler deploy

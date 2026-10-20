@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 110" width="420" height="110">
+  <defs>
+    <linearGradient id="iconGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7941D"/>
+      <stop offset="100%" stop-color="#E87010"/>
+    </linearGradient>
+    <linearGradient id="iconGradB" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5C518"/>
+      <stop offset="100%" stop-color="#F0B800"/>
+    </linearGradient>
+    <linearGradient id="swooshGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F5C518"/>
+      <stop offset="50%" stop-color="#F7941D"/>
+      <stop offset="100%" stop-color="#E31E24"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon: orange left arc (forms left stroke of P) -->
+  <path d="M 20 55 A 38 38 0 0 1 58 17 L 58 32 A 23 23 0 0 0 35 55 Z" fill="url(#iconGradA)"/>
+
+  <!-- Icon: orange top arc (forms top bowl of P) -->
+  <path d="M 58 17 A 38 38 0 0 1 90 42 L 75 48 A 23 23 0 0 0 58 32 Z" fill="url(#iconGradA)"/>
+
+  <!-- Icon: yellow bottom arc -->
+  <path d="M 35 55 A 23 23 0 0 0 58 78 L 58 93 A 38 38 0 0 1 20 55 Z" fill="url(#iconGradB)"/>
+  <path d="M 58 78 A 23 23 0 0 0 80 62 L 92 68 A 38 38 0 0 1 58 93 Z" fill="url(#iconGradB)"/>
+
+  <!-- Red accent cap at top -->
+  <path d="M 44 17 Q 58 8 72 17 L 65 28 Q 58 22 51 28 Z" fill="#E31E24"/>
+
+  <!-- Inner cut / counter of P (white) -->
+  <ellipse cx="76" cy="44" rx="16" ry="13" fill="white"/>
+
+  <!-- POOMAS text -->
+  <text x="112" y="69"
+    font-family="'Arial Black', 'Arial Bold', Arial, sans-serif"
+    font-weight="900"
+    font-size="52"
+    fill="#E31E24"
+    letter-spacing="1">POOMAS</text>
+
+  <!-- Swoosh after POOMAS -->
+  <path d="M 390 28 Q 408 16 416 34 Q 412 52 396 62 Q 410 46 406 29 Z" fill="#E31E24"/>
+  <path d="M 384 36 Q 398 26 404 42 Q 400 56 388 63 Q 400 50 397 37 Z" fill="#F7941D" opacity="0.85"/>
+  <path d="M 378 44 Q 390 37 394 50 Q 391 60 382 65 Q 391 54 389 44 Z" fill="#F5C518" opacity="0.8"/>
+
+  <!-- TRAVELDAYS text -->
+  <text x="114" y="90"
+    font-family="Arial, 'Helvetica Neue', sans-serif"
+    font-weight="700"
+    font-size="17"
+    fill="#333333"
+    letter-spacing="7">TRAVELDAYS</text>
+</svg>

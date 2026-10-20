@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 240" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#d4e6f6"/><stop offset=".53" stop-color="#eaf3fa"/><stop offset="1" stop-color="#ffe9d8"/></linearGradient>
+    <linearGradient id="cloud" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".93"/><stop offset="1" stop-color="#fff" stop-opacity=".22"/></linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1440v240H0z"/>
+  <circle cx="1110" cy="72" r="70" fill="#fff3e8" opacity=".7"/>
+  <g fill="url(#cloud)" opacity=".7"><path d="M330 197c66-45 134-47 197-18 57-65 137-58 188-5 66-25 117-5 149 23z"/><path d="M778 230c92-54 170-63 239-33 60-61 130-53 196-9 70-24 137-16 227 42z"/><path d="M0 223c85-40 190-48 263 0z"/></g>
+  <path d="M0 240c220-19 309-46 480-24 161 20 279 6 385-15 228-41 389-9 575 6v33z" fill="#fff" opacity=".34"/>
+  <g transform="translate(1140 100) rotate(-12) scale(.53)" fill="#213a59" opacity=".38"><path d="M-119 0 52-11l79-24 19 5-60 34 50 9-10 9-75-10-174 1z"/><path d="m-50 1-23-36 13-2L-19 0zm5 5-24 32 12 3 38-35z"/></g>
+</svg>

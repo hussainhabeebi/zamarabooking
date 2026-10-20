@@ -1,0 +1,14 @@
+{
+  "name": "poomas-web",
+  "compatibility_date": "2024-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "main": ".open-next/worker.js",
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "NEXT_PUBLIC_API_URL": "https://api.flypoomas.com",
+    "NEXT_PUBLIC_PORTAL_URL": "https://portal.flypoomas.com"
+  }
+}

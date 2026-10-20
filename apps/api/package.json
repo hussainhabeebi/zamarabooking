@@ -1,0 +1,28 @@
+{
+  "name": "@poomas/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev":      "wrangler dev --port 4000",
+    "build":    "tsc --noEmit",
+    "deploy":   "wrangler deploy",
+    "preview":  "wrangler dev --port 4000 --env staging",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "@hono/zod-validator": "^0.4.0",
+    "zod": "^3.23.0",
+    "@poomas/db": "workspace:*",
+    "@poomas/suppliers": "workspace:*",
+    "drizzle-orm": "^0.36.0",
+    "@neondatabase/serverless": "^0.10.0",
+    "jose": "^5.9.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.86.0",
+    "typescript": "^5.6.0",
+    "@cloudflare/workers-types": "^5.20260820.1"
+  }
+}
