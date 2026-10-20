@@ -40,7 +40,7 @@ export default function NewTenantPage() {
       {error && <div style={errBox}>{error}</div>}
       <form onSubmit={submit} style={{ background: "#1e293b", borderRadius: 12, padding: 20, border: "1px solid #334155", display: "grid", gap: 14 }}>
         <label style={lbl}>Agency name *<input required minLength={2} value={form.name} onChange={set("name")} style={input} /></label>
-        <label style={lbl}>Slug * <span style={{ color: "#64748b" }}>({form.slug || "slug"}.flypoomas.com)</span>
+        <label style={lbl}>Slug * <span style={{ color: "#64748b" }}>({form.slug || "slug"}.zamrabooking.com)</span>
           <input required minLength={2} pattern="[a-z0-9-]+" value={form.slug} onChange={set("slug")} style={input} />
         </label>
         <label style={lbl}>Custom domain<input value={form.customDomain} onChange={set("customDomain")} placeholder="flights.example.com" style={input} /></label>

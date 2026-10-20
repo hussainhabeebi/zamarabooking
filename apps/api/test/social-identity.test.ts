@@ -56,7 +56,7 @@ test("social endpoint fails safely before database access when disabled or wrong
   const body = JSON.stringify({ provider: "google", proofHash: await hashProof("browser-secret") });
   const denied = await app.request("/social/start", { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://evil.example" }, body }, {});
   assert.equal(denied.status, 403);
-  const disabled = await app.request("/social/start", { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://flypoomas.com" }, body }, {});
+  const disabled = await app.request("/social/start", { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://zamrabooking.com" }, body }, {});
   assert.equal(disabled.status, 503);
 });
 

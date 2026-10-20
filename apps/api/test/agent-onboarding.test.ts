@@ -12,7 +12,7 @@ const agent = {
 const cfg = { ...DEFAULT_ONBOARDING, company: { ...DEFAULT_ONBOARDING.company, legalName: "Poomas Travel LLC", signatory: "Habeeb" }, extraClauses: "Monthly sales review\n\n" };
 
 test("the MOU is generated from the agency's details, escaped, with configurable law", () => {
-  const m = renderMou({ cfg, tenant: { name: "FlyPoomas" }, agent, program: DEFAULT_PROGRAM, date: new Date("2026-10-03T00:00:00Z") });
+  const m = renderMou({ cfg, tenant: { name: "ZamraBooking" }, agent, program: DEFAULT_PROGRAM, date: new Date("2026-10-03T00:00:00Z") });
   assert.equal(m.ref, "MOU-FPA10010-v1");
   assert.match(m.html, /Aiingo &lt;Travels&gt;/);                          // agency text is escaped
   assert.doesNotMatch(m.html, /<Travels>/);
@@ -28,7 +28,7 @@ test("the MOU is generated from the agency's details, escaped, with configurable
 });
 
 test("signature block records who accepted and the document fingerprint", async () => {
-  const m = renderMou({ cfg, tenant: { name: "FlyPoomas" }, agent, program: DEFAULT_PROGRAM });
+  const m = renderMou({ cfg, tenant: { name: "ZamraBooking" }, agent, program: DEFAULT_PROGRAM });
   const hash = await sha256Hex(m.html);
   assert.equal(hash.length, 64);
   assert.equal(await sha256Hex(m.html), hash);                               // stable for the same text

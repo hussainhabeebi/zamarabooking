@@ -76,10 +76,10 @@ export async function forgetAdminUser(env: Env, userId: string) {
 }
 
 // Where password links point: ADMIN_URL, or the admin site the request came
-// from when it is a FlyPoomas address (never an arbitrary origin).
+// from when it is a ZamraBooking address (never an arbitrary origin).
 export function adminUrl(env: Env, origin?: string | null) {
-  if (origin && (/^https:\/\/([a-z0-9-]+\.)*flypoomas\.com$/i.test(origin) || /^http:\/\/localhost:\d+$/.test(origin))) return origin;
-  return (env.ADMIN_URL ?? "https://admin.flypoomas.com").replace(/\/$/, "");
+  if (origin && (/^https:\/\/([a-z0-9-]+\.)*zamrabooking\.com$/i.test(origin) || /^http:\/\/localhost:\d+$/.test(origin))) return origin;
+  return (env.ADMIN_URL ?? "https://admin.zamrabooking.com").replace(/\/$/, "");
 }
 
 // Readable one-off password: two 4-letter words, three digits and a capital.

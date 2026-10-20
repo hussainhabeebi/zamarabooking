@@ -8,7 +8,7 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "NEXT_PUBLIC_API_URL": "https://api.flypoomas.com",
-    "NEXT_PUBLIC_PORTAL_URL": "https://portal.flypoomas.com"
+    "NEXT_PUBLIC_API_URL": "https://api.zamrabooking.com",
+    "NEXT_PUBLIC_PORTAL_URL": "https://portal.zamrabooking.com"
   }
 }

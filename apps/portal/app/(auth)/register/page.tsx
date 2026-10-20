@@ -34,7 +34,7 @@ export default function RegisterPage() {
     <main className="auth">
       <div className="auth-card wide">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="FlyPoomas" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
+        <img src="/logo.png" alt="ZamraBooking" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
         <h1>Register your agency</h1>
         <p className="sub">Book flights at agent prices, earn commission, add sub-agents and staff. We approve new agencies after a quick KYC check.</p>
         {error && <div className="banner bad" role="alert">{error}</div>}

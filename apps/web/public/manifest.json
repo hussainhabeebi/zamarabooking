@@ -1,6 +1,6 @@
 {
-  "name": "FlyPoomas",
-  "short_name": "FlyPoomas",
+  "name": "ZamraBooking",
+  "short_name": "ZamraBooking",
   "description": "Book flights at best prices",
   "start_url": "/",
   "display": "standalone",

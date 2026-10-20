@@ -19,7 +19,7 @@ export const agents = pgTable("agents", {
 
   status:   agentStatusEnum("status").notNull().default("PENDING"),
   iataCode: text("iata_code"),
-  // FlyPoomas agent number (FPA10001 …), given to every agency; Leadvyne tags traffic with it.
+  // ZamraBooking agent number (FPA10001 …), given to every agency; Leadvyne tags traffic with it.
   agentNumber: text("agent_number"),
 
   // Sub-agent hierarchy within a tenant

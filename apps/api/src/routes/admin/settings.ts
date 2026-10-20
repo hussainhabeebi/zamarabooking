@@ -223,7 +223,7 @@ settingsAdminRoutes.get("/eticket", async (c) => {
   return c.json(saved ?? {
     autoSendOnConfirm:  true,
     channels:           ["WHATSAPP", "EMAIL"],
-    emailFrom:          "tickets@flypoomas.com",
+    emailFrom:          "tickets@zamrabooking.com",
     emailFromName:      "POOMAS Flights",
     includeItinerary:   true,
     includeBaggage:     true,
@@ -288,7 +288,7 @@ settingsAdminRoutes.get("/email", async (c) => {
     settings: { ...s, apiKey: "" },
     apiKeyMasked: maskKey(s.apiKey),
     keySource: s.apiKey ? "admin" : c.env.RESEND_API_KEY ? "secret" : "none",
-    defaultFrom: c.env.EMAIL_FROM || "bookings@flypoomas.com",
+    defaultFrom: c.env.EMAIL_FROM || "bookings@zamrabooking.com",
     last7Days: stats ?? { sent: 0, failed: 0, skipped: 0 },
   });
 });
@@ -315,12 +315,12 @@ settingsAdminRoutes.post("/email/test", zValidator("json", z.object({ to: z.stri
   const s = await getEmailSettings(c.env, tenantId);
   if (!resendKey(c.env, s)) return c.json({ ok: false, error: "No Resend API key: add it here or set the RESEND_API_KEY secret on the API worker." }, 400);
   const r = await sendMail(c.env, c.get("db"), tenantId, {
-    to: c.req.valid("json").to, category: "test", subject: "FlyPoomas test email",
+    to: c.req.valid("json").to, category: "test", subject: "ZamraBooking test email",
     html: emailLayout({
       title: "Email is working ✅",
       body: "<p>This test was sent from Admin → Settings → Email through Resend. Booking confirmations, password resets and other notifications use the same sender.</p>",
       rows: [["Sent at", new Date().toUTCString()]],
-      cta: { label: "Open FlyPoomas", href: "https://flypoomas.com" },
+      cta: { label: "Open ZamraBooking", href: "https://zamrabooking.com" },
     }),
   });
   return c.json(r, r.ok ? 200 : 502);

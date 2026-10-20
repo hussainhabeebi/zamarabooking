@@ -348,7 +348,7 @@ agentProgramAdminRoutes.get("/agents/:id/mou", async (c) => {
   if (!body) {
     const [cfg, program, [t]] = await Promise.all([getOnboarding(c.env, tenantId), getProgram(c.env, tenantId),
       db.select({ name: tenants.name, companyName: tenants.companyName, supportEmail: tenants.supportEmail, supportPhone: tenants.supportPhone }).from(tenants).where(eq(tenants.id, tenantId)).limit(1)]);
-    body = renderMou({ cfg, tenant: t ?? { name: "FlyPoomas" }, agent: a, program }).html + `<p style="font-family:Arial;color:#b42318;text-align:center">Draft — not yet accepted by the agency</p>`;
+    body = renderMou({ cfg, tenant: t ?? { name: "ZamraBooking" }, agent: a, program }).html + `<p style="font-family:Arial;color:#b42318;text-align:center">Draft — not yet accepted by the agency</p>`;
   }
   return new Response(printablePage(`MOU · ${a.businessName}`, body), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 });

@@ -23,7 +23,7 @@ async function bookingFor(db: Db, bookingId: string) {
 }
 
 const REFUND_TO: Record<string, string> = {
-  WALLET: "your FlyPoomas wallet — available straight away",
+  WALLET: "your ZamraBooking wallet — available straight away",
   AGENT_WALLET: "your agency wallet — available straight away",
   NOMOD: "the card / account you paid with — usually 5–10 working days, depending on your bank",
   MANUAL: "your original payment method — our team will process it and confirm",
@@ -94,12 +94,12 @@ export async function emailCancellation(env: Env, db: Db, a: Amendment, event: C
 
 // ── Agencies ─────────────────────────────────────────────────────────────────
 
-const portal = (env: Env) => (env.PORTAL_URL ?? "https://portal.flypoomas.com").replace(/\/$/, "");
+const portal = (env: Env) => (env.PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/$/, "");
 
 export async function emailAgencyRegistered(env: Env, db: Db, agent: { id: string; tenantId: string; email: string; businessName: string; ownerName: string }) {
   await sendMail(env, db, agent.tenantId, {
     to: agent.email, category: "agency", idempotencyKey: `agency-registered:${agent.id}`,
-    subject: `Welcome to FlyPoomas, ${agent.businessName}`,
+    subject: `Welcome to ZamraBooking, ${agent.businessName}`,
     html: emailLayout({
       title: "Thanks for registering your agency",
       body: `<p>Hi ${escapeHtml(agent.ownerName)}, we've received <b>${escapeHtml(agent.businessName)}</b>'s registration.</p><p>Next: sign in and upload your KYC documents (trade licence / GST and owner ID) and sign the agency MOU. We usually approve agencies within one working day after that.</p>`,
@@ -114,10 +114,10 @@ export async function emailAgencyStatus(env: Env, db: Db, agentId: string, statu
   if (!a) return;
   const copy = {
     APPROVED: { subject: `Your agency is approved — ${a.businessName}`, title: "Your agency is approved 🎉",
-      body: `<p>Hi ${escapeHtml(a.ownerName)}, <b>${escapeHtml(a.businessName)}</b> can now book flights on FlyPoomas.${a.agentNumber ? ` Your agent number is <b>${escapeHtml(a.agentNumber)}</b>.` : ""}</p><p>Recharge your wallet (card or bank transfer) to start booking.</p>` },
-    REJECTED: { subject: `About your FlyPoomas agency registration`, title: "We couldn't approve your agency",
+      body: `<p>Hi ${escapeHtml(a.ownerName)}, <b>${escapeHtml(a.businessName)}</b> can now book flights on ZamraBooking.${a.agentNumber ? ` Your agent number is <b>${escapeHtml(a.agentNumber)}</b>.` : ""}</p><p>Recharge your wallet (card or bank transfer) to start booking.</p>` },
+    REJECTED: { subject: `About your ZamraBooking agency registration`, title: "We couldn't approve your agency",
       body: `<p>Hi ${escapeHtml(a.ownerName)}, we weren't able to approve <b>${escapeHtml(a.businessName)}</b> at this time. Reply to this email if you'd like to know more or send updated documents.</p>` },
-    SUSPENDED: { subject: `Your FlyPoomas agency account is suspended`, title: "Your agency account is suspended",
+    SUSPENDED: { subject: `Your ZamraBooking agency account is suspended`, title: "Your agency account is suspended",
       body: `<p>Hi ${escapeHtml(a.ownerName)}, bookings for <b>${escapeHtml(a.businessName)}</b> are paused. Reply to this email or contact our team to resolve it.</p>` },
   }[status];
   await sendMail(env, db, a.tenantId, {
@@ -146,10 +146,10 @@ export async function emailAgentTopup(env: Env, db: Db, agentId: string, amount:
 export async function emailCustomerWelcome(env: Env, db: Db, tenantId: string, user: { id: string; email: string; name: string | null }) {
   await sendMail(env, db, tenantId, {
     to: user.email, category: "auth", idempotencyKey: `welcome:${user.id}`,
-    subject: "Welcome to FlyPoomas",
+    subject: "Welcome to ZamraBooking",
     html: emailLayout({
       title: `Welcome${user.name ? `, ${user.name.split(" ")[0]}` : ""}!`,
-      body: "<p>Your FlyPoomas account is ready. Save travellers for faster checkout, keep all your trips in one place, and get fare alerts when prices drop.</p>",
+      body: "<p>Your ZamraBooking account is ready. Save travellers for faster checkout, keep all your trips in one place, and get fare alerts when prices drop.</p>",
       cta: { label: "Search flights", href: WEB_URL },
     }),
   });

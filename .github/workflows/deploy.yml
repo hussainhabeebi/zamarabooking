@@ -84,7 +84,7 @@ jobs:
         working-directory: .
       - run: pnpm exec opennextjs-cloudflare build
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.flypoomas.com' }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
       - run: pnpm exec wrangler deploy
 
   deploy-portal:
@@ -104,7 +104,7 @@ jobs:
         working-directory: .
       - run: pnpm exec opennextjs-cloudflare build
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.flypoomas.com' }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
       - run: pnpm exec wrangler deploy
 
   deploy-admin:
@@ -124,5 +124,5 @@ jobs:
         working-directory: .
       - run: pnpm exec opennextjs-cloudflare build
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.flypoomas.com' }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
       - run: pnpm exec wrangler deploy

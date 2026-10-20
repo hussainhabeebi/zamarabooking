@@ -65,9 +65,9 @@ async function sendPasswordLink(c: Ctx, db: Db, tenantId: string, u: { id: strin
   const invite = kind === "invite";
   await notifyCustomer(c.env, db, tenantId, {
     email: u.email, category: "auth",
-    subject: invite ? "You've been added to the FlyPoomas admin panel" : "Reset your FlyPoomas admin password",
-    html: emailShell(invite ? "Welcome to FlyPoomas admin" : "Reset your password",
-      `<p>Hi ${escapeHtml(u.name || "there")}, ${invite ? "you've been given access to the FlyPoomas admin panel. Choose your password to sign in. The link works for 7 days." : "use the button below to choose a new admin password. The link works for 1 hour. If you didn't ask for this, ignore this email."}</p>`,
+    subject: invite ? "You've been added to the ZamraBooking admin panel" : "Reset your ZamraBooking admin password",
+    html: emailShell(invite ? "Welcome to ZamraBooking admin" : "Reset your password",
+      `<p>Hi ${escapeHtml(u.name || "there")}, ${invite ? "you've been given access to the ZamraBooking admin panel. Choose your password to sign in. The link works for 7 days." : "use the button below to choose a new admin password. The link works for 1 hour. If you didn't ask for this, ignore this email."}</p>`,
       { label: invite ? "Set your password" : "Choose a new password", href: link }),
     whatsapp: "",
   });

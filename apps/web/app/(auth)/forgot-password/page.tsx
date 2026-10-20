@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -25,9 +25,9 @@ export default function ForgotPasswordPage() {
     <div className="wa-desktop-fallback">
       <div className="wa-desktop-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="FlyPoomas" className="login-brand-logo" width="72" height="68" />
+        <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="72" height="68" />
         <h1 className="login-title">Forgot your password?</h1>
-        <p className="login-intro">Enter the email you use for FlyPoomas and we&apos;ll send you a link to choose a new one.</p>
+        <p className="login-intro">Enter the email you use for ZamraBooking and we&apos;ll send you a link to choose a new one.</p>
         {sent ? (
           <div role="status" style={{ background: "#DCFCE7", color: "#166534", padding: "12px 14px", borderRadius: 8, fontSize: 14 }}>{sent} The link works for 1 hour.</div>
         ) : (

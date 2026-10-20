@@ -53,7 +53,7 @@ export default function OnboardingPage() {
   return (
     <div style={{ maxWidth: 920 }}>
       <div className="page-head"><div>
-        <h1>Welcome to FlyPoomas{me ? `, ${me.agent.businessName}` : ""}</h1>
+        <h1>Welcome to ZamraBooking{me ? `, ${me.agent.businessName}` : ""}</h1>
         <p>Two quick steps to activate your agency: upload your KYC documents and sign the agency MOU.</p>
       </div></div>
       {notice && <div className="banner ok">{notice}</div>}

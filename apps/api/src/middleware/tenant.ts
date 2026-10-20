@@ -120,11 +120,11 @@ function extractSlug(host: string, platformSlug: string): string {
     return platformSlug;
   }
 
-  if (!host.endsWith(".flypoomas.com") && host !== "flypoomas.com" && host !== "api.flypoomas.com") {
+  if (!host.endsWith(".zamrabooking.com") && host !== "zamrabooking.com" && host !== "api.zamrabooking.com") {
     return "__custom__";
   }
 
-  if (host === "api.flypoomas.com" || host === "flypoomas.com") {
+  if (host === "api.zamrabooking.com" || host === "zamrabooking.com") {
     return platformSlug;
   }
 

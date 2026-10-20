@@ -1,7 +1,7 @@
-// Agency portal API client. Calls the FlyPoomas API directly with the agent's
+// Agency portal API client. Calls the ZamraBooking API directly with the agent's
 // login token (cookie "poomas_token", set at sign-in).
 
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+export const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 export const TENANT = "poomas";
 
 export function getToken(): string {

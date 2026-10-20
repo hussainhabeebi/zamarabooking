@@ -73,7 +73,7 @@ eticketRoutes.post("/:bookingId/send", zValidator("json", sendSchema), async (c)
   const pnr       = booking.pnr ?? "TBD";
 
   // Public URL for the e-ticket HTML (stored in PUBLIC_ASSETS_R2 after generation)
-  const eticketUrl = `https://assets.flypoomas.com/etickets/${bookingId}.html`;
+  const eticketUrl = `https://assets.zamrabooking.com/etickets/${bookingId}.html`;
 
   const results: Record<string, unknown> = {};
 

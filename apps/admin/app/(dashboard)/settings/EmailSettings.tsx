@@ -52,10 +52,10 @@ export default function EmailSettings() {
         <input type="checkbox" checked={s.enabled} onChange={(e) => setS({ ...s, enabled: e.target.checked })} /> Send emails
       </label>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-        {field("fromName", "Sender name", "FlyPoomas")}
+        {field("fromName", "Sender name", "ZamraBooking")}
         {field("fromEmail", "Sender address", o.defaultFrom, "Must be on a domain verified in Resend (Resend → Domains).")}
-        {field("replyTo", "Reply-to address", "support@flypoomas.com", "Where customers' replies go.")}
-        {field("bccOps", "Copy booking & refund emails to", "ops@flypoomas.com", "Optional operations inbox (BCC).")}
+        {field("replyTo", "Reply-to address", "support@zamrabooking.com", "Where customers' replies go.")}
+        {field("bccOps", "Copy booking & refund emails to", "ops@zamrabooking.com", "Optional operations inbox (BCC).")}
         <label style={ui.label}>Resend API key
           <input style={ui.input} type="password" autoComplete="new-password" value={newKey} placeholder={o.apiKeyMasked || (o.keySource === "secret" ? "Using the RESEND_API_KEY secret" : "re_…")} onChange={(e) => setNewKey(e.target.value)} />
           <span style={{ ...ui.muted, fontWeight: 400 }}>

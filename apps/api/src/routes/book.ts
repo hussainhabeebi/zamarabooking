@@ -65,7 +65,7 @@ const directBookSchema = z.object({
   totalFare:     z.number().positive(),
   currency:      z.enum(["INR", "AED", "USD"]).default("INR"),
   searchId:      z.string().uuid().optional(),   // links the booking to its search's TripJack logs
-  // Leadvyne Live Agency hand-off: the agency's FlyPoomas agent number (analytics only).
+  // Leadvyne Live Agency hand-off: the agency's ZamraBooking agent number (analytics only).
   leadAgentNumber: z.string().max(20).optional(),
   // Review-first flow (round trip / multi-city / SSR / GST): the bookingId from
   // POST /api/book/review. The fareId is then only informational.

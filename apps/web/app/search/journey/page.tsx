@@ -21,7 +21,7 @@ type Fare = {
   tripKey?: string; legIndex?: number; fareIdentifier?: string; sri?: string; msri?: string[]; segments?: Segment[];
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const FARE_LABEL: Record<string, string> = {
   PUBLISHED: "Published", SPECIAL_RETURN: "Special Return", TJ_FLEX: "Flex (free cancellation)",
   STUDENT: "Student fare", SENIOR_CITIZEN: "Senior citizen fare",

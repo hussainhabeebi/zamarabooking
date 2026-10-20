@@ -32,11 +32,11 @@ test("staff open only their sections (plus /me and receipts for request handlers
   assert.equal(staffCanOpen("/api/admin/settings/payments", ["bookings", "agents", "finance"]), false);
 });
 
-test("password links only point at FlyPoomas addresses", () => {
+test("password links only point at ZamraBooking addresses", () => {
   const env: any = {};
-  assert.equal(adminUrl(env, "https://admin.flypoomas.com"), "https://admin.flypoomas.com");
-  assert.equal(adminUrl(env, "https://evil.example.com"), "https://admin.flypoomas.com");
-  assert.equal(adminUrl(env, "https://flypoomas.com.evil.io"), "https://admin.flypoomas.com");
+  assert.equal(adminUrl(env, "https://admin.zamrabooking.com"), "https://admin.zamrabooking.com");
+  assert.equal(adminUrl(env, "https://evil.example.com"), "https://admin.zamrabooking.com");
+  assert.equal(adminUrl(env, "https://zamrabooking.com.evil.io"), "https://admin.zamrabooking.com");
   assert.equal(adminUrl({ ADMIN_URL: "https://ops.example.org/" } as any, null), "https://ops.example.org");
   assert.match(tempPassword(), /^[a-z]{4}-[a-z]{4}-\d{3}[A-Z]$/);
 });

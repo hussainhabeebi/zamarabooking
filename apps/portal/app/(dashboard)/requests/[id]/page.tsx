@@ -62,7 +62,7 @@ export default function RequestDetailPage() {
             {r.bookingId && <><dt>Booking</dt><dd><a href={`/bookings/${r.bookingId}`}>{r.bookingId.slice(0, 8).toUpperCase()}</a></dd></>}
           </dl>
           {typeof r.details.message === "string" && r.details.message && <p style={{ whiteSpace: "pre-wrap" }}>{r.details.message}</p>}
-          {r.adminNote && <div className="banner info">Note from FlyPoomas: {r.adminNote}</div>}
+          {r.adminNote && <div className="banner info">Note from ZamraBooking: {r.adminNote}</div>}
           {r.attachments.length > 0 && <div className="row">{r.attachments.map((f) => <button key={f.key} className="btn sm" onClick={() => open(f)}>📎 {f.name}</button>)}</div>}
         </div>
         <div className="card">
@@ -73,7 +73,7 @@ export default function RequestDetailPage() {
               <div key={m.id} className={`msg${m.fromStaff ? "" : " mine"}`}>
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.message}</div>
                 {m.attachments.map((f) => <button key={f.key} className="btn ghost sm" onClick={() => open(f)}>📎 {f.name}</button>)}
-                <small>{m.fromStaff ? "FlyPoomas team" : "You"} · {fmtDate(m.createdAt, true)}</small>
+                <small>{m.fromStaff ? "ZamraBooking team" : "You"} · {fmtDate(m.createdAt, true)}</small>
               </div>
             ))}
           </div>

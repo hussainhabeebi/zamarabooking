@@ -164,7 +164,7 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
     }
 
     const checkoutToken = c.req.header("X-Checkout-Token") ?? "";
-    const resultUrl = `https://flypoomas.com/checkout/payment-result?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}`;
+    const resultUrl = `https://zamrabooking.com/checkout/payment-result?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}`;
     const amount = amountFull.toFixed(2);
     const linkRes = await fetch("https://api.nomod.com/v1/links", {
       method: "POST",

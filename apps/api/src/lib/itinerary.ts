@@ -125,7 +125,7 @@ export function renderItineraryHtml(data: ItineraryDocData): string {
   <div class="head">
     <div>
       <h1>${docName} · ${esc(data.origin)} → ${esc(data.destination)}</h1>
-      <div class="sub">POOMAS · flypoomas.com${bookedAt ? ` · Booked ${esc(bookedAt)}` : ""}</div>
+      <div class="sub">POOMAS · zamrabooking.com${bookedAt ? ` · Booked ${esc(bookedAt)}` : ""}</div>
     </div>
     <div class="pnr"><small>Airline PNR</small><strong>${esc(pnr)}</strong></div>
   </div>

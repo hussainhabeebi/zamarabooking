@@ -49,7 +49,7 @@ interface SearchPageProps { searchParams: Promise<SearchParams>; }
 
 // Rates from the automatic exchange-rate tool (INR per 1 unit). No caching: a new rate applies to the very next search.
 async function fetchRates(): Promise<FxRates> {
-  return fetchFxRates(process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com");
+  return fetchFxRates(process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com");
 }
 
 // Price in the currency the customer chose (rounded up like the payment API).
@@ -63,7 +63,7 @@ function inChosenCurrency(price: number, fareCurrency: string, chosen: string | 
 
 async function searchFlights(params: SearchParams, sessionId: string | null): Promise<SearchResult> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
     const res = await fetch(`${apiUrl}/api/search`, {
       method: "POST",
       headers: {

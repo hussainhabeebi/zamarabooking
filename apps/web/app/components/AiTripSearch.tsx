@@ -36,7 +36,7 @@ const MISSING_LABEL: Record<string, string> = {
 };
 
 export function AiTripSearch({ onApply, onSearchNow }: { onApply: (f: AiTripFields) => void; onSearchNow: () => void }) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
   const [enabled, setEnabled] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);

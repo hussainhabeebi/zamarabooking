@@ -23,7 +23,7 @@ function now() {
 export default function LoginPage() {
 
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { id: 1, from: "bot", text: "Hi! 👋 Welcome to FlyPoomas.", time: now() },
+    { id: 1, from: "bot", text: "Hi! 👋 Welcome to ZamraBooking.", time: now() },
     { id: 2, from: "bot", text: "Please enter your email address to sign in.", time: now() },
   ]);
   const [step, setStep] = useState<Step>("email");
@@ -142,7 +142,7 @@ export default function LoginPage() {
           </a>
           <div className="wa-avatar">✈️</div>
           <div className="wa-header-info">
-            <div className="wa-contact-name">FlyPoomas</div>
+            <div className="wa-contact-name">ZamraBooking</div>
             <div className="wa-contact-status">Online</div>
           </div>
           <div className="wa-header-icons">
@@ -275,12 +275,12 @@ export default function LoginPage() {
       <div className="wa-desktop-fallback">
         <div className="wa-desktop-card">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="FlyPoomas" className="login-brand-logo" width="72" height="68" />
+          <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="72" height="68" />
           <h1 className="login-title">Welcome back</h1>
-          <p className="login-intro">Sign in to continue to your FlyPoomas account.</p>
+          <p className="login-intro">Sign in to continue to your ZamraBooking account.</p>
           <DesktopLoginForm />
           <p className="login-signup-prompt">
-            New to FlyPoomas? <a href="/signup">Create an account</a>
+            New to ZamraBooking? <a href="/signup">Create an account</a>
           </p>
         </div>
       </div>

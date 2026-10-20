@@ -7,7 +7,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { convertInr, type FxRates } from "../lib/fx";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const HEADERS = { "x-tenant-slug": "poomas" };
 
 type Day = { date: string; price: number; seenAt: string };

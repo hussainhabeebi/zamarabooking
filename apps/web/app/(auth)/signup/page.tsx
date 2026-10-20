@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 export default function SignupPage() {
   const [name, setName] = useState("");

@@ -9,13 +9,13 @@ INSERT INTO "tenants" (
 ) VALUES (
   'POOMAS Traveldays', 'poomas', 'ACTIVE', 'ENTERPRISE', 'INDIA', 'INR', 'en',
   'POOMAS Traveldays', 'Your Trusted Travel Partner', '#E31E24', '#F7941D', '#F5C518',
-  FALSE, 'support@flypoomas.com', TRUE, TRUE, TRUE,
+  FALSE, 'support@zamrabooking.com', TRUE, TRUE, TRUE,
   TRUE, 5
 ) ON CONFLICT ("slug") DO NOTHING;
 
 -- Super-admin user (no password — set via admin panel or update manually)
 INSERT INTO "users" ("tenant_id", "email", "name", "role", "is_active", "email_verified")
-SELECT id, 'admin@flypoomas.com', 'POOMAS Admin', 'SUPER_ADMIN', TRUE, TRUE
+SELECT id, 'admin@zamrabooking.com', 'POOMAS Admin', 'SUPER_ADMIN', TRUE, TRUE
 FROM "tenants" WHERE "slug" = 'poomas'
 ON CONFLICT ("tenant_id", "email") DO NOTHING;
 

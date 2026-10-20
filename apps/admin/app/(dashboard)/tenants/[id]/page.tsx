@@ -69,7 +69,7 @@ export default function TenantDetailPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "8px 0 20px" }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", margin: 0 }}>{t.name}</h1>
-          <div style={{ color: "#94a3b8", fontSize: 13 }}>{t.slug}.flypoomas.com{t.customDomain ? ` · ${t.customDomain}` : ""}</div>
+          <div style={{ color: "#94a3b8", fontSize: 13 }}>{t.slug}.zamrabooking.com{t.customDomain ? ` · ${t.customDomain}` : ""}</div>
         </div>
         <span style={{ color: STATUS_COLOR[t.status] ?? "#9ca3af", fontWeight: 700 }}>● {t.status}</span>
       </div>

@@ -14,7 +14,7 @@ export type ScannedTraveller = {
   issuingCountry: string | null; mrzVerified: boolean; confidence: number; warnings: string[];
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 let statusPromise: Promise<boolean> | null = null;
 function scanEnabled() {
   statusPromise ??= fetch(`${API}/api/ai/status`, { headers: { "x-tenant-slug": "poomas" } })

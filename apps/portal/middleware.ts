@@ -8,7 +8,7 @@ export function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const path = new URL(request.url).pathname;
 
-  const slug = host.endsWith(".flypoomas.com") ? host.split(".")[0] : host;
+  const slug = host.endsWith(".zamrabooking.com") ? host.split(".")[0] : host;
 
   const res = NextResponse.next();
   res.headers.set("x-tenant-slug", slug);

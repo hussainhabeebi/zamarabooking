@@ -9,8 +9,8 @@ import type { Env } from "../types.js";
 import { sendWhatsApp } from "./notify.js";
 import { emailLayout, sendMail, type EmailCategory } from "./email.js";
 
-export const WEB_URL = "https://flypoomas.com";
-export const API_URL = "https://api.flypoomas.com";
+export const WEB_URL = "https://zamrabooking.com";
+export const API_URL = "https://api.zamrabooking.com";
 
 export interface CustomerMessage {
   email?: string | null;

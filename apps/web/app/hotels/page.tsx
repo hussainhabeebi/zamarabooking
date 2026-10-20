@@ -297,7 +297,7 @@ export default function HotelsPage() {
 
         <section className="hw-benefits" aria-labelledby="hw-benefits-title">
           <div className="hw-section-heading hw-benefits-heading">
-            <div><span className="hw-eyebrow">PLAN WITH CLARITY</span><h2 id="hw-benefits-title">Why book your stay with FlyPoomas?</h2></div>
+            <div><span className="hw-eyebrow">PLAN WITH CLARITY</span><h2 id="hw-benefits-title">Why book your stay with ZamraBooking?</h2></div>
             <p>See the details that matter before choosing a stay.</p>
           </div>
           <div className="hw-benefit-grid">

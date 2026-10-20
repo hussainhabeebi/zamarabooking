@@ -1,4 +1,4 @@
-const PORTAL_URL = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.flypoomas.com").replace(/\/+$/, "");
+const PORTAL_URL = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/+$/, "");
 
 const columns = [
   {
@@ -38,8 +38,8 @@ export default function SiteFooter() {
       <div className="site-footer-inner">
         <section className="footer-agent-cta" aria-labelledby="footer-agent-title">
           <div className="footer-agent-copy">
-            <span className="footer-agent-kicker">FlyPoomas for Agents</span>
-            <h2 id="footer-agent-title">Run your travel agency on FlyPoomas</h2>
+            <span className="footer-agent-kicker">ZamraBooking for Agents</span>
+            <h2 id="footer-agent-title">Run your travel agency on ZamraBooking</h2>
             <ul className="footer-agent-perks">
               {perks.map((perk) => (
                 <li key={perk}>
@@ -63,7 +63,7 @@ export default function SiteFooter() {
             <a href="/" className="footer-logo-link">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="" height={32} />
-              <span>FlyPoomas</span>
+              <span>ZamraBooking</span>
             </a>
             <p>Book flights, hotels and travel insurance at the best prices — India, the Gulf and beyond.</p>
             <div className="footer-trust">
@@ -93,7 +93,7 @@ export default function SiteFooter() {
         </div>
 
         <div className="footer-bottom">
-          <span>© {year} FlyPoomas. All rights reserved.</span>
+          <span>© {year} ZamraBooking. All rights reserved.</span>
           <span className="footer-bottom-note">Fares are subject to availability until ticketed.</span>
           <span className="footer-credits">
             <span>Built by team <a href="https://aiingo.com" target="_blank" rel="noopener">aiingo.com</a></span>

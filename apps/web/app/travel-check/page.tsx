@@ -72,7 +72,7 @@ export default function TravelCheckPage() {
         <ul className="tc-list">{VISA_GENERAL.map((r) => <li key={r}>{r}</li>)}</ul>
       </section>
 
-      <p className="tc-note">This is general information, not legal advice. FlyPoomas isn&apos;t responsible for entry decisions made by airlines or immigration.</p>
+      <p className="tc-note">This is general information, not legal advice. ZamraBooking isn&apos;t responsible for entry decisions made by airlines or immigration.</p>
       <a className="tc-back" href="/">← Search flights</a>
     </main>
   );

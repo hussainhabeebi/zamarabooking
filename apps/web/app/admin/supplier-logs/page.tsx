@@ -40,7 +40,7 @@ const ENDPOINT_LABEL: Record<string, string> = {
 };
 
 export default function SupplierLogsPage() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
   const [logs, setLogs]           = useState<LogEntry[]>([]);
   const [loading, setLoading]     = useState(false);

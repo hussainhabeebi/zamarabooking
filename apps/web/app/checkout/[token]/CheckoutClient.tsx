@@ -22,7 +22,7 @@ interface Props {
 type Gateway = "RAZORPAY" | "NOMOD";
 type PaymentState = "idle" | "creating" | "paying" | "polling" | "success" | "failed";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const TENANT = "poomas";
 
 export default function CheckoutClient({

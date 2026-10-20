@@ -41,10 +41,10 @@ function currencyForCountry(country: string | null): string | null {
 }
 
 function extractTenantSlug(host: string): string {
-  if (host.endsWith(".flypoomas.com")) {
+  if (host.endsWith(".zamrabooking.com")) {
     return host.split(".")[0];
   }
-  if (host === "flypoomas.com" || host === "www.flypoomas.com") {
+  if (host === "zamrabooking.com" || host === "www.zamrabooking.com") {
     return "poomas";
   }
   return host;

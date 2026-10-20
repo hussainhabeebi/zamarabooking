@@ -1,6 +1,6 @@
 // Browser-side helpers for signed-in customer and guest ("find my booking") calls.
 
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+export const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const GUEST_TOKEN_KEY = "poomas_trip_token";
 
 export function readCustomerToken(): string {

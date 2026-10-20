@@ -34,7 +34,7 @@ export default function ResetPasswordPage() {
     <main className="auth">
       <div className="auth-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="FlyPoomas" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
+        <img src="/logo.png" alt="ZamraBooking" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
         <h1>Choose a new password</h1>
         {email && <p className="sub">For {email}</p>}
         {error && <div className="banner bad" role="alert">{error}</div>}

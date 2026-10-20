@@ -177,7 +177,7 @@ function PaymentSettings() {
                 <input type="password" placeholder="Optional until Nomod webhook is configured" value={s.nomod.webhookSecret}
                   onChange={(e) => setS((p) => ({ ...p, nomod: { ...p.nomod, webhookSecret: e.target.value } }))}
                   style={inputStyle} autoComplete="new-password" />
-                <Hint>Webhook URL: <code style={codeStyle}>https://api.flypoomas.com/webhooks/nomod</code></Hint>
+                <Hint>Webhook URL: <code style={codeStyle}>https://api.zamrabooking.com/webhooks/nomod</code></Hint>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
@@ -398,7 +398,7 @@ function WhatsAppSettings() {
                 <input type="url" placeholder="https://api.leadvyne.com" value={s.leadvyne.baseUrl}
                   onChange={(e) => setS((p) => ({ ...p, leadvyne: { ...p.leadvyne, baseUrl: e.target.value } }))}
                   style={inputStyle} />
-                <Hint>Webhook inbound URL: <code style={codeStyle}>https://api.flypoomas.com/webhooks/leadvyne</code></Hint>
+                <Hint>Webhook inbound URL: <code style={codeStyle}>https://api.zamrabooking.com/webhooks/leadvyne</code></Hint>
               </div>
               <div>
                 <Label>Webhook Secret</Label>
@@ -472,7 +472,7 @@ function EticketSettings() {
   const [s, setS] = useState({
     autoSendOnConfirm:  true,
     channels:           ["WHATSAPP", "EMAIL"] as Array<"WHATSAPP" | "EMAIL">,
-    emailFrom:          "tickets@flypoomas.com",
+    emailFrom:          "tickets@zamrabooking.com",
     emailFromName:      "POOMAS Flights",
     includeItinerary:   true,
     includeBaggage:     true,

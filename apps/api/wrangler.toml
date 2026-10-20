@@ -6,11 +6,11 @@ account_id = "32263d4999a1bc702f9d0052d7bd281b"
 workers_dev = false
 
 # ── Custom Domain ────────────────────────────────────────────────
-# api.flypoomas.com is dedicated to this Worker. Use a Worker Custom Domain
+# api.zamrabooking.com is dedicated to this Worker. Use a Worker Custom Domain
 # instead of a route that depends on a separate proxied DNS origin record.
 # This prevents Cloudflare 530 / error 1016 (Origin DNS error).
 routes = [
-  { pattern = "api.flypoomas.com", custom_domain = true }
+  { pattern = "api.zamrabooking.com", custom_domain = true }
 ]
 
 # ── KV Namespaces ────────────────────────────────────────────────

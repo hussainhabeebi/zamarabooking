@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import CheckoutClient from "./CheckoutClient";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 export type CheckoutPassenger = {
   id: string;

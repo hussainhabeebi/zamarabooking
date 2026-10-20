@@ -74,7 +74,7 @@ test("Leadvyne checkout links carry the agency; unknown numbers never block chec
   res = await post({ agentNumber: "FPA99999" });
   d = await res.json() as any;
   assert.equal(res.status, 201);
-  assert.match(d.warning, /Unknown FlyPoomas agent number FPA99999/);
+  assert.match(d.warning, /Unknown ZamraBooking agent number FPA99999/);
   assert.doesNotMatch(d.checkoutUrl, /pc=/);
 
   res = await post({ agentNumber: "FPA10007" });

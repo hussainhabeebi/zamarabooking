@@ -30,7 +30,7 @@ export function requirePartnerScope(
     );
 
     if (!rawKey || !rawKey.startsWith("pmsk_")) {
-      c.header("WWW-Authenticate", 'Bearer realm="FlyPoomas Partner API"');
+      c.header("WWW-Authenticate", 'Bearer realm="ZamraBooking Partner API"');
       return c.json({ error: "PARTNER_AUTHENTICATION_REQUIRED" }, 401);
     }
 

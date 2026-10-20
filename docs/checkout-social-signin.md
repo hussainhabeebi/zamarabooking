@@ -10,7 +10,7 @@ Configure these API Worker secrets/settings to enable customer sign-in:
 
 - Google: `GOOGLE_CLIENT_ID`, with the checkout origin registered in Google Identity Services.
 - Apple: `APPLE_CLIENT_ID` (web Services ID), `APPLE_CLIENT_SECRET` (developer-generated client-secret JWT, rotated before expiry), and `APPLE_REDIRECT_URI` (registered HTTPS return URL).
-- `SOCIAL_AUTH_ORIGINS`: optional comma-separated exact origins; defaults to `https://flypoomas.com,https://www.flypoomas.com`.
+- `SOCIAL_AUTH_ORIGINS`: optional comma-separated exact origins; defaults to `https://zamrabooking.com,https://www.zamrabooking.com`.
 
 Unconfigured providers remain hidden. Provider credentials are verified on the server using trusted public keys, issuer, audience, expiry, nonce and a single-use challenge. Apple authorization codes are exchanged server-side. Existing email accounts are not automatically linked. Social customer sessions are limited to customer profile endpoints and honor logout revocation.
 

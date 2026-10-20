@@ -22,7 +22,7 @@ const searchSchema = z.object({
   cabinClass:    z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"]).default("ECONOMY"),
   tripType:      z.enum(["ONEWAY", "ROUNDTRIP", "MULTICITY"]).default("ONEWAY"),
   currency:      z.enum(DISPLAY_CURRENCIES).optional(),
-  // Leadvyne Live Agency: the agency's FlyPoomas agent number (or header X-FP-Agent).
+  // Leadvyne Live Agency: the agency's ZamraBooking agent number (or header X-FP-Agent).
   agentNumber:   z.string().max(20).optional(),
   // Multi-city legs (2–6); round trips can use returnDate instead.
   legs: z.array(z.object({

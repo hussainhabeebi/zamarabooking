@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
     <main className="auth">
       <div className="auth-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="FlyPoomas" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
+        <img src="/logo.png" alt="ZamraBooking" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
         <h1>Reset password</h1>
         <p className="sub">Enter your agency login email. We&apos;ll send a link to choose a new password.</p>
         {error && <div className="banner bad" role="alert">{error}</div>}

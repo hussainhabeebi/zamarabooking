@@ -1,6 +1,6 @@
 // TripSafe (travel insurance) shared helpers for the customer pages.
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 export const TENANT_HEADERS = { "x-tenant-slug": "poomas" };
 
 // TripSafe v2 country catalogue (Myanmar, Iran and North Korea are not covered).

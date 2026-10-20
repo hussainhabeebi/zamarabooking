@@ -126,7 +126,7 @@ export default function SettingsPage() {
         <p className="small muted" style={{ marginBottom: 0 }}>
           {me?.onboarding?.mou.accepted
             ? `Signed by ${me.onboarding.mou.acceptedBy} on ${new Date(me.onboarding.mou.acceptedAt!).toLocaleDateString("en-GB")}.`
-            : "Your Memorandum of Understanding with FlyPoomas is ready to review and sign."}
+            : "Your Memorandum of Understanding with ZamraBooking is ready to review and sign."}
         </p>
       </div>
 

@@ -45,12 +45,12 @@ integrationRoutes.post("/checkout-sessions",async(c)=>{
  if(!fareId||!supplier)return c.json({error:"fareId and supplier are required"},400);
  if(!passengers.length||passengers.some((p:any)=>!p.firstName||!p.lastName))return c.json({error:"Valid passenger names are required"},400);
  if(!email||!mobile)return c.json({error:"Contact email and mobile are required"},400);
- // Leadvyne Live Agency: the agency's FlyPoomas agent number tags the link (currency + analytics).
+ // Leadvyne Live Agency: the agency's ZamraBooking agent number tags the link (currency + analytics).
  const agentNumber=agentNumberFrom(c,body);
  // An unknown / inactive number never blocks the customer's checkout: the link is just not tagged.
  const found=agentNumber?await resolveAgentNumber(c.env,c.get("db"),tenantId,agentNumber).catch(()=>null):null;
  const agent=found&&found.status==="APPROVED"?found:null;
- const warning=agentNumber&&!agent?(found?`Agency ${found.number} is ${found.status.toLowerCase()} on FlyPoomas; link not tagged`:`Unknown FlyPoomas agent number ${agentNumber}; link not tagged`):undefined;
+ const warning=agentNumber&&!agent?(found?`Agency ${found.number} is ${found.status.toLowerCase()} on ZamraBooking; link not tagged`:`Unknown ZamraBooking agent number ${agentNumber}; link not tagged`):undefined;
  const token=crypto.randomUUID().replace(/-/g,"")+crypto.randomUUID().replace(/-/g,"");
  const expiresAt=new Date(Date.now()+PREFILL_TTL_SECONDS*1000).toISOString();
  await c.env.SESSIONS_KV.put(`booking_prefill:${tenantId}:${token}`,JSON.stringify({
@@ -60,7 +60,7 @@ integrationRoutes.post("/checkout-sessions",async(c)=>{
  }),{expirationTtl:PREFILL_TTL_SECONDS});
  if(agent)c.executionCtx.waitUntil(trackAgentActivity(c.get("db"),tenantId,agent.id,"checkouts").catch((err)=>console.error("[agent-activity]",err)));
  const cur=agent?`&pc=${encodeURIComponent(agent.currency)}`:"";
- return c.json({sessionId:token,checkoutUrl:`https://flypoomas.com/book?session=${encodeURIComponent(token)}${cur}`,expiresAt,
+ return c.json({sessionId:token,checkoutUrl:`https://zamrabooking.com/book?session=${encodeURIComponent(token)}${cur}`,expiresAt,
   ...(agent?{agent:{number:agent.number,businessName:agent.businessName,currency:agent.currency}}:{}),...(warning?{warning}:{})},201);
 });
 

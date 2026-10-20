@@ -433,7 +433,7 @@ partnerRoutes.post("/checkout-sessions", zValidator("json", checkoutSchema), asy
     return c.json({
       checkoutSessionId: crypto.randomUUID(),
       reservationId: reservation.id,
-      checkoutUrl: `https://flypoomas.com/checkout/${token}`,
+      checkoutUrl: `https://zamrabooking.com/checkout/${token}`,
       expiresAt: new Date(exp * 1000).toISOString(),
     }, 201);
   } catch (error) {

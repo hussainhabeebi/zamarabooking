@@ -51,8 +51,8 @@ export default function AccountPage() {
         <section className="account-entry-card" aria-labelledby="account-entry-title">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="account-entry-logo" src="/logo.png" alt="" width="64" height="60" />
-          <p className="account-entry-eyebrow">WELCOME TO FLYPOOMAS</p>
-          <h1 id="account-entry-title">Your FlyPoomas account</h1>
+          <p className="account-entry-eyebrow">WELCOME TO ZAMRABOOKING</p>
+          <h1 id="account-entry-title">Your ZamraBooking account</h1>
           <p className="account-entry-intro">Manage your bookings, saved travellers, wallet and travel details in one place.</p>
           <div className="account-entry-actions"><a href="/login?next=/account" className="account-entry-primary">Sign in</a><a href="/signup?next=/account" className="account-entry-secondary">Create account</a></div>
           <div className="account-entry-benefits" aria-label="Your account can help you">

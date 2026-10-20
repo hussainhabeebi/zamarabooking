@@ -5,7 +5,7 @@ export default function AuthCard({ title, children }: { title: string; children:
       <div style={{ background: "#1e293b", borderRadius: 12, padding: "36px 40px", border: "1px solid #334155", width: "100%", maxWidth: 420, color: "#e2e8f0" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="FlyPoomas" height={36} style={{ display: "inline-block" }} />
+          <img src="/logo.png" alt="ZamraBooking" height={36} style={{ display: "inline-block" }} />
           <div style={{ fontSize: 16, fontWeight: 700, marginTop: 10 }}>{title}</div>
         </div>
         {children}

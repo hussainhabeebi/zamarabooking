@@ -232,7 +232,7 @@ async function handleInitiatePayment(
         amount:      total,
         currency:    currency,
         reference:   data.bookingId,
-        redirectUrl: `https://${tenant.slug}.flypoomas.com/booking/${data.bookingId}/confirm`,
+        redirectUrl: `https://${tenant.slug}.zamrabooking.com/booking/${data.bookingId}/confirm`,
         description: `Flight booking ${data.bookingId}`,
       },
     );
@@ -915,7 +915,7 @@ async function handleNotifyBookingConfirmation(
       subject: `Booking confirmed — PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
       html: emailLayout({
         title: "Your booking is confirmed ✈️", preheader: `PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
-        body: `<p>Thank you for booking with ${escapeHtml(tenantRow?.name ?? "FlyPoomas")}. Your e-ticket is attached — keep it handy at the airport with your passport / ID.</p>`,
+        body: `<p>Thank you for booking with ${escapeHtml(tenantRow?.name ?? "ZamraBooking")}. Your e-ticket is attached — keep it handy at the airport with your passport / ID.</p>`,
         rows: [
           ["PNR (airline reference)", booking.pnr ?? "—"],
           ["Route", `${booking.origin} → ${booking.destination}`],

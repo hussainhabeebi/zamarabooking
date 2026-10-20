@@ -25,7 +25,7 @@ each authenticated request. It does not need to be stored in Coolify.
 for direct self-hosted callers.
 
 Optional controls are documented in `src/gateway.mjs`. Configure port `3000`,
-domain `proxy.flypoomas.com`, and health path `/health` in Coolify.
+domain `proxy.zamrabooking.com`, and health path `/health` in Coolify.
 
 TripJack must whitelist the public outbound IP of the Coolify host. The gateway
 never returns either secret and logs no request or response bodies.

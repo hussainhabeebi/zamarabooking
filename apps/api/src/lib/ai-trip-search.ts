@@ -34,7 +34,7 @@ export class AiSearchError extends Error {
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
-const SYSTEM_PROMPT = `You turn a traveller's message into flight search fields for FlyPoomas, an online travel agency serving India and the Gulf (many travellers fly between Kerala and the GCC).
+const SYSTEM_PROMPT = `You turn a traveller's message into flight search fields for ZamraBooking, an online travel agency serving India and the Gulf (many travellers fly between Kerala and the GCC).
 
 The message may be in English, Malayalam, Hindi, Arabic, or a mix (including Manglish / Hinglish written in Latin letters). Understand all of them.
 

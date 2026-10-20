@@ -22,7 +22,7 @@ function configuration(env: Env, provider: SocialProvider) {
 socialAuthRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   const origin = c.req.header("Origin");
-  const allowed = (c.env.SOCIAL_AUTH_ORIGINS ?? "https://flypoomas.com,https://www.flypoomas.com").split(",").map((x) => x.trim());
+  const allowed = (c.env.SOCIAL_AUTH_ORIGINS ?? "https://zamrabooking.com,https://www.zamrabooking.com").split(",").map((x) => x.trim());
   if (c.req.method === "POST" && (!origin || !allowed.includes(origin))) {
     throw new HTTPException(403, { message: "Sign-in origin is not allowed" });
   }

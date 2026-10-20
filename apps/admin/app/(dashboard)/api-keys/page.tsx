@@ -102,7 +102,7 @@ export default function ApiKeysPage() {
         <div style={{ fontSize: 12, fontWeight: 700, color: "#38bdf8", textTransform: "uppercase",
           letterSpacing: "0.05em", marginBottom: 12 }}>How to use your API key</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <CodeBlock label="Search flights (WhatsApp bot / any client)" code={`POST https://api.flypoomas.com/api/search
+          <CodeBlock label="Search flights (WhatsApp bot / any client)" code={`POST https://api.zamrabooking.com/api/search
 X-API-Key: pmsk_••••••••••••••
 Content-Type: application/json
 
@@ -114,7 +114,7 @@ Content-Type: application/json
   "cabinClass": "ECONOMY",
   "tripType": "ONEWAY"
 }`} />
-          <CodeBlock label="Get checkout token (after collecting passengers)" code={`POST https://api.flypoomas.com/api/checkout/session
+          <CodeBlock label="Get checkout token (after collecting passengers)" code={`POST https://api.zamrabooking.com/api/checkout/session
 X-API-Key: pmsk_••••••••••••••
 Content-Type: application/json
 

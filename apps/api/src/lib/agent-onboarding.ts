@@ -113,7 +113,7 @@ export function renderMou(opts: {
   const s = (agent.settings ?? {}) as { address?: string; gstNumber?: string; country?: string; displayCurrency?: string };
   const date = opts.date ?? new Date();
   const co = cfg.company;
-  const company = co.legalName || tenant.companyName || tenant.name || "FlyPoomas";
+  const company = co.legalName || tenant.companyName || tenant.name || "ZamraBooking";
   const e = (v: unknown) => escapeHtml(String(v ?? ""));
   const india = agent.region === "INDIA";
   const law = india ? cfg.governingLaw.INDIA : cfg.governingLaw.GCC;
@@ -122,19 +122,19 @@ export function renderMou(opts: {
   const extras = cfg.extraClauses.split("\n").map((l) => l.trim()).filter(Boolean);
 
   const clauses: [string, string][] = [
-    ["Purpose", `${e(company)} (“FlyPoomas”) appoints the Agency as a non-exclusive sub-agent to search, book and sell air tickets and related travel services through the FlyPoomas agency portal, API and connected channels (including Leadvyne). This MOU sets out how both parties work together.`],
+    ["Purpose", `${e(company)} (“ZamraBooking”) appoints the Agency as a non-exclusive sub-agent to search, book and sell air tickets and related travel services through the ZamraBooking agency portal, API and connected channels (including Leadvyne). This MOU sets out how both parties work together.`],
     ["Agency account", `The Agency is registered as <b>${e(agent.businessName)}</b> with agent number <b>${e(agent.agentNumber ?? "to be assigned")}</b>. The Agency is responsible for every login it creates and for all bookings made with its credentials, and will keep passwords confidential.`],
-    ["Prices and currency", `Fares, taxes and fees are those shown in the portal at the time of booking and may change until ticketed. The Agency's account currency is <b>${e(s.displayCurrency || agent.currency)}</b>; amounts in other currencies use FlyPoomas' published exchange rate on the day. The Agency may add its own service charge to its customers but must not misrepresent airline fares or taxes.`],
-    ["Wallet, payment and credit", `Bookings are paid from the Agency's prepaid wallet, recharged by card (Nomod) or bank transfer to the accounts listed in the portal. Bank transfers are credited after FlyPoomas verifies the payment. ${credit > 0 ? `FlyPoomas grants a credit limit of <b>${fmt(credit, agent.currency)}</b>, to be repaid within <b>${program.creditDays} days</b>; overdue amounts may lead to suspension of booking.` : `No credit limit is granted unless agreed in writing; any credit granted is to be repaid within ${program.creditDays} days.`}`],
-    ["Tickets, changes and refunds", "Tickets are issued under the airline's fare rules. Cancellations, date changes and refunds follow those rules plus FlyPoomas' service fee shown in the portal. Refunds are credited to the Agency wallet once received from the airline. No-shows and non-refundable fares are not refundable."],
+    ["Prices and currency", `Fares, taxes and fees are those shown in the portal at the time of booking and may change until ticketed. The Agency's account currency is <b>${e(s.displayCurrency || agent.currency)}</b>; amounts in other currencies use ZamraBooking' published exchange rate on the day. The Agency may add its own service charge to its customers but must not misrepresent airline fares or taxes.`],
+    ["Wallet, payment and credit", `Bookings are paid from the Agency's prepaid wallet, recharged by card (Nomod) or bank transfer to the accounts listed in the portal. Bank transfers are credited after ZamraBooking verifies the payment. ${credit > 0 ? `ZamraBooking grants a credit limit of <b>${fmt(credit, agent.currency)}</b>, to be repaid within <b>${program.creditDays} days</b>; overdue amounts may lead to suspension of booking.` : `No credit limit is granted unless agreed in writing; any credit granted is to be repaid within ${program.creditDays} days.`}`],
+    ["Tickets, changes and refunds", "Tickets are issued under the airline's fare rules. Cancellations, date changes and refunds follow those rules plus ZamraBooking' service fee shown in the portal. Refunds are credited to the Agency wallet once received from the airline. No-shows and non-refundable fares are not refundable."],
     ["Agency obligations", "The Agency will enter passenger names and documents exactly as in the passport, check visa, transit and health requirements with its customers, collect payment from its customers at its own risk, and comply with airline, IATA and local regulations."],
-    ["KYC and compliance", `The Agency has provided its business registration and owner identity documents and will inform FlyPoomas of any change. FlyPoomas may suspend an account for suspected fraud, chargebacks, misuse or unpaid dues. ${india ? "GST and TDS" : "VAT"} will be applied as required by law.`],
+    ["KYC and compliance", `The Agency has provided its business registration and owner identity documents and will inform ZamraBooking of any change. ZamraBooking may suspend an account for suspected fraud, chargebacks, misuse or unpaid dues. ${india ? "GST and TDS" : "VAT"} will be applied as required by law.`],
     ["Data protection", "Each party will use passenger personal data only to provide the travel service, keep it secure, and not sell or share it except with airlines, suppliers and authorities as required."],
     ["Term and termination", "This MOU starts on the date it is accepted and continues until ended by either party with 30 days' written notice (email is sufficient). Bookings made before termination remain payable and refundable under these terms; the wallet balance is refunded after outstanding dues are settled."],
-    ["Liability", "FlyPoomas is not liable for airline schedule changes, cancellations, overbooking or denied boarding, but will help the Agency claim what the airline offers. Neither party is liable for indirect or consequential loss."],
+    ["Liability", "ZamraBooking is not liable for airline schedule changes, cancellations, overbooking or denied boarding, but will help the Agency claim what the airline offers. Neither party is liable for indirect or consequential loss."],
     ...extras.map((x, i) => [`Additional term ${i + 1}`, e(x)] as [string, string]),
     ["Governing law", `This MOU is governed by ${e(law)}. Both parties will first try to settle any dispute amicably within 30 days.`],
-    ["Electronic acceptance", "The Agency accepts this MOU electronically in the FlyPoomas portal. The acceptance record (name, designation, date and time, IP address and a SHA-256 fingerprint of this document) is binding as a signature."],
+    ["Electronic acceptance", "The Agency accepts this MOU electronically in the ZamraBooking portal. The acceptance record (name, designation, date and time, IP address and a SHA-256 fingerprint of this document) is binding as a signature."],
   ];
 
   const party = (rows: [string, string | null | undefined][]) => rows.filter(([, v]) => v).map(([k, v]) => `<tr><td class="k">${e(k)}</td><td>${e(v)}</td></tr>`).join("");
@@ -154,7 +154,7 @@ export function renderMou(opts: {
 <p class="ref">${e(ref)} · ${e(longDate(date))}</p>
 <p>This Memorandum of Understanding is made between the following parties:</p>
 <div class="parties">
-<div><h2>FlyPoomas</h2><table class="p">${party([["Legal name", company], ["Address", co.address], ["Registration", co.registration], ["Email", co.email || tenant.supportEmail], ["Phone", co.phone || tenant.supportPhone]])}</table></div>
+<div><h2>ZamraBooking</h2><table class="p">${party([["Legal name", company], ["Address", co.address], ["Registration", co.registration], ["Email", co.email || tenant.supportEmail], ["Phone", co.phone || tenant.supportPhone]])}</table></div>
 <div><h2>The Agency</h2><table class="p">${party([["Business name", agent.businessName], ["Agent number", agent.agentNumber], ["Owner", agent.ownerName], ["Email", agent.email], ["Phone", agent.phone], ["Address", s.address], [india ? "GSTIN" : "Tax / VAT no.", s.gstNumber], ["IATA code", agent.iataCode]])}</table></div>
 </div>
 <ol>${clauses.map(([t, body]) => `<li><b>${e(t)}.</b> ${body}</li>`).join("")}</ol>
@@ -169,7 +169,7 @@ export function signatureBlock(opts: { company: string; cfg: OnboardingConfig; a
   const when = new Date(a.acceptedAt).toUTCString();
   return `<section class="mou" style="font-family:Arial,sans-serif;font-size:13px;margin-top:24px;border-top:2px solid #111827;padding-top:12px">
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-<div><b>For FlyPoomas</b><br>${e(cfg.company.signatory || company)}${cfg.company.signatoryTitle ? `<br>${e(cfg.company.signatoryTitle)}` : ""}<br><span style="color:#6b7280">Issued electronically</span></div>
+<div><b>For ZamraBooking</b><br>${e(cfg.company.signatory || company)}${cfg.company.signatoryTitle ? `<br>${e(cfg.company.signatoryTitle)}` : ""}<br><span style="color:#6b7280">Issued electronically</span></div>
 <div><b>For ${e(opts.agentName)}</b><br>${e(a.name)}<br>${e(a.designation)}<br><span style="color:#6b7280">Accepted electronically ${e(when)}${a.ip ? ` from IP ${e(a.ip)}` : ""}</span></div>
 </div>
 <p style="color:#6b7280;font-size:11px;margin-top:10px">Document fingerprint (SHA-256): ${e(a.hash)}</p>

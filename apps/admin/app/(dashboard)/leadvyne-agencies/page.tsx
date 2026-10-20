@@ -4,7 +4,7 @@ import { adminApi } from "../../../lib/files";
 import { money, ui } from "../../../lib/ui";
 import DeleteAgentButton from "../agents/DeleteAgentButton";
 
-// Leadvyne Live Agency clients: create their FlyPoomas agency account (agent
+// Leadvyne Live Agency clients: create their ZamraBooking agency account (agent
 // number + currency from the country) and follow their searches and bookings.
 
 const COUNTRIES: [string, string][] = [
@@ -91,7 +91,7 @@ export default function LeadvyneAgenciesPage() {
     <div>
       <h1 style={ui.h1}>Leadvyne agencies</h1>
       <p style={ui.sub}>
-        Agency accounts for Leadvyne Live Agency clients. Each gets a FlyPoomas agent number; Leadvyne sends it with every
+        Agency accounts for Leadvyne Live Agency clients. Each gets a ZamraBooking agent number; Leadvyne sends it with every
         search and checkout link so prices use the agency&apos;s currency and its searches and bookings are counted here.
       </p>
 
@@ -221,7 +221,7 @@ export default function LeadvyneAgenciesPage() {
       <div style={ui.card}>
         <h2 style={ui.h2}>How Leadvyne sends the agent number</h2>
         <div style={{ ...ui.text, lineHeight: 1.7 }}>
-          Add the agency&apos;s agent number to its Leadvyne Live Agency client settings. Leadvyne then sends it to FlyPoomas as the header
+          Add the agency&apos;s agent number to its Leadvyne Live Agency client settings. Leadvyne then sends it to ZamraBooking as the header
           <code style={code}> X-FP-Agent: FPA10001</code> (or <code style={code}>&quot;agentNumber&quot;</code> in the JSON body) on:
           <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
             <li><code style={code}>POST /api/search</code> — counts the search; the response adds <code style={code}>agent</code>, <code style={code}>agentCurrency</code> and an <code style={code}>agentPrice</code> per fare in the agency&apos;s currency.</li>

@@ -91,8 +91,8 @@ checkoutRoutes.post("/session", zValidator("json", createSchema), async (c) => {
     await db.update(bookings).set({ whatsappPhone }).where(eq(bookings.id, bookingId));
   }
 
-  const apiUrl = `https://api.flypoomas.com`;
-  const webUrl = `https://flypoomas.com`;
+  const apiUrl = `https://api.zamrabooking.com`;
+  const webUrl = `https://zamrabooking.com`;
 
   return c.json({
     token,

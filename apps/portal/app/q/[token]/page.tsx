@@ -51,7 +51,7 @@ export default function PublicQuotePage() {
         <a className="btn primary" style={{ background: color, borderColor: color, width: "100%", padding: 14 }} target="_blank" rel="noopener"
           href={`https://wa.me/${wa}?text=${encodeURIComponent(`Hi, I'd like to book from the quote you sent (${q.options[0]?.origin} → ${q.options[0]?.destination}). Option: `)}`}>Book on WhatsApp</a>
       )}
-      <p className="small muted" style={{ textAlign: "center", marginTop: 24 }}>Powered by FlyPoomas</p>
+      <p className="small muted" style={{ textAlign: "center", marginTop: 24 }}>Powered by ZamraBooking</p>
     </main>
   );
 }

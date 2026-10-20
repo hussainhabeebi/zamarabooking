@@ -1,4 +1,4 @@
-// FlyPoomas agent portal service worker: makes the portal installable and keeps
+// ZamraBooking agent portal service worker: makes the portal installable and keeps
 // the app shell available on weak connections. API calls always go to the network.
 const CACHE = "fp-agent-v1";
 self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/logo.png"]))); });
@@ -16,6 +16,6 @@ self.addEventListener("fetch", (e) => {
     return;
   }
   if (req.mode === "navigate") {
-    e.respondWith(fetch(req).catch(() => caches.match(req).then((hit) => hit || new Response("<h2 style='font-family:sans-serif;padding:24px'>You're offline. Reconnect to use the FlyPoomas agent portal.</h2>", { headers: { "Content-Type": "text/html" } }))));
+    e.respondWith(fetch(req).catch(() => caches.match(req).then((hit) => hit || new Response("<h2 style='font-family:sans-serif;padding:24px'>You're offline. Reconnect to use the ZamraBooking agent portal.</h2>", { headers: { "Content-Type": "text/html" } }))));
   }
 });

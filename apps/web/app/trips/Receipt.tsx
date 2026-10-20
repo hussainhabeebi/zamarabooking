@@ -26,7 +26,7 @@ export default function Receipt({ mode, id }: { mode: "customer" | "guest"; id?:
       </div>
       <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div><h1 style={{ margin: 0, fontSize: 22 }}>Payment receipt</h1><small style={{ color: "#64748b" }}>POOMAS · flypoomas.com</small></div>
+          <div><h1 style={{ margin: 0, fontSize: 22 }}>Payment receipt</h1><small style={{ color: "#64748b" }}>POOMAS · zamrabooking.com</small></div>
           <div style={{ textAlign: "right", fontSize: 13 }}>
             <div>Receipt no. <strong>{trip.id.slice(0, 8).toUpperCase()}</strong></div>
             <div>Date {new Date(trip.createdAt).toLocaleDateString("en-IN")}</div>

@@ -99,7 +99,7 @@ authRoutes.post("/customer/register", zValidator("json", customerRegisterSchema)
   return c.json({ ...(await issueCustomerToken(c.env, db, user.id, tenantId)), customer: { name: user.name, email: user.email } }, 201);
 });
 
-// ── Customer password reset (flypoomas.com) ──────────────────────────────────
+// ── Customer password reset (zamrabooking.com) ──────────────────────────────────
 // Same reply whether or not the email exists; one-hour, one-use link.
 authRoutes.post("/customer/forgot", zValidator("json", z.object({ email: z.string().trim().toLowerCase().email() })), async (c) => {
   const db = c.get("db");
@@ -116,10 +116,10 @@ authRoutes.post("/customer/forgot", zValidator("json", z.object({ email: z.strin
     await c.env.SESSIONS_KV.put(`cust_pwreset:${token}`, JSON.stringify({ tenantId, userId: user.id }), { expirationTtl: 3600 });
     const link = `${WEB_URL}/reset-password?token=${token}`;
     c.executionCtx.waitUntil(sendMail(c.env, db, tenantId, {
-      to: user.email, category: "auth", subject: "Reset your FlyPoomas password",
+      to: user.email, category: "auth", subject: "Reset your ZamraBooking password",
       html: emailLayout({
         title: "Reset your password",
-        body: `<p>Hi ${escapeHtml(user.name || "there")}, use the button below to choose a new password for your FlyPoomas account. The link works for 1 hour.</p><p>If you didn't ask for this, you can ignore this email — your password stays the same.</p>`,
+        body: `<p>Hi ${escapeHtml(user.name || "there")}, use the button below to choose a new password for your ZamraBooking account. The link works for 1 hour.</p><p>If you didn't ask for this, you can ignore this email — your password stays the same.</p>`,
         cta: { label: "Choose a new password", href: link },
       }),
     }).then(() => undefined));
@@ -234,7 +234,7 @@ authRoutes.post("/logout", async (c) => {
 // One-time admin password initialisation — only works if PLATFORM_ADMIN_PASSWORD is set in env.
 // Creates the admin user if they don't exist yet, or sets their password if they have none.
 authRoutes.post("/admin-init", async (c) => {
-  const adminEmail    = c.env.PLATFORM_ADMIN_EMAIL    ?? "admin@flypoomas.com";
+  const adminEmail    = c.env.PLATFORM_ADMIN_EMAIL    ?? "admin@zamrabooking.com";
   const adminPassword = c.env.PLATFORM_ADMIN_PASSWORD ?? "";
 
   if (!adminPassword) {

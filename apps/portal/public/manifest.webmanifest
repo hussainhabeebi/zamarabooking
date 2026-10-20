@@ -1,6 +1,6 @@
 {
-  "name": "FlyPoomas Agent Portal",
-  "short_name": "FlyPoomas Agent",
+  "name": "ZamraBooking Agent Portal",
+  "short_name": "ZamraBooking Agent",
   "description": "Book flights, manage your wallet, sub-agents and customers",
   "start_url": "/dashboard",
   "scope": "/",

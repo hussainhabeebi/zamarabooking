@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 type Held = {
   id: string; status: string; origin: string; destination: string; departureDate: string | null; pnr: string | null;

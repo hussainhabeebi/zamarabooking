@@ -195,7 +195,7 @@ function getToken(): string {
 }
 
 export default function BookPage() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
   const [fare, setFare] = useState<FareInfo | null>(null);
   const [passengers, setPassengers] = useState<Passenger[]>([emptyPassenger()]);
   const [email, setEmail] = useState("");

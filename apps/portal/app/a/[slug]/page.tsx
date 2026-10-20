@@ -109,7 +109,7 @@ export default function AgencySitePage() {
             <div className="row"><button className="btn primary" style={{ background: agency.color, borderColor: agency.color }}>Send</button>{lead && <button type="button" className="btn" onClick={() => setLead(null)}>Cancel</button>}</div>
           </form>
         )}
-        <p className="small muted" style={{ textAlign: "center" }}>{agency.address ?? ""} · {agency.email}<br />Powered by FlyPoomas</p>
+        <p className="small muted" style={{ textAlign: "center" }}>{agency.address ?? ""} · {agency.email}<br />Powered by ZamraBooking</p>
       </div>
     </main>
   );
