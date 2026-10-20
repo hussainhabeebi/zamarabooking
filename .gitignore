@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+*.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+.nyc_output/
+prisma/generated/
+*.tsbuildinfo
