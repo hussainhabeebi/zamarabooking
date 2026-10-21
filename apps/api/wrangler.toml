@@ -16,18 +16,18 @@ routes = [
 # ── KV Namespaces ────────────────────────────────────────────────
 [[kv_namespaces]]
 binding    = "SESSIONS_KV"
-id         = "a7f844a2120b4a2a826ac8d1548786bd"
-preview_id = "a7f844a2120b4a2a826ac8d1548786bd"
+id         = "8c60a29d711045eabf92f4a7815c0697"
+preview_id = "8c60a29d711045eabf92f4a7815c0697"
 
 [[kv_namespaces]]
 binding    = "TENANT_CACHE_KV"
-id         = "0dfe7a31727b4fcab7403541fa13c0d1"
-preview_id = "0dfe7a31727b4fcab7403541fa13c0d1"
+id         = "3dc6b342af8f4d479d755da91cd6a89b"
+preview_id = "3dc6b342af8f4d479d755da91cd6a89b"
 
 [[kv_namespaces]]
 binding    = "FARE_CACHE_KV"
-id         = "8defdd47b8024c7288b4f82f90584f13"
-preview_id = "8defdd47b8024c7288b4f82f90584f13"
+id         = "4f4eb3965e084e65aa24d9bb8d341a06"
+preview_id = "4f4eb3965e084e65aa24d9bb8d341a06"
 
 # ── R2 Buckets ───────────────────────────────────────────────────
 [[r2_buckets]]
