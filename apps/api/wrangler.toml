@@ -2,7 +2,7 @@ name = "poomas-api"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
-account_id = "32263d4999a1bc702f9d0052d7bd281b"
+account_id = "f098f93799dd7203d996a8cb1a982ce1"
 workers_dev = false
 
 # ── Custom Domain ────────────────────────────────────────────────
