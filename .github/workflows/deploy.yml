@@ -82,7 +82,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
-      - run: pnpm exec opennextjs-cloudflare build
+      - run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
       - run: pnpm exec wrangler deploy
@@ -102,7 +102,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
-      - run: pnpm exec opennextjs-cloudflare build
+      - run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
       - run: pnpm exec wrangler deploy
@@ -122,7 +122,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
-      - run: pnpm exec opennextjs-cloudflare build
+      - run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
       - run: pnpm exec wrangler deploy
