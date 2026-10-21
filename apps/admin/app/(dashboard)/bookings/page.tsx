@@ -131,6 +131,10 @@ export default async function AdminBookingsPage({
                     <span style={{ background: sc.bg, color: sc.color, borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>
                       {b.status.replace(/_/g, " ")}
                     </span>
+                    {/* Poomas / manual fare paid, ticket not issued by staff yet */}
+                    {b.status === "CONFIRMED" && (b.supplier === "POOMAS" || b.supplier === "MANUAL") && (
+                      <span style={{ display: "block", marginTop: 4, color: "#fde047", fontSize: 11, fontWeight: 700 }}>Needs ticket</span>
+                    )}
                   </td>
                   <td style={{ padding: "12px 14px", color: "#e2e8f0", fontWeight: 600, fontSize: 14 }}>
                     {currSym(b.currency)}{Number(b.totalAmount).toLocaleString("en-IN")}

@@ -20,6 +20,7 @@ import { customerWalletsAdminRoutes } from "./customer-wallets.js";
 import { cancellationsAdminRoutes, supportAdminRoutes } from "./post-booking.js";
 import { agentProgramAdminRoutes } from "./agent-program.js";
 import { leadvyneAgentsAdminRoutes } from "./leadvyne-agents.js";
+import { flightSourcesAdminRoutes } from "./flight-sources.js";
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -57,6 +58,7 @@ adminRoutes.route("/leadvyne-agents", leadvyneAgentsAdminRoutes);
 adminRoutes.route("/finance",   financeAdminRoutes);
 adminRoutes.route("/settings",      settingsAdminRoutes);
 adminRoutes.route("/integrations",  integrationsAdminRoutes);
+adminRoutes.route("/flight-sources", flightSourcesAdminRoutes);
 adminRoutes.route("/hotels",        hotelsAdminRoutes);
 adminRoutes.route("/tripsafe",      tripsafeAdminRoutes);
 adminRoutes.route("/api-keys",       apiKeysAdminRoutes);

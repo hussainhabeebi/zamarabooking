@@ -10,6 +10,7 @@ import { collectExchanges, persistExchanges, persistInBackground } from "../lib/
 import { recordFareObservation, sendFareAlerts } from "../lib/fare-insights.js";
 import { optionalAgentId } from "../lib/agent-markup.js";
 import { agentPricing, rulesFor } from "../lib/agent-program.js";
+import { getPoomasSettings, rememberOfflineFares, searchManualFares } from "../lib/flight-sources.js";
 
 const searchSchema = z.object({
   origin:        z.string().length(3).toUpperCase(),
@@ -170,6 +171,16 @@ export async function resolveFlightSuppliers(env: Env, tenant: Variables["tenant
     }
   }
 
+  // Poomas Partner API (Admin → Flight Sources). It searches TripJack behind the
+  // scenes, so it gets the same generous time budget.
+  const poomas = await getPoomasSettings(env, tenantId).catch(() => null);
+  if (poomas?.enabled && poomas.apiKey) {
+    supplierConfigs.push({
+      name: "POOMAS", isEnabled: true, priority: 30, maxRetries: 0, timeoutMs: TRIPJACK_SEARCH_TIMEOUT_MS,
+      credentials: { apiKey: poomas.apiKey, baseUrl: poomas.baseUrl },
+    });
+  }
+
   // TripJack international searches regularly take 15–25s and the gateway allows
   // 45s, so never cut TripJack off earlier than this, whatever the DB row says.
   for (const config of supplierConfigs) {
@@ -179,7 +190,7 @@ export async function resolveFlightSuppliers(env: Env, tenant: Variables["tenant
   return { platformCredentials, supplierConfigs };
 }
 
-type LoggableSupplier = "TRIPJACK" | "RIYA" | "DUFFEL" | "GOOGLE_SERP";
+type LoggableSupplier = "TRIPJACK" | "RIYA" | "DUFFEL" | "GOOGLE_SERP" | "POOMAS";
 
 // Writes failed / empty flight searches to supplier_api_logs so they show up in
 // Admin → Supplier Logs. Successful searches are not logged to keep volume low.
@@ -367,6 +378,20 @@ async function runSearch(
   );
   persistInBackground(c, persistExchanges(c.env, db, tenantId, collector.exchanges, { searchId }));
 
+  // Zamra's own price list (Admin → Manual Fares). A database problem never fails the search.
+  const manualFares = await searchManualFares(c.env, db, tenantId, params).catch((err) => {
+    console.error("[search] manual fares unavailable", err);
+    return [];
+  });
+  if (manualFares.length) {
+    result.fares = [...result.fares, ...manualFares].sort((a, b) => a.totalFare - b.totalFare);
+  }
+  // Remember Poomas prices so a booking is charged what was shown.
+  if (result.fares.some((f) => f.supplier === "POOMAS")) {
+    c.executionCtx.waitUntil(rememberOfflineFares(c.env, tenantId, result.fares, params)
+      .catch((err) => console.error("[search] could not remember Poomas fares", err)));
+  }
+
   // Markup is optional for availability. If DB/schema/rule loading fails, return the
   // supplier fare unchanged rather than converting a healthy flight search into HTTP 500.
   let pricedFares = result.fares.map((fare) => ({ ...fare, displayPrice: fare.totalFare, markup: undefined }));
@@ -391,7 +416,7 @@ async function runSearch(
   const response = {
     searchId,
     fares: pricedFares,
-    usedSuppliers: result.usedSuppliers,
+    usedSuppliers: manualFares.length ? [...result.usedSuppliers, "MANUAL"] : result.usedSuppliers,
     availableSuppliers,
     credentialAvailability,
     isIndicative: result.isIndicative,

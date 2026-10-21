@@ -24,8 +24,9 @@ import { renderETicketHtml, storeETicket } from "./lib/eticket.js";
 import { renderItineraryHtml } from "./lib/itinerary.js";
 import { parseBookingDetails } from "./lib/trips.js";
 import { sendWhatsApp, buildBookingConfirmationMessage } from "./lib/notify.js";
-import { emailLayout, sendMail } from "./lib/email.js";
-import { escapeHtml, WEB_URL } from "./lib/customer-notify.js";
+import { emailLayout, getEmailSettings, sendMail } from "./lib/email.js";
+import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "./lib/customer-notify.js";
+import { isOfflineSupplier, takeManualSeats } from "./lib/flight-sources.js";
 
 // ── Message type discriminated union ─────────────────────────────
 
@@ -443,7 +444,8 @@ async function handlePaymentCaptured(
     await logBookingEvent(env, booking.id, "QUEUE", "info",
       `Payment confirmed — starting ${booking.supplier} booking (attempt ${attempt}${finalAttempt ? ", final" : ""})`,
       { orderId: data.orderId, gatewayPaymentId: data.gatewayPaymentId, amount: data.amount });
-    await bookPaidBooking(db, env, data, booking, finalAttempt);
+    if (isOfflineSupplier(booking.supplier)) await recordOfflinePayment(db, env, data, booking);
+    else await bookPaidBooking(db, env, data, booking, finalAttempt);
   } catch (err) {
     await recordBookingError(env, booking.id, err, attempt);
     await logBookingEvent(env, booking.id, "QUEUE", "error",
@@ -451,6 +453,74 @@ async function handlePaymentCaptured(
     throw err;
   } finally {
     await releaseBookingLock(env, booking.id);
+  }
+}
+
+const OFFLINE_LABEL: Record<string, string> = { POOMAS: "Poomas", MANUAL: "manual" };
+
+// Poomas / manual fares have no supplier call: record the payment, tell the
+// customer the ticket is being issued, and ask staff to issue it (Admin → Bookings →
+// Issue ticket, which sends the e-ticket).
+async function recordOfflinePayment(
+  db: ReturnType<typeof createDb>,
+  env: Env,
+  data: PaymentCapturedMsg,
+  booking: typeof bookings.$inferSelect,
+): Promise<void> {
+  const flightData = (booking.flightData ?? {}) as Record<string, any>;
+  const offline = { ...(flightData.offline ?? {}), ticketing: "PENDING", paidAt: new Date().toISOString() };
+  await db.update(bookings)
+    .set({ status: "CONFIRMED", flightData: { ...flightData, offline }, updatedAt: new Date() })
+    .where(eq(bookings.id, booking.id));
+  await db.update(payments).set({
+    gatewayPaymentId: data.gatewayPaymentId, status: "SUCCESS", updatedAt: new Date(),
+  }).where(eq(payments.gatewayOrderId, data.orderId));
+  const label = OFFLINE_LABEL[booking.supplier ?? ""] ?? String(booking.supplier);
+  await logBookingEvent(env, booking.id, "BOOK", "info",
+    `Payment received for a ${label} fare — issue the ticket${booking.supplier === "POOMAS" ? " on Poomas" : ""} and enter the PNR in Admin → Bookings`,
+    { orderId: data.orderId, amount: data.amount });
+
+  // Never let follow-up steps fail (and re-run) a paid booking.
+  if (booking.supplier === "MANUAL" && typeof flightData.id === "string") {
+    await takeManualSeats(db, booking.tenantId, flightData.id, booking.adultCount + booking.childCount)
+      .catch((err) => console.error(`[manual-seats] booking ${booking.id}:`, err));
+  }
+  await creditBookingBonus(db, booking.id).catch((err) => console.error(`[wallet-bonus] booking ${booking.id}:`, err));
+  await settleAgentBooking(env, db, booking).catch((err) => console.error(`[agent-settle] booking ${booking.id}:`, err));
+  await rewardReferral(env, db, booking).catch((err) => console.error(`[referral] booking ${booking.id}:`, err));
+
+  const route = `${booking.origin} → ${booking.destination}`;
+  const date = booking.departureDate.toISOString().slice(0, 10);
+  const flight = [flightData.airlineName, flightData.flightNumber].filter(Boolean).join(" ");
+  const tripsLink = `${WEB_URL}/trips`;
+  await notifyCustomer(env, db, booking.tenantId, {
+    email: booking.contactEmail, phone: booking.contactPhone, category: "booking",
+    idempotencyKey: `offline-paid-${booking.id}`,
+    subject: `Booking received: ${route} on ${date}`,
+    html: emailShell("We've received your booking", `<p>Thank you — your payment of <b>${escapeHtml(money(Number(booking.totalAmount), booking.currency))}</b> for ${escapeHtml(route)}${flight ? ` (${escapeHtml(flight)})` : ""} on ${escapeHtml(date)} is confirmed.</p>
+<p>Our team is issuing your ticket now. You'll receive the e-ticket with the airline PNR by email shortly.</p>`, { label: "View my trip", href: tripsLink }),
+    whatsapp: `✅ *Booking received* — ${route} on ${date}${flight ? ` (${flight})` : ""}\nPayment confirmed. Our team is issuing your ticket; the e-ticket with your PNR will follow shortly.`,
+  }).catch((err) => console.error(`[offline-paid] customer message ${booking.id}:`, err));
+
+  // Ops alert: the operations inbox from Admin → Settings → Email, else the tenant's support email.
+  try {
+    const [tenant] = await db.select({ supportEmail: tenants.supportEmail }).from(tenants).where(eq(tenants.id, booking.tenantId)).limit(1);
+    const opsEmail = (await getEmailSettings(env, booking.tenantId)).bccOps || tenant?.supportEmail;
+    if (opsEmail) {
+      await sendMail(env, db, booking.tenantId, {
+        to: opsEmail, category: "admin", idempotencyKey: `offline-ticket-${booking.id}`,
+        subject: `Issue ticket: ${route} ${date} (${label} fare, paid)`,
+        html: emailLayout({
+          title: "A paid booking needs a ticket",
+          body: `<p>${escapeHtml(booking.contactEmail ?? "A customer")} paid for a ${escapeHtml(label)} fare. Issue the ticket${booking.supplier === "POOMAS" ? " on Poomas" : ""}, then open the booking in Admin and click <b>Issue ticket</b> to send the e-ticket.</p>`,
+          rows: [["Route", route], ["Date", date], ["Flight", flight || "—"], ["Travellers", String(booking.adultCount + booking.childCount + booking.infantCount)],
+            ["Amount paid", money(Number(booking.totalAmount), booking.currency)], ["Booking ID", booking.id]],
+          cta: { label: "Open in Admin", href: `https://admin.zamrabooking.com/bookings` },
+        }),
+      });
+    }
+  } catch (err) {
+    console.error(`[offline-paid] ops alert ${booking.id}:`, err);
   }
 }
 

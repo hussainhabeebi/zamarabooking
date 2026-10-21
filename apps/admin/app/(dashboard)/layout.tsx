@@ -15,6 +15,8 @@ const NAV_ITEMS = [
   { href: "/wallet-recharges", label: "Wallet recharges", icon: "🏦" },
   { href: "/agent-program", label: "Agent programme", icon: "🏅" },
   { href: "/suppliers",    label: "Suppliers",     icon: "🔌" },
+  { href: "/flight-sources", label: "Flight sources", icon: "✈️" },
+  { href: "/manual-fares", label: "Manual fares",  icon: "🗂️" },
   { href: "/finance",      label: "Finance",       icon: "💰" },
   { href: "/markup",       label: "Markup",        icon: "🏷️" },
   { href: "/customer-wallets", label: "Wallets",   icon: "👛" },
@@ -33,6 +35,7 @@ const SECTION_OF: Record<string, string> = {
   "/agents": "agents", "/leadvyne-agencies": "agents",
   "/agent-requests": "agent_requests", "/wallet-recharges": "wallet_recharges",
   "/customer-wallets": "customer_wallets", "/support": "support", "/finance": "finance", "/supplier-logs": "logs",
+  "/manual-fares": "manual_fares",
 };
 type AdminMe = { user: { name: string | null; email: string | null }; role: string; roleLabel: string; fullAccess: boolean; sections: string[]; canManageUsers: boolean };
 

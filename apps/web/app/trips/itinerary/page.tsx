@@ -13,6 +13,7 @@ interface Trip {
   currency: string; totalAmount: number; contactEmail: string | null;
   passengers: { id: string; type: string; firstName: string; lastName: string }[];
   itinerary: { pnr?: string; segments: Segment[]; travellers: { name: string; type?: string; pnr?: string; ticketNumber?: string }[] } | null;
+  ticketing?: "PENDING" | null;   // Poomas / manual fare: our team is issuing the ticket
 }
 
 const POLL_MS = 4000;
@@ -40,6 +41,7 @@ export default function ItineraryConfirmationPage() {
   const [hasToken, setHasToken] = useState(true);
 
   const confirmed = CONFIRMED.includes(trip?.status ?? "");
+  const issuing = trip?.ticketing === "PENDING";
   const pnr = trip?.pnr ?? trip?.itinerary?.pnr ?? null;
   const fileName = `itinerary-${(pnr ?? trip?.id.slice(0, 8) ?? "booking").replace(/[^A-Za-z0-9-]/g, "")}.html`;
 
@@ -81,7 +83,7 @@ export default function ItineraryConfirmationPage() {
 
   // Download the itinerary automatically once, as soon as the flight details are in.
   useEffect(() => {
-    if (!trip || !confirmed || !trip.itinerary?.segments.length || autoTried.current) return;
+    if (!trip || !confirmed || trip.ticketing === "PENDING" || !trip.itinerary?.segments.length || autoTried.current) return;
     autoTried.current = true;
     try { if (sessionStorage.getItem(`itinerary_downloaded:${trip.id}`)) { setDownload("done"); return; } } catch {}
     saveItinerary();
@@ -115,10 +117,12 @@ export default function ItineraryConfirmationPage() {
           {confirmed ? "✓" : failed ? "×" : "…"}
         </div>
         <div className={styles.confirmationContent}>
-          <h1 id="confirmation-title">{confirmed ? "Booking confirmed" : failed ? "Booking could not be completed" : "Confirming your seat with the airline"}</h1>
+          <h1 id="confirmation-title">{issuing ? "Booking received" : confirmed ? "Booking confirmed" : failed ? "Booking could not be completed" : "Confirming your seat with the airline"}</h1>
           {confirmed && <p className={styles.journey}>{trip.origin} <span aria-label="to">→</span> {trip.destination}<span className={styles.travellerCount}> · {travellers.length} traveller{travellers.length > 1 ? "s" : ""}</span></p>}
           <p className={styles.message}>
-            {confirmed
+            {issuing
+              ? `Payment received. Our team is issuing your ticket now — the e-ticket with your airline PNR will be emailed${trip.contactEmail ? ` to ${trip.contactEmail}` : ""} shortly. You can also find it in My Trips.`
+              : confirmed
               ? `${download === "done" ? "Your itinerary has been downloaded." : download === "busy" ? "Downloading your itinerary…" : "Your booking details are below."}${trip.contactEmail ? ` The e-ticket is also on its way to ${trip.contactEmail}.` : ""}`
               : failed
                 ? "The airline couldn't confirm this booking. Your payment is being refunded to your original payment method."
@@ -134,7 +138,7 @@ export default function ItineraryConfirmationPage() {
         </div>}
       </section>
 
-      {confirmed && <section className={styles.actionsPanel} aria-label="Booking documents and actions">
+      {confirmed && !issuing && <section className={styles.actionsPanel} aria-label="Booking documents and actions">
         <div className={styles.actions}>
           <button onClick={() => { setDownloadError(""); downloadFile("/api/trips/eticket", "guest", fileName.replace(/^itinerary-/, "e-ticket-")).catch((e) => setDownloadError(e.message)); }} className={styles.primaryAction}>Download e-ticket</button>
           <button onClick={() => { setDownloadError(""); openETicket("/api/trips/eticket", "guest").catch((e) => setDownloadError(e.message)); }} className={styles.secondaryAction}>View / print e-ticket</button>

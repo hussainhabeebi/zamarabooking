@@ -17,6 +17,7 @@ export type {
 // Duffel and SERP adapters kept for future re-enablement
 export { SerpAdapter }   from "./serp/adapter.js";
 export { DuffelAdapter } from "./duffel/adapter.js";
+export { PoomasAdapter, PoomasError, normalizePoomasOffer } from "./poomas/adapter.js";
 export type { SupplierExchange, ExchangeRecorder } from "./tripjack/client.js";
 export {
   parseTripjackReview, reviewTotalFare, ssrTotal,

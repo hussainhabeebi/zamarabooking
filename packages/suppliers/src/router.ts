@@ -1,11 +1,12 @@
-import type { NormalizedFare, SearchParams, SupplierAdapter, SupplierCredentials } from "./base.js";
+import type { NormalizedFare, SearchParams, SupplierAdapter, SupplierCredentials, SupplierName } from "./base.js";
 import { RiyaAdapter }   from "./riya/adapter.js";
 import { TripjackAdapter } from "./tripjack/adapter.js";
 import { SerpAdapter }   from "./serp/adapter.js";
 import { DuffelAdapter } from "./duffel/adapter.js";
+import { PoomasAdapter } from "./poomas/adapter.js";
 
 export interface SupplierConfig {
-  name:        "RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL";
+  name:        SupplierName;
   isEnabled:   boolean;
   priority:    number;  // 1 = first, higher = later fallback
   credentials: SupplierCredentials | null;
@@ -21,11 +22,12 @@ export interface PlatformCredentials {
   TRIPJACK?:    { apiKey?: string; baseUrl?: string; omsBaseUrl?: string; proxyKey?: string };
   GOOGLE_SERP?: { apiKey?: string; baseUrl?: string };
   DUFFEL?:      { apiKey?: string };
+  POOMAS?:      { apiKey?: string; baseUrl?: string };
 }
 
 export interface SearchResult {
   fares:          NormalizedFare[];
-  usedSuppliers:  ("RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL")[];
+  usedSuppliers:  SupplierName[];
   isIndicative:   boolean;   // true if results came from SERP (non-bookable)
   errors:         Record<string, string>;
   // Diagnostic detail per supplier for operator logs (never shown to customers).
@@ -68,6 +70,7 @@ function buildAdapter(config: SupplierConfig, platform: PlatformCredentials = {}
     case "TRIPJACK":    return new TripjackAdapter(creds);
     case "GOOGLE_SERP": return new SerpAdapter(creds);
     case "DUFFEL":      return new DuffelAdapter(creds);
+    case "POOMAS":      return new PoomasAdapter(creds);
   }
 }
 
