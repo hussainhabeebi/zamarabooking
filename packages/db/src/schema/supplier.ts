@@ -1,5 +1,5 @@
 import {
-  pgTable, text, boolean, integer, decimal, timestamp, jsonb, uniqueIndex, index,
+  pgTable, text, boolean, integer, decimal, timestamp, jsonb, uniqueIndex, index, date,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { tenants } from "./tenant.js";
@@ -172,3 +172,38 @@ export const supplierExchanges = pgTable("supplier_exchanges", {
   startedAt:   timestamp("started_at", { withTimezone: true }).notNull(),
   createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Fares Zamra sells from its own price list: typed in Admin (source ADMIN) or
+// synced from a published Google Sheet (source SHEET, replaced on every sync).
+// Booked and paid online; staff issue the ticket and enter the PNR in Admin.
+export const manualFares = pgTable("manual_fares", {
+  id:               text("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:         text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  source:           text("source").notNull().default("ADMIN"),
+  travelDate:       date("travel_date").notNull(),
+  origin:           text("origin").notNull(),
+  destination:      text("destination").notNull(),
+  airline:          text("airline").notNull(),
+  airlineName:      text("airline_name"),
+  flightNumber:     text("flight_number").notNull(),
+  departureTime:    text("departure_time").notNull(),   // HH:MM local
+  arrivalTime:      text("arrival_time").notNull(),
+  arrivalDayOffset: integer("arrival_day_offset").notNull().default(0),
+  durationMinutes:  integer("duration_minutes"),            // null = worked out from the times
+  stops:            integer("stops").notNull().default(0),
+  cabinClass:       text("cabin_class").notNull().default("ECONOMY"),
+  adultFare:        decimal("adult_fare", { precision: 14, scale: 2 }).notNull(),   // per adult, taxes included
+  childFare:        decimal("child_fare", { precision: 14, scale: 2 }),             // null = adult fare
+  infantFare:       decimal("infant_fare", { precision: 14, scale: 2 }),            // null = 0
+  currency:         text("currency").notNull().default("INR"),
+  seatsAvailable:   integer("seats_available").notNull().default(9),
+  checkedBaggage:   text("checked_baggage"),
+  cabinBaggage:     text("cabin_baggage"),
+  isRefundable:     boolean("is_refundable").notNull().default(false),
+  notes:            text("notes"),
+  isActive:         boolean("is_active").notNull().default(true),
+  createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  routeIdx: index("manual_fares_route_idx").on(t.tenantId, t.origin, t.destination, t.travelDate),
+}));

@@ -3,7 +3,7 @@ import { supplierApiLogs } from "@zamrabooking/db/schema";
 
 export interface SupplierCallLog {
   tenantId:       string;
-  supplier:       "TRIPJACK" | "RIYA" | "DUFFEL" | "GOOGLE_SERP";
+  supplier:       "TRIPJACK" | "RIYA" | "DUFFEL" | "GOOGLE_SERP" | "AKBAR" | "POOMAS" | "MANUAL";
   endpoint:       string;
   httpStatus?:    number;
   level:          "INFO" | "WARN" | "ERROR";

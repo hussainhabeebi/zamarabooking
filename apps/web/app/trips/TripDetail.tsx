@@ -13,6 +13,7 @@ interface Trip {
   cancellations: { id: string; status: string; supplierCharges: number | null; refundAmount: number | null; refundMethod: string; refundStatus: string; refundedAt: string | null; createdAt: string }[];
   itinerary: { supplierStatus?: string; pnr?: string; segments: Segment[]; travellers: { name: string; type?: string; pnr?: string; ticketNumber?: string }[] } | null;
   eticketAvailable: boolean;
+  ticketing?: "PENDING" | null;   // Poomas / manual fare: our team is issuing the ticket
 }
 interface Quote { amountPaid: number; serviceFee: number; supplierFare: number; supplierCharges: number; refundAmount: number; currency: string; refundMethod: string; refundTo: string }
 interface SupportReq { id: string; type: string; message: string; status: string; adminNote: string | null; createdAt: string; bookingId: string | null }
@@ -81,14 +82,16 @@ export default function TripDetail({ mode, id }: { mode: Mode; id?: string }) {
   }
   if (!trip) return <main className="page-container" style={{ padding: "32px 16px" }}>Loading booking…</main>;
 
-  const st = STATUS_LABEL[trip.status] ?? { label: trip.status, color: "#334155", bg: "#f1f5f9" };
+  const st = trip.ticketing === "PENDING"
+    ? { label: "Ticket being issued", color: "#92400e", bg: "#fef3c7" }
+    : STATUS_LABEL[trip.status] ?? { label: trip.status, color: "#334155", bg: "#f1f5f9" };
   const segs = trip.itinerary?.segments ?? [];
   const travellers = trip.itinerary?.travellers?.length ? trip.itinerary.travellers
     : trip.passengers.map((p) => ({ name: `${p.firstName} ${p.lastName}`, type: p.type, ticketNumber: undefined as string | undefined, pnr: undefined as string | undefined }));
   const pnr = trip.pnr ?? trip.itinerary?.pnr;
   const airlineName = segs[0]?.airlineName || "";
   const latestCancel = trip.cancellations[0];
-  const ticketed = ["CONFIRMED", "TICKETED"].includes(trip.status);
+  const ticketed = trip.eticketAvailable;
   const receiptHref = mode === "customer" ? `/trips/${trip.id}/receipt` : "/trips/guest/receipt";
   const eticketPath = mode === "customer" ? `/api/profile/trips/${trip.id}/eticket` : "/api/trips/eticket";
 
@@ -110,6 +113,11 @@ export default function TripDetail({ mode, id }: { mode: Mode; id?: string }) {
           <Info label="Booked on" value={fmtDate(trip.createdAt)} />
           <Info label="Total paid" value={inr(trip.totalAmount, trip.currency)} />
         </div>
+        {trip.ticketing === "PENDING" && (
+          <p style={{ margin: "12px 0 0", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}>
+            Payment received. Our team is issuing your ticket — the e-ticket with your airline PNR will be emailed to you shortly.
+          </p>
+        )}
       </section>
 
       {error && <div style={errBox}>{error}</div>}

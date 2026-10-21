@@ -378,7 +378,8 @@ function buildBookUrl(fare: any, fareCurrency: string, price: number, adults: nu
 function optionLinkParams(fare: any, options: any[]): Record<string, string> {
   const extra: Record<string, string> = { cab: fare.baggage?.cabin ?? "", fl: fareLabel(fare.fareIdentifier || fare.fareClass) };
   if (typeof fare.mealIncluded === "boolean") extra.meal = fare.mealIncluded ? "1" : "0";
-  const alts = altOptions(options, fare.id);
+  // A switch on the booking page keeps the supplier, so only offer the same supplier's fares.
+  const alts = altOptions(options.filter((o) => o.supplier === fare.supplier), fare.id);
   if (alts.length) extra.alts = JSON.stringify(alts);
   return extra;
 }
@@ -484,6 +485,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
             const diff = op - price;
             return {
               id: o.id,
+              supplier: o.supplier,
               label: fareLabel(o.fareIdentifier || o.fareClass),
               price: formatMoney(oShown.amount, oShown.currency),
               diff: diff > 0 ? formatMoney(inChosenCurrency(diff, fareCurrency, requestedCurrency, aedRate).amount, oShown.currency) : undefined,

@@ -235,6 +235,9 @@ async function eticketResponse(c: any, booking: typeof bookings.$inferSelect) {
   if (!["CONFIRMED", "TICKETED"].includes(booking.status)) {
     throw new HTTPException(400, { message: "The e-ticket is available once the booking is confirmed" });
   }
+  if ((booking.supplier === "POOMAS" || booking.supplier === "MANUAL") && booking.status !== "TICKETED") {
+    throw new HTTPException(409, { message: "Our team is issuing your ticket. The e-ticket will be emailed to you as soon as it's ready." });
+  }
   const key = `etickets/${booking.id}.html`;
   // TripJack bookings: always build from TripJack's live booking details so the
   // copy carries the latest PNR and ticket numbers; keep the stored copy current.

@@ -22,6 +22,7 @@ export const STAFF_SECTIONS = [
   { key: "support",          label: "Customer support",                    paths: ["/support-requests"] },
   { key: "finance",          label: "Finance reports",                     paths: ["/finance"] },
   { key: "logs",             label: "API logs",                            paths: ["/supplier-logs"] },
+  { key: "manual_fares",     label: "Manual fares (price table & sheet sync)", paths: ["/flight-sources/manual/fares", "/flight-sources/manual/sync"] },
 ] as const;
 export type StaffSection = (typeof STAFF_SECTIONS)[number]["key"];
 export const STAFF_SECTION_KEYS = STAFF_SECTIONS.map((s) => s.key) as StaffSection[];
