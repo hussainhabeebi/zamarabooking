@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { apiCall, readCustomerToken } from "../lib/customer-api";
 import { CURRENCY_EVENT, isPrefCurrency, readPrefCurrency, savePrefCurrency, syncAccountCurrency, type PrefCurrency } from "../lib/currency-pref";
-import { BUSINESS } from "../lib/business";
 import { CURRENCY_LIST } from "../lib/fx";
 
 function flightSearchUrl() { return "/#flight-search"; }
@@ -119,7 +118,6 @@ export default function SiteNav() {
           {CURRENCY_LIST.map((c) => <option key={c.code} value={c.code}>{c.code === "INR" ? "₹ INR" : c.code === "USD" ? "$ USD" : c.code}</option>)}
         </select>
       </label>
-      <a href={BUSINESS.phoneHref} className="header-icon header-support" aria-label="Call Zamra support"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 14v-3a8 8 0 0 1 16 0v3M4 11H2v7h4v-7H4Zm16 0h2v7h-4v-7h2Zm0 7c0 3-4 3-7 3" /></svg></a>
       <a href="/account" aria-label={accountLabel} className="nav-link home-account-link"><span className="site-account-icon-wrap">{accountIcon}</span><span className="site-account-label" title={accountLabel}>{accountLabel}</span></a>
       <details className="home-mobile-menu header-more" onKeyDown={(event) => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
         <summary aria-label="More navigation"><span className="header-more-label">More</span><span className="home-mobile-menu-icon" aria-hidden="true"><i /><i /><i /></span></summary>

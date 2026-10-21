@@ -1,7 +1,7 @@
 /* Floating navigation and footer only. Booking forms and homepage sections keep their styles. */
 body .site-header.site-header.zamra-header {
- position:sticky; top:14px; z-index:50; max-width:1320px; width:calc(100% - 48px); min-height:76px;
- margin:14px auto 0; padding:12px 18px 12px 22px; gap:28px; border:1px solid #dceaf4;
+ position:fixed; top:0; left:0; right:0; z-index:50; max-width:1320px; width:calc(100% - 48px); min-height:76px;
+ margin:0 auto; padding:12px 18px 12px 22px; gap:28px; border:1px solid #dceaf4;
  border-radius:100px; background:#f4f9fd; box-shadow:0 8px 28px #0d4b960a;
 }
 .zamra-header .site-logo-link { flex-shrink:0; gap:9px; }
@@ -71,7 +71,7 @@ body .zamra-footer .footer-credits a { color:#c6deef; }
  body .zamra-header .header-support { display:none; }
 }
 @media(max-width:767px) {
- body .site-header.site-header.zamra-header { top:8px; width:calc(100% - 20px); min-height:64px; margin-top:8px; padding:8px 10px 8px 14px; gap:8px; }
+ body .site-header.site-header.zamra-header { top:0; width:calc(100% - 20px); min-height:64px; margin-top:0; padding:8px 10px 8px 14px; gap:8px; }
  body .zamra-header .site-logo { width:30px; height:30px; }
  body .zamra-header .site-brand-name { font-size:13px; }
  body .zamra-header .site-logo-link { gap:6px; }
@@ -101,3 +101,7 @@ body .zamra-header .site-nav .home-account-link { border-radius:50px; background
 body .zamra-footer .footer-column ul { display:block; }
 body .zamra-footer .footer-column .footer-contact-cta { color:#071f36; }
 body .zamra-footer .footer-column .footer-contact-cta:hover { color:#071f36; }
+
+/* Reserve header space without transforming the fixed mobile tab bar. */
+body:has(.zamra-header) { padding-top:90px; }
+@media(max-width:767px) { body:has(.zamra-header) { padding-top:72px; } }
