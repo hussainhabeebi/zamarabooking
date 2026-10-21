@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Hono } from "hono";
-import { TripjackClient } from "@poomas/suppliers";
+import { TripjackClient } from "@zamrabooking/suppliers";
 import {
   cheapestPerAdult, createAlert, getAlert, observable, readCalendar, recordFareObservation, shouldNotify, type FareAlert,
 } from "../src/lib/fare-insights.js";
@@ -186,7 +186,7 @@ test("sub-agent markup: flat or percentage on top of the shown price", () => {
 });
 
 test("TripJack fare rules nested under the route are read with amounts", async () => {
-  const { parseTripjackFareRules } = await import("@poomas/suppliers");
+  const { parseTripjackFareRules } = await import("@zamrabooking/suppliers");
   const rules = parseTripjackFareRules({ fareRule: { "AUH-CCJ": { tfr: {
     CANCELLATION: [{ policyInfo: "Cancellation__nls__allowed", amount: 3500, additionalFee: 300, st: 4, et: 8760 }],
     DATECHANGE: [{ amount: 2500 }],

@@ -1,5 +1,5 @@
 import { serverAuthHeaders } from "../../../lib/server";
-const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const SERVER_TOKEN = process.env.ADMIN_SERVICE_TOKEN ?? "";
 
 interface FinanceSummary {
@@ -52,7 +52,7 @@ export default async function FinancePage() {
           <p style={{ color: "#64748b", fontSize: 13, marginBottom: 16 }}>
             Review and process cancellation refunds awaiting approval.
           </p>
-          <a href="/cancellations" style={{ color: "#E31E24", fontSize: 13, textDecoration: "none", fontWeight: 600 }}>
+          <a href="/cancellations" style={{ color: "#0D4B96", fontSize: 13, textDecoration: "none", fontWeight: 600 }}>
             View Cancellations & Refunds →
           </a>
         </div>

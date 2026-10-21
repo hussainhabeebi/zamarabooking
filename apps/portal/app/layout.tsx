@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./portal.css";
 
 export const metadata: Metadata = {
-  title: "FlyPoomas Agent Portal",
+  title: "ZamraBooking Agent Portal",
   description: "Book flights, manage your wallet, sub-agents and customers",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "FlyPoomas Agent" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "ZamraBooking Agent" },
   icons: { icon: "/logo.png", apple: "/logo.png" },
 };
 

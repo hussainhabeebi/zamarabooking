@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { searchFares, type SupplierConfig, type PlatformCredentials, type SupplierDiagnostic } from "@poomas/suppliers";
+import { searchFares, type SupplierConfig, type PlatformCredentials, type SupplierDiagnostic } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../types.js";
 import { logSupplierCall } from "../lib/supplier-logger.js";
 import { DISPLAY_CURRENCIES, getFx, type ForeignCurrency } from "../lib/fx.js";
@@ -22,7 +22,7 @@ const searchSchema = z.object({
   cabinClass:    z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"]).default("ECONOMY"),
   tripType:      z.enum(["ONEWAY", "ROUNDTRIP", "MULTICITY"]).default("ONEWAY"),
   currency:      z.enum(DISPLAY_CURRENCIES).optional(),
-  // Leadvyne Live Agency: the agency's FlyPoomas agent number (or header X-FP-Agent).
+  // Leadvyne Live Agency: the agency's ZamraBooking agent number (or header X-FP-Agent).
   agentNumber:   z.string().max(20).optional(),
   // Multi-city legs (2–6); round trips can use returnDate instead.
   legs: z.array(z.object({
@@ -372,7 +372,7 @@ async function runSearch(
   let pricedFares = result.fares.map((fare) => ({ ...fare, displayPrice: fare.totalFare, markup: undefined }));
   try {
     const { applyMarkup } = await import("../lib/markup.js");
-    const { markupRules } = await import("@poomas/db/schema");
+    const { markupRules } = await import("@zamrabooking/db/schema");
     const { eq } = await import("drizzle-orm");
     const rules = await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId));
     pricedFares = result.fares.map((fare) => ({
@@ -440,7 +440,7 @@ async function agentFares(c: Context<{ Bindings: Env; Variables: Variables }>, t
   try {
     const db = c.get("db");
     const { applyMarkup } = await import("../lib/markup.js");
-    const { markupRules } = await import("@poomas/db/schema");
+    const { markupRules } = await import("@zamrabooking/db/schema");
     const { eq } = await import("drizzle-orm");
     const rules = await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId));
     const ownRules = rules.some((r) => r.agentId === agentId);
@@ -484,7 +484,7 @@ searchRoutes.post("/validate-fare", async (c) => {
   if (!fareId || !supplier) return c.json({ error: "fareId and supplier required" }, 400);
 
   if (supplier === "TRIPJACK") {
-    const { TripjackClient } = await import("@poomas/suppliers");
+    const { TripjackClient } = await import("@zamrabooking/suppliers");
     const { platformCredentials, supplierConfigs } = await resolveFlightSuppliers(c.env, c.get("tenant"), c.get("tenantId"));
     const config = supplierConfigs.find((s) => s.name === "TRIPJACK");
     if (!config?.isEnabled) return c.json({ valid: false, reason: "unavailable" });
@@ -517,7 +517,7 @@ searchRoutes.get("/debug-tripjack", async (c) => {
   const config = supplierConfigs.find((s) => s.name === "TRIPJACK");
   if (!config?.isEnabled) return c.json({ error: "TRIPJACK not enabled", credentialAvailability: platformCredentials.TRIPJACK });
 
-  const { TripjackClient } = await import("@poomas/suppliers");
+  const { TripjackClient } = await import("@zamrabooking/suppliers");
   const creds = { ...(platformCredentials.TRIPJACK ?? {}), ...(config.credentials ?? {}) };
   const resolvedBaseUrl = (creds.baseUrl as string | undefined)?.replace(/\/+$/, "") ?? "(not set)";
   const usingGateway    = Boolean(creds.proxyKey);
@@ -558,7 +558,7 @@ searchRoutes.get("/fare-rules/:fareId", async (c) => {
   const { platformCredentials, supplierConfigs } = await resolveFlightSuppliers(c.env, c.get("tenant"), tenantId);
   const config = supplierConfigs.find((s) => s.name === "TRIPJACK");
   if (!config?.isEnabled) return c.json({ fareRules: [], error: "Fare rules aren't available right now." });
-  const { TripjackClient, parseTripjackFareRules } = await import("@poomas/suppliers");
+  const { TripjackClient, parseTripjackFareRules } = await import("@zamrabooking/suppliers");
   try {
     const client = new TripjackClient({ ...(platformCredentials.TRIPJACK ?? {}), ...(config.credentials ?? {}) });
     const rules = parseTripjackFareRules(await client.fareRules(fareId));

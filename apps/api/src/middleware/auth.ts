@@ -7,7 +7,7 @@ import { verifyToken } from "../routes/checkout.js";
 const BEARER_PREFIX = "Bearer ";
 const API_KEY_PREFIX = "pmsk_";
 
-interface PoomasJWTPayload extends JWTPayload {
+interface ZamraJWTPayload extends JWTPayload {
   userId:   string;
   tenantId: string;
   role:     string;
@@ -50,7 +50,7 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: Varia
 async function verifyJWT(c: Parameters<MiddlewareHandler>[0], token: string, next: () => Promise<void>) {
   try {
     const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-    const { payload } = await jwtVerify<PoomasJWTPayload>(token, secret);
+    const { payload } = await jwtVerify<ZamraJWTPayload>(token, secret);
 
     // JWT's tenantId must match the resolved tenant from the domain
     // This prevents a token from one tenant being used against another
@@ -85,7 +85,7 @@ async function verifyJWT(c: Parameters<MiddlewareHandler>[0], token: string, nex
 async function verifyApiKey(c: Parameters<MiddlewareHandler>[0], rawKey: string, next: () => Promise<void>) {
   // API keys are tenant-scoped — looked up by prefix + hash
   const db = c.get("db");
-  const { tenantApiKeys } = await import("@poomas/db/schema");
+  const { tenantApiKeys } = await import("@zamrabooking/db/schema");
   const { eq, and } = await import("drizzle-orm");
 
   const prefix = rawKey.slice(0, 12);  // "pmsk_" + 7 chars

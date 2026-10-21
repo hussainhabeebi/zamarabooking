@@ -49,7 +49,7 @@ interface SearchPageProps { searchParams: Promise<SearchParams>; }
 
 // Rates from the automatic exchange-rate tool (INR per 1 unit). No caching: a new rate applies to the very next search.
 async function fetchRates(): Promise<FxRates> {
-  return fetchFxRates(process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com");
+  return fetchFxRates(process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com");
 }
 
 // Price in the currency the customer chose (rounded up like the payment API).
@@ -63,12 +63,12 @@ function inChosenCurrency(price: number, fareCurrency: string, chosen: string | 
 
 async function searchFlights(params: SearchParams, sessionId: string | null): Promise<SearchResult> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
     const res = await fetch(`${apiUrl}/api/search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-tenant-slug": "poomas",
+        "x-tenant-slug": "zamra",
         ...(sessionId ? { "X-Session-ID": sessionId } : {}),
       },
       body: JSON.stringify({
@@ -399,7 +399,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
   const arrNextDay = dep.getUTCDate() !== arr.getUTCDate();
 
   const cabinLabel = String(fare.cabinClass ?? "ECONOMY").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-  const badgeColor = fare.__badge === "Best overall" ? "#E31E24" : fare.__badge === "Lowest fare" ? "#0f172a" : "#0369a1";
+  const badgeColor = fare.__badge === "Best overall" ? "#0D4B96" : fare.__badge === "Lowest fare" ? "#0f172a" : "#0369a1";
 
   return (
     <div className="fare-card-v2" style={{ position: "relative" }}>

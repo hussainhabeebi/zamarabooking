@@ -59,7 +59,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="side-brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={me?.settings.logoUrl || "/logo.png"} alt="" />
-            <span>FlyPoomas Agent</span>
+            <span>ZamraBooking Agent</span>
           </div>
           {NAV.map((g) => (
             <div key={g.group}>
@@ -96,7 +96,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <div className="banner warn"><b>Your agency is waiting for approval.</b> You can search fares and set up your profile. Upload your KYC documents in <a href="/settings">Profile & KYC</a> to speed it up.</div>
             )}
             {me && ["SUSPENDED", "REJECTED"].includes(me.agent.status) && (
-              <div className="banner bad">Your agency is {me.agent.status.toLowerCase()}. Please contact FlyPoomas support.</div>
+              <div className="banner bad">Your agency is {me.agent.status.toLowerCase()}. Please contact ZamraBooking support.</div>
             )}
             {me?.settings.frozen && <div className="banner bad"><b>Bookings are paused.</b> {me.settings.frozenReason ?? "Please contact support."}</div>}
             {me?.credit.overdue && (

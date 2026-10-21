@@ -111,7 +111,7 @@ export default function BookingDetailPage() {
       <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #334155", marginBottom: 16, overflowX: "auto" }}>
         {TABS.map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} style={{
-            background: "none", border: 0, borderBottom: `2px solid ${tab === k ? "#E31E24" : "transparent"}`, color: tab === k ? "#f1f5f9" : "#94a3b8",
+            background: "none", border: 0, borderBottom: `2px solid ${tab === k ? "#0D4B96" : "transparent"}`, color: tab === k ? "#f1f5f9" : "#94a3b8",
             padding: "10px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
           }}>{label}{k === "errors" ? ` (${(data.events ?? []).filter((e: any) => e.level === "error").length})` : k === "logs" ? ` (${data.exchanges.length})` : k === "support" ? ` (${data.supportRequests.length})` : ""}</button>
         ))}
@@ -349,7 +349,7 @@ function Table({ head, rows }: { head: string[]; rows: React.ReactNode[][] }) {
 const card: React.CSSProperties = { background: "#1e293b", borderRadius: 12, padding: 16, border: "1px solid #334155" };
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 };
 const backLink: React.CSSProperties = { color: "#94a3b8", fontSize: 13, textDecoration: "none" };
-const btn: React.CSSProperties = { background: "#E31E24", color: "#fff", border: 0, borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" };
+const btn: React.CSSProperties = { background: "#0D4B96", color: "#fff", border: 0, borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { ...btn, background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0" };
 const small: React.CSSProperties = { background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 6, padding: "4px 8px", fontWeight: 600, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" };
 const errBox: React.CSSProperties = { background: "rgba(239,68,68,.1)", border: "1px solid #7f1d1d", color: "#fca5a5", borderRadius: 8, padding: "10px 12px", fontSize: 13, margin: "10px 0" };

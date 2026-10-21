@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { agents, agentDocuments, walletAccounts } from "@poomas/db/schema";
+import { agents, agentDocuments, walletAccounts } from "@zamrabooking/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { creditWallet, debitWallet, roundMoney } from "../lib/customer-wallet.js";
 import { getAgentMarkup, setAgentMarkup } from "../lib/agent-markup.js";

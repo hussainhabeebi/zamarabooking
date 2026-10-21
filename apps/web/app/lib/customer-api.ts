@@ -1,17 +1,17 @@
 // Browser-side helpers for signed-in customer and guest ("find my booking") calls.
 
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
-const GUEST_TOKEN_KEY = "poomas_trip_token";
+export const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
+const GUEST_TOKEN_KEY = "zamra_trip_token";
 
 export function readCustomerToken(): string {
   try {
-    const m = document.cookie.match(/(?:^|;\s*)poomas_token=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)zamra_token=([^;]+)/);
     return m ? decodeURIComponent(m[1]) : "";
   } catch { return ""; }
 }
 
 export function signOut() {
-  document.cookie = "poomas_token=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+  document.cookie = "zamra_token=; Path=/; Max-Age=0; SameSite=Lax; Secure";
 }
 
 export function readGuestToken(): string {
@@ -33,7 +33,7 @@ export async function apiCall<T = any>(path: string, init: RequestInit & { auth?
     : { Authorization: `Bearer ${readCustomerToken()}` };
   const res = await fetch(`${API}${path}`, {
     ...rest,
-    headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", ...auth, ...(rest.headers ?? {}) },
+    headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", ...auth, ...(rest.headers ?? {}) },
   });
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await res.json().catch(() => ({})) : await res.text();

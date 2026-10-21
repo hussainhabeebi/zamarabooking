@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { agents, markupRules } from "@poomas/db/schema";
+import { agents, markupRules } from "@zamrabooking/db/schema";
 import { and, asc, desc, eq } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 

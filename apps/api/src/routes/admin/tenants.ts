@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { tenants, tenantSupplierConfigs, bookings, agents } from "@poomas/db/schema";
+import { tenants, tenantSupplierConfigs, bookings, agents } from "@zamrabooking/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";
@@ -69,7 +69,7 @@ tenantsAdminRoutes.post("/", zValidator("json", createTenantSchema), async (c) =
   ]);
 
   // Invalidate tenant cache for this slug/domain
-  await c.env.TENANT_CACHE_KV.delete(`tenant:host:${tenant.slug}.flypoomas.com`);
+  await c.env.TENANT_CACHE_KV.delete(`tenant:host:${tenant.slug}.zamrabooking.com`);
 
   return c.json({ tenantId: tenant.id }, 201);
 });
@@ -89,7 +89,7 @@ tenantsAdminRoutes.patch("/:id/status", async (c) => {
   // Evict from KV cache so next request reloads from DB
   const [row] = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, c.req.param("id")));
   if (row) {
-    await c.env.TENANT_CACHE_KV.delete(`tenant:host:${row.slug}.flypoomas.com`);
+    await c.env.TENANT_CACHE_KV.delete(`tenant:host:${row.slug}.zamrabooking.com`);
   }
 
   return c.json({ ok: true });

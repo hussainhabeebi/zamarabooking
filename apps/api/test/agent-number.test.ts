@@ -52,12 +52,12 @@ test("Leadvyne checkout links carry the agency; unknown numbers never block chec
   const app = new Hono<any>();
   app.use("*", async (c, n) => { c.set("tenantId", "t1"); c.set("db", db); await n(); });
   app.route("/api/integrations", integrationRoutes);
-  const env = { SESSIONS_KV: kv, TENANT_CACHE_KV: kv, POOMAS_INTEGRATION_KEY: "ik" };
+  const env = { SESSIONS_KV: kv, TENANT_CACHE_KV: kv, ZAMRA_INTEGRATION_KEY: "ik" };
   const waits: Promise<unknown>[] = [];
   const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException() {} } as any;
   const body = { fareId: "F1", supplier: "TRIPJACK", passengers: [{ type: "ADULT", firstName: "Ali", lastName: "Khan" }], contact: { email: "a@b.co", mobile: "+966511111111" } };
   const post = (extra: Record<string, unknown>, headers: Record<string, string> = {}) => app.fetch(new Request("http://x/api/integrations/checkout-sessions", {
-    method: "POST", headers: { "Content-Type": "application/json", "X-POOMAS-INTEGRATION-KEY": "ik", ...headers }, body: JSON.stringify({ ...body, ...extra }),
+    method: "POST", headers: { "Content-Type": "application/json", "X-ZAMRA-INTEGRATION-KEY": "ik", ...headers }, body: JSON.stringify({ ...body, ...extra }),
   }), env, ctx);
 
   let res = await post({}, { "X-FP-Agent": "fpa10006" });
@@ -74,7 +74,7 @@ test("Leadvyne checkout links carry the agency; unknown numbers never block chec
   res = await post({ agentNumber: "FPA99999" });
   d = await res.json() as any;
   assert.equal(res.status, 201);
-  assert.match(d.warning, /Unknown FlyPoomas agent number FPA99999/);
+  assert.match(d.warning, /Unknown ZamraBooking agent number FPA99999/);
   assert.doesNotMatch(d.checkoutUrl, /pc=/);
 
   res = await post({ agentNumber: "FPA10007" });

@@ -14,7 +14,7 @@ export default function AdminForgotPasswordPage() {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      const res = await fetch(`${API}/api/auth/staff/forgot`, { method: "POST", headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" }, body: JSON.stringify({ email: email.trim(), origin: window.location.origin }) });
+      const res = await fetch(`${API}/api/auth/staff/forgot`, { method: "POST", headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" }, body: JSON.stringify({ email: email.trim(), origin: window.location.origin }) });
       const d = await res.json().catch(() => ({})) as { message?: string; error?: string };
       if (!res.ok) throw new Error(d.error ?? "Couldn't send the link");
       setSent(d.message ?? "Check your email.");

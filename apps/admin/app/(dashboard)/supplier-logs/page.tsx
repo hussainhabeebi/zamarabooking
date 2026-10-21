@@ -2,7 +2,7 @@ import { serverAuthHeaders } from "../../../lib/server";
 import { LogDetail } from "./LogDetail";
 import { RawApiCalls } from "./RawApiCalls";
 
-const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const SERVER_TOKEN = process.env.ADMIN_SERVICE_TOKEN ?? "";
 
 interface LogEntry {
@@ -264,7 +264,7 @@ const inp: React.CSSProperties = {
   borderRadius: 8, padding: "9px 12px", fontSize: 13,
 };
 const btn: React.CSSProperties = {
-  background: "#E31E24", color: "#fff", border: "none",
+  background: "#0D4B96", color: "#fff", border: "none",
   borderRadius: 8, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer",
 };
 const th: React.CSSProperties = {

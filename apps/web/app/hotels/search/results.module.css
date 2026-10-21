@@ -3,7 +3,7 @@
 .eyebrow { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .1em; color: #64748b; }
 .summary h1 { margin: 0; font-size: clamp(22px, 3vw, 28px); line-height: 1.25; letter-spacing: -.025em; }
 .context { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; font-size: 13px; color: #52647b; }
-.newSearch { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1px solid #d7e0eb; border-radius: 10px; background: white; font-size: 13px; font-weight: 700; color: #e31e24; text-decoration: none; white-space: nowrap; }
+.newSearch { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1px solid #d7e0eb; border-radius: 10px; background: white; font-size: 13px; font-weight: 700; color: #0D4B96; text-decoration: none; white-space: nowrap; }
 .results { display: flex; flex-direction: column; gap: 16px; }
 .card { display: grid; grid-template-columns: 280px minmax(0, 1fr) 210px; overflow: hidden; border: 1px solid #e0e6ee; border-radius: 16px; background: white; box-shadow: 0 3px 12px rgba(16,36,62,.035); }
 .imageArea { min-height: 220px; position: relative; background: #edf2f7; }
@@ -25,9 +25,9 @@
 .price { margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -.035em; line-height: 1.25; }
 .previousPrice { font-size: 12px; text-decoration: line-through; color: #64748b; }
 .stay { margin: 6px 0 0; font-size: 12px; color: #64748b; }
-.book { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 0 22px; border-radius: 9px; background: #e31e24; color: white; font-weight: 700; font-size: 13px; text-decoration: none; transition: background .2s; }
-.book:hover { background: #be171d; }
-.newSearch:hover { background: #fff3f3; }
+.book { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 0 22px; border-radius: 9px; background: #0D4B96; color: white; font-weight: 700; font-size: 13px; text-decoration: none; transition: background .2s; }
+.book:hover { background: #0A3A75; }
+.newSearch:hover { background: #F4F9FE; }
 .book:focus-visible, .newSearch:focus-visible { outline: 3px solid #10243e; outline-offset: 3px; }
 .unavailable { font-size: 12px; color: #64748b; }
 .empty { padding: 40px 24px; border: 1px solid #e0e6ee; border-radius: 16px; text-align: center; color: #64748b; background: white; overflow-wrap: anywhere; }

@@ -2,10 +2,10 @@
 // One live one-adult search per route + day; at most SWEEP_LIMIT per run,
 // rotating through the list with a cursor so every route gets its turn.
 
-import { createDb } from "@poomas/db";
-import { markupRules, tenantSupplierConfigs } from "@poomas/db/schema";
+import { createDb } from "@zamrabooking/db";
+import { markupRules, tenantSupplierConfigs } from "@zamrabooking/db/schema";
 import { eq } from "drizzle-orm";
-import { searchFares } from "@poomas/suppliers";
+import { searchFares } from "@zamrabooking/suppliers";
 import type { Env } from "../types.js";
 import { resolveFlightSuppliers } from "../routes/search.js";
 import { applyMarkup } from "./markup.js";

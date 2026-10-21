@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { bookings, payments, cancellationRequests } from "@poomas/db/schema";
+import { bookings, payments, cancellationRequests } from "@zamrabooking/db/schema";
 import { sum, count, eq, and, gte, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";

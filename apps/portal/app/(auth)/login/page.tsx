@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true); setError("");
     try {
       const d = await api<{ token: string; role: string }>("/api/auth/login", { json: { email: email.trim(), password: pass }, auth: false });
-      if (!d.role?.startsWith("AGENT_")) { setError("This is the agency portal. Customers sign in at flypoomas.com."); return; }
+      if (!d.role?.startsWith("AGENT_")) { setError("This is the agency portal. Customers sign in at zamrabooking.com."); return; }
       setToken(d.token);
       const next = new URLSearchParams(window.location.search).get("next");
       window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
@@ -36,7 +36,7 @@ export default function LoginPage() {
     <main className="auth">
       <div className="auth-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="FlyPoomas" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
+        <img src="/logo.png" alt="ZamraBooking" style={{ height: 40, margin: "0 auto 12px", display: "block" }} />
         <h1>Agent portal</h1>
         <p className="sub">Sign in to book flights and manage your agency</p>
         {note && <div className="banner ok">{note}</div>}

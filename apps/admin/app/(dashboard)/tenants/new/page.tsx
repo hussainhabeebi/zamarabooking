@@ -5,7 +5,7 @@ import { API, apiHeaders } from "../../../../lib/api";
 
 export default function NewTenantPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", slug: "", customDomain: "", plan: "TRIAL", region: "INDIA", defaultCurrency: "INR", supportEmail: "", primaryColor: "#E31E24" });
+  const [form, setForm] = useState({ name: "", slug: "", customDomain: "", plan: "TRIAL", region: "INDIA", defaultCurrency: "INR", supportEmail: "", primaryColor: "#0D4B96" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -40,7 +40,7 @@ export default function NewTenantPage() {
       {error && <div style={errBox}>{error}</div>}
       <form onSubmit={submit} style={{ background: "#1e293b", borderRadius: 12, padding: 20, border: "1px solid #334155", display: "grid", gap: 14 }}>
         <label style={lbl}>Agency name *<input required minLength={2} value={form.name} onChange={set("name")} style={input} /></label>
-        <label style={lbl}>Slug * <span style={{ color: "#64748b" }}>({form.slug || "slug"}.flypoomas.com)</span>
+        <label style={lbl}>Slug * <span style={{ color: "#64748b" }}>({form.slug || "slug"}.zamrabooking.com)</span>
           <input required minLength={2} pattern="[a-z0-9-]+" value={form.slug} onChange={set("slug")} style={input} />
         </label>
         <label style={lbl}>Custom domain<input value={form.customDomain} onChange={set("customDomain")} placeholder="flights.example.com" style={input} /></label>
@@ -51,7 +51,7 @@ export default function NewTenantPage() {
         </div>
         <label style={lbl}>Support email<input type="email" value={form.supportEmail} onChange={set("supportEmail")} style={input} /></label>
         <label style={lbl}>Primary colour<input value={form.primaryColor} onChange={set("primaryColor")} style={input} /></label>
-        <button disabled={busy} style={{ background: "#E31E24", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>
+        <button disabled={busy} style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>
           {busy ? "Creating…" : "Create tenant"}
         </button>
       </form>

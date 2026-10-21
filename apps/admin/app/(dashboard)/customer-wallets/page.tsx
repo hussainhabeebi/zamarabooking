@@ -85,7 +85,7 @@ export default function CustomerWalletsPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {customers.map((cu) => (
                 <button key={cu.userId} onClick={() => open(cu.userId)} style={{
-                  ...row, borderColor: selected?.customer.id === cu.userId ? "#E31E24" : "#334155",
+                  ...row, borderColor: selected?.customer.id === cu.userId ? "#0D4B96" : "#334155",
                 }}>
                   <span style={{ textAlign: "left", minWidth: 0 }}>
                     <strong style={{ color: "#f1f5f9", display: "block" }}>{cu.name ?? "—"}</strong>
@@ -136,7 +136,7 @@ export default function CustomerWalletsPage() {
 
 const card: React.CSSProperties = { background: "#1e293b", borderRadius: 12, padding: 20, border: "1px solid #334155" };
 const input: React.CSSProperties = { boxSizing: "border-box", padding: "10px 12px", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, color: "#f1f5f9", fontSize: 14, minWidth: 0 };
-const btn: React.CSSProperties = { background: "#E31E24", color: "white", border: "none", borderRadius: 8, padding: "10px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" };
+const btn: React.CSSProperties = { background: "#0D4B96", color: "white", border: "none", borderRadius: 8, padding: "10px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" };
 const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, cursor: "pointer", width: "100%" };
 const muted: React.CSSProperties = { color: "#64748b", fontSize: 13 };
 const errBox: React.CSSProperties = { background: "rgba(239,68,68,.1)", border: "1px solid #7f1d1d", color: "#fca5a5", borderRadius: 8, padding: "10px 12px", fontSize: 13, marginBottom: 16 };

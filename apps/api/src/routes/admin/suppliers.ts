@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { tenantSupplierConfigs, tenants } from "@poomas/db/schema";
+import { tenantSupplierConfigs, tenants } from "@zamrabooking/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";
@@ -58,7 +58,7 @@ suppliersAdminRoutes.patch("/:supplier", async (c) => {
 
   // Invalidate tenant cache so next request picks up new supplier config
   const tenant = c.get("tenant");
-  await c.env.TENANT_CACHE_KV.delete(`tenant:host:${tenant.slug}.flypoomas.com`);
+  await c.env.TENANT_CACHE_KV.delete(`tenant:host:${tenant.slug}.zamrabooking.com`);
 
   return c.json({ ok: true });
 });

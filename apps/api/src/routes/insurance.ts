@@ -16,7 +16,7 @@ import { z } from "zod";
 import {
   TRIPSAFE_AMT_DURATIONS, TRIPSAFE_MAX_TRAVELLERS, TRIPSAFE_NOMINEE_RELATIONSHIPS, TRIPSAFE_REGIONS,
   TRIPSAFE_STUDENT_DURATIONS, TRIPSAFE_TERMINAL_STATUSES, tripsafeProblems,
-} from "@poomas/suppliers";
+} from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../types.js";
 import { optionalCustomerId } from "../lib/optional-customer.js";
 import {

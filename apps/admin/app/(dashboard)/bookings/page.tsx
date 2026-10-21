@@ -1,6 +1,6 @@
 import { serverAuthHeaders } from "../../../lib/server";
 import { CertificationExport } from "./CertificationExport";
-const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const SERVER_TOKEN = process.env.ADMIN_SERVICE_TOKEN ?? "";
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -94,7 +94,7 @@ export default async function AdminBookingsPage({
 
         <button
           type="submit"
-          style={{ background: "#E31E24", color: "white", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          style={{ background: "#0D4B96", color: "white", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
         >
           Filter
         </button>

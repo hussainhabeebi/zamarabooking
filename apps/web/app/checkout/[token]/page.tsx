@@ -44,9 +44,9 @@ interface BookingContext {
 
 async function fetchCheckoutContext(token: string): Promise<BookingContext | null> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
     const res = await fetch(`${apiUrl}/api/checkout/session/${token}`, {
-      headers: { "x-tenant-slug": "poomas" },
+      headers: { "x-tenant-slug": "zamra" },
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -106,7 +106,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#E31E24" }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#0D4B96" }}>
                 {symbol}{parseFloat(booking.totalAmount).toLocaleString("en-IN")}
               </div>
               <div style={{ fontSize: 12, color: "#94a3b8" }}>{booking.currency} · all-in</div>

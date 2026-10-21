@@ -18,7 +18,7 @@ import { z } from "zod";
 import type { Env, Variables } from "../../types.js";
 import { RAZORPAY_ENABLED } from "../../lib/payment-gateway.js";
 import { DEFAULT_EMAIL_SETTINGS, emailLayout, getEmailSettings, resendKey, saveEmailSettings, sendMail } from "../../lib/email.js";
-import { emailLogs } from "@poomas/db/schema";
+import { emailLogs } from "@zamrabooking/db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { FOREIGN_CURRENCIES, getFx, getFxSettings, readAutoRates, refreshAutoRates, saveFxSettings, type FxSettings } from "../../lib/fx.js";
 
@@ -166,8 +166,8 @@ const whatsappSchema = z.object({
     baseUrl:    z.string().url().optional(),
   }).optional(),
   defaultCountryCode: z.string().default("91"),
-  eticketTemplate:    z.string().default("poomas_eticket_v1"),
-  bookingConfirmTemplate: z.string().default("poomas_booking_confirm_v1"),
+  eticketTemplate:    z.string().default("zamra_eticket_v1"),
+  bookingConfirmTemplate: z.string().default("zamra_booking_confirm_v1"),
   webhookSecret: z.string().optional(),
 });
 
@@ -179,8 +179,8 @@ settingsAdminRoutes.get("/whatsapp", async (c) => {
     provider: "LEADVYNE",
     leadvyne: {},
     defaultCountryCode: "91",
-    eticketTemplate:    "poomas_eticket_v1",
-    bookingConfirmTemplate: "poomas_booking_confirm_v1",
+    eticketTemplate:    "zamra_eticket_v1",
+    bookingConfirmTemplate: "zamra_booking_confirm_v1",
   });
 });
 
@@ -223,8 +223,8 @@ settingsAdminRoutes.get("/eticket", async (c) => {
   return c.json(saved ?? {
     autoSendOnConfirm:  true,
     channels:           ["WHATSAPP", "EMAIL"],
-    emailFrom:          "tickets@flypoomas.com",
-    emailFromName:      "POOMAS Flights",
+    emailFrom:          "tickets@zamrabooking.com",
+    emailFromName:      "ZamraBooking",
     includeItinerary:   true,
     includeBaggage:     true,
     includeCheckinLink: false,
@@ -288,7 +288,7 @@ settingsAdminRoutes.get("/email", async (c) => {
     settings: { ...s, apiKey: "" },
     apiKeyMasked: maskKey(s.apiKey),
     keySource: s.apiKey ? "admin" : c.env.RESEND_API_KEY ? "secret" : "none",
-    defaultFrom: c.env.EMAIL_FROM || "bookings@flypoomas.com",
+    defaultFrom: c.env.EMAIL_FROM || "bookings@zamrabooking.com",
     last7Days: stats ?? { sent: 0, failed: 0, skipped: 0 },
   });
 });
@@ -315,12 +315,12 @@ settingsAdminRoutes.post("/email/test", zValidator("json", z.object({ to: z.stri
   const s = await getEmailSettings(c.env, tenantId);
   if (!resendKey(c.env, s)) return c.json({ ok: false, error: "No Resend API key: add it here or set the RESEND_API_KEY secret on the API worker." }, 400);
   const r = await sendMail(c.env, c.get("db"), tenantId, {
-    to: c.req.valid("json").to, category: "test", subject: "FlyPoomas test email",
+    to: c.req.valid("json").to, category: "test", subject: "ZamraBooking test email",
     html: emailLayout({
       title: "Email is working ✅",
       body: "<p>This test was sent from Admin → Settings → Email through Resend. Booking confirmations, password resets and other notifications use the same sender.</p>",
       rows: [["Sent at", new Date().toUTCString()]],
-      cta: { label: "Open FlyPoomas", href: "https://flypoomas.com" },
+      cta: { label: "Open ZamraBooking", href: "https://zamrabooking.com" },
     }),
   });
   return c.json(r, r.ok ? 200 : 502);

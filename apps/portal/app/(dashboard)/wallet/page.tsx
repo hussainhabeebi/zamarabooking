@@ -132,7 +132,7 @@ export default function WalletPage() {
               <div className="grid g2" style={{ marginTop: 12, alignItems: "start" }}>
                 <div className="stack">
                   <h3 style={{ margin: 0, fontSize: 15 }}>1. Transfer to our account</h3>
-                  {banks.length === 0 ? <p className="small muted">Bank details aren&apos;t set up yet — contact FlyPoomas for transfer details.</p> : (
+                  {banks.length === 0 ? <p className="small muted">Bank details aren&apos;t set up yet — contact ZamraBooking for transfer details.</p> : (
                     <>
                       {banks.length > 1 && (
                         <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>

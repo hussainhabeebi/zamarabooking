@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { and, eq } from "drizzle-orm";
-import { tenantApiKeys } from "@poomas/db/schema";
+import { tenantApiKeys } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 
 export type PartnerApiScope = "search" | "booking" | "eticket" | "webhook";
@@ -30,7 +30,7 @@ export function requirePartnerScope(
     );
 
     if (!rawKey || !rawKey.startsWith("pmsk_")) {
-      c.header("WWW-Authenticate", 'Bearer realm="FlyPoomas Partner API"');
+      c.header("WWW-Authenticate", 'Bearer realm="ZamraBooking Partner API"');
       return c.json({ error: "PARTNER_AUTHENTICATION_REQUIRED" }, 401);
     }
 

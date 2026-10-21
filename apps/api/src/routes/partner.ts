@@ -3,7 +3,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { bookings, bookingPassengers, webhookConfigs } from "@poomas/db/schema";
+import { bookings, bookingPassengers, webhookConfigs } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import { requirePartnerScope } from "../middleware/partner-api-key.js";
 import { searchRoutes } from "./search.js";
@@ -433,7 +433,7 @@ partnerRoutes.post("/checkout-sessions", zValidator("json", checkoutSchema), asy
     return c.json({
       checkoutSessionId: crypto.randomUUID(),
       reservationId: reservation.id,
-      checkoutUrl: `https://flypoomas.com/checkout/${token}`,
+      checkoutUrl: `https://zamrabooking.com/checkout/${token}`,
       expiresAt: new Date(exp * 1000).toISOString(),
     }, 201);
   } catch (error) {
@@ -529,8 +529,8 @@ partnerRoutes.post("/webhooks/test", zValidator("json", webhookTestSchema), asyn
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-poomas-timestamp": timestamp,
-        "x-poomas-signature": `sha256=${signature}`,
+        "x-zamra-timestamp": timestamp,
+        "x-zamra-signature": `sha256=${signature}`,
       },
       body: payload,
       signal: AbortSignal.timeout(10_000),

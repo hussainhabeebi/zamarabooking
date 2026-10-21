@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { DuffelAdapter } from "@poomas/suppliers";
+import { DuffelAdapter } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../types.js";
 
 const passengerSchema = z.object({type:z.enum(["ADULT","CHILD","INFANT"]),firstName:z.string().min(1),lastName:z.string().min(1),dob:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),gender:z.enum(["M","F"]),nationality:z.string().length(2).default("IN"),passportNumber:z.string().optional(),passportExpiry:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()});

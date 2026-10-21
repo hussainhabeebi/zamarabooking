@@ -4,7 +4,7 @@
 // Booking Details (poll until terminal). Every call carries the same
 // client-generated correlationId from Listing to Review.
 //
-// Calls go through the Poomas TripJack gateway (fixed, whitelisted IP), which
+// Calls go through the ZamraBooking TripJack gateway (fixed, whitelisted IP), which
 // forwards /hms/* to the hotel search host and /oms/v3/hotel/* to the hotel
 // booker host. Auth is the `apikey` header.
 
@@ -120,7 +120,7 @@ export class TripjackHotelV3Client {
       Accept: "application/json",
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(this.apiKey ? { apikey: this.apiKey } : {}),
-      ...(this.proxyKey ? { "X-Poomas-Gateway-Key": this.proxyKey } : {}),
+      ...(this.proxyKey ? { "X-Zamra-Gateway-Key": this.proxyKey } : {}),
     };
     const requestBody = body !== undefined ? JSON.stringify(body) : "";
     const startedAt = new Date();

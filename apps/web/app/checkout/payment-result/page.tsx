@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { saveGuestToken } from "../../lib/customer-api";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 export default function NomodPaymentResultPage() {
   return (
@@ -34,7 +34,7 @@ function NomodPaymentResult() {
       attempts += 1;
       try {
         const res = await fetch(`${API}/api/payments/${encodeURIComponent(bookingId)}`, {
-          headers: { "x-tenant-slug": "poomas", "X-Checkout-Token": token },
+          headers: { "x-tenant-slug": "zamra", "X-Checkout-Token": token },
           cache: "no-store",
         });
         const data = await res.json() as { payment?: { status?: string }; tripToken?: string; booking?: { status?: string; pnr?: string | null; hasAccount?: boolean } };
@@ -91,7 +91,7 @@ function NomodPaymentResult() {
             ? "Your payment has been received. We're confirming your seat with the airline — this usually takes under a minute."
             : failed
               ? "No charge was confirmed. You can return to checkout and try again."
-              : "Nomod has returned you to FlyPoomas. Keep this page open while we verify the payment securely."}
+              : "Nomod has returned you to ZamraBooking. Keep this page open while we verify the payment securely."}
         </p>
         {ticketed || bookingFailed ? (
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
@@ -110,6 +110,6 @@ function NomodPaymentResult() {
 }
 
 const button: React.CSSProperties = {
-  display: "inline-block", background: "#e31e24", color: "#fff", textDecoration: "none",
+  display: "inline-block", background: "#0D4B96", color: "#fff", textDecoration: "none",
   borderRadius: 10, padding: "12px 20px", fontWeight: 800, fontSize: 14,
 };

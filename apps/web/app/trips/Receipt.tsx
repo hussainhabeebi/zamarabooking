@@ -21,12 +21,12 @@ export default function Receipt({ mode, id }: { mode: "customer" | "guest"; id?:
     <main className="page-container" style={{ padding: "24px 16px", maxWidth: 720 }}>
       <style>{`@media print { header, .no-print { display: none !important; } body { background: #fff; } }`}</style>
       <div className="no-print" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button onClick={() => window.print()} style={{ background: "#E31E24", color: "#fff", border: 0, borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" }}>Print / save as PDF</button>
+        <button onClick={() => window.print()} style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" }}>Print / save as PDF</button>
         <a href={mode === "customer" ? `/trips/${trip.id}` : "/trips/guest"} style={{ padding: "10px 14px", fontWeight: 700, color: "#0f172a" }}>Back to booking</a>
       </div>
       <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div><h1 style={{ margin: 0, fontSize: 22 }}>Payment receipt</h1><small style={{ color: "#64748b" }}>POOMAS · flypoomas.com</small></div>
+          <div><h1 style={{ margin: 0, fontSize: 22 }}>Payment receipt</h1><small style={{ color: "#64748b" }}>ZamraBooking · zamrabooking.com</small></div>
           <div style={{ textAlign: "right", fontSize: 13 }}>
             <div>Receipt no. <strong>{trip.id.slice(0, 8).toUpperCase()}</strong></div>
             <div>Date {new Date(trip.createdAt).toLocaleDateString("en-IN")}</div>
@@ -45,12 +45,12 @@ export default function Receipt({ mode, id }: { mode: "customer" | "guest"; id?:
             {trip.serviceFee > 0 && <tr><td style={td}>Service fee</td><td style={tdR}>{inr(trip.serviceFee, trip.currency)}</td></tr>}
             <tr><td style={{ ...td, fontWeight: 800 }}>Total paid</td><td style={{ ...tdR, fontWeight: 800 }}>{inr(trip.totalAmount, trip.currency)}</td></tr>
             {refunds.map((r: any) => (
-              <tr key={r.id}><td style={td}>Refund ({r.refundMethod === "WALLET" ? "to POOMAS wallet" : r.refundMethod === "NOMOD" ? "to card via Nomod" : "to original payment method"}) {new Date(r.refundedAt).toLocaleDateString("en-IN")}</td><td style={tdR}>−{inr(r.refundAmount ?? 0, trip.currency)}</td></tr>
+              <tr key={r.id}><td style={td}>Refund ({r.refundMethod === "WALLET" ? "to ZamraBooking wallet" : r.refundMethod === "NOMOD" ? "to card via Nomod" : "to original payment method"}) {new Date(r.refundedAt).toLocaleDateString("en-IN")}</td><td style={tdR}>−{inr(r.refundAmount ?? 0, trip.currency)}</td></tr>
             ))}
           </tbody>
         </table>
         <p style={{ margin: "12px 0 0", fontSize: 12, color: "#64748b" }}>
-          Paid via {trip.payments.filter((p: any) => p.status !== "PENDING").map((p: any) => p.gateway === "WALLET" ? "POOMAS wallet" : p.gateway === "NOMOD" ? "card (Nomod)" : p.gateway).join(", ") || "—"}.
+          Paid via {trip.payments.filter((p: any) => p.status !== "PENDING").map((p: any) => p.gateway === "WALLET" ? "ZamraBooking wallet" : p.gateway === "NOMOD" ? "card (Nomod)" : p.gateway).join(", ") || "—"}.
           This is a payment receipt, not a tax invoice.
         </p>
       </section>

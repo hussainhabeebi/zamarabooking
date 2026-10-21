@@ -10,7 +10,7 @@ const url = (s) => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModu
 test('hotel listing ID survives normalization, checkout URL and pricing', async (t) => {
   const supplierUrl = url(source('packages/suppliers/src/tripjack/hotel-v3.ts'));
   const { TripjackHotelV3Client, validHotelId } = await import(supplierUrl);
-  const lib = source('apps/api/src/lib/hotels.ts').replace('"@poomas/suppliers"', JSON.stringify(supplierUrl)).replace(/^import .* from "\.\/api-exchanges\.js";$/m, '');
+  const lib = source('apps/api/src/lib/hotels.ts').replace('"@zamrabooking/suppliers"', JSON.stringify(supplierUrl)).replace(/^import .* from "\.\/api-exchanges\.js";$/m, '');
   const { searchHotels } = await import(url(lib));
   const option = { optionId: 'option-123', pricing: { totalPrice: 100, currency: 'INR' } };
   const invalid = [undefined, null, '', 'undefined', 'null', 'NULL', 'bad id'];

@@ -2,13 +2,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import styles from "./wallet.module.css";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 interface Tx { id: string; type: string; amount: string; note: string | null; createdAt: string }
 interface Coupon { id: string; code: string; amount: string; status: string; expiresAt: string; redeemedAt: string | null }
 
 const TX_LABEL: Record<string, string> = {
-  BOOKING_BONUS: "Booking bonus", ADMIN_CREDIT: "Added by POOMAS", BOOKING_DEBIT: "Paid for booking",
+  BOOKING_BONUS: "Booking bonus", ADMIN_CREDIT: "Added by ZamraBooking", BOOKING_DEBIT: "Paid for booking",
   REFUND_CREDIT: "Refund", COUPON_DEBIT: "Coupon created", COUPON_CREDIT: "Coupon redeemed", COUPON_REFUND: "Coupon returned",
 };
 const DEBITS = new Set(["BOOKING_DEBIT", "COUPON_DEBIT"]);
@@ -34,7 +34,7 @@ function transactionIcon(type: string) {
 }
 
 function readToken() {
-  const m = document.cookie.match(/(?:^|;\s*)poomas_token=([^;]+)/);
+  const m = document.cookie.match(/(?:^|;\s*)zamra_token=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : "";
 }
 
@@ -55,7 +55,7 @@ export default function WalletPage() {
   async function call<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${API}/api/profile/wallet${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", Authorization: `Bearer ${token ?? readToken()}` },
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", Authorization: `Bearer ${token ?? readToken()}` },
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) { setToken(""); throw new Error("Please sign in again."); }
@@ -88,7 +88,7 @@ export default function WalletPage() {
 
   function shareReferral() {
     if (!referral) return;
-    const text = `Join me on FlyPoomas! Use my code ${referral.code} in your wallet and we both get ₹${referral.reward} when you book your first flight: https://flypoomas.com/wallet`;
+    const text = `Join me on ZamraBooking! Use my code ${referral.code} in your wallet and we both get ₹${referral.reward} when you book your first flight: https://zamrabooking.com/wallet`;
     if (navigator.share) navigator.share({ text }).catch(() => {});
     else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
   }
@@ -136,7 +136,7 @@ export default function WalletPage() {
   }
 
   function share(c: Coupon) {
-    const text = `I've sent you ${inr(Number(c.amount))} on FlyPoomas! Redeem code ${c.code} at https://flypoomas.com/wallet before ${new Date(c.expiresAt).toLocaleDateString("en-IN")}.`;
+    const text = `I've sent you ${inr(Number(c.amount))} on ZamraBooking! Redeem code ${c.code} at https://zamrabooking.com/wallet before ${new Date(c.expiresAt).toLocaleDateString("en-IN")}.`;
     if (navigator.share) navigator.share({ text }).catch(() => {});
     else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
   }
@@ -148,7 +148,7 @@ export default function WalletPage() {
       <main className={styles.page}>
         <section className={styles.signInCard}>
           <span className={styles.sectionIcon}><WalletIcon kind="wallet" /></span>
-          <h1>FlyPoomas Wallet</h1>
+          <h1>ZamraBooking Wallet</h1>
           <p>Sign in to see your balance. Every confirmed booking earns you ₹50, and you can pay for flights with your wallet.</p>
           <div className={styles.signInActions}>
             <a className={styles.primaryButton} href="/signup?next=/wallet">Create account</a>
@@ -183,7 +183,7 @@ export default function WalletPage() {
           </form>
         </section>
         <section className={styles.actionCard}>
-          <div className={styles.cardTitle}><span className={styles.sectionIcon}><WalletIcon kind="redeem" /></span><div><h2>Redeem a code</h2><p>Got a FlyPoomas wallet code from someone? Add it here.</p></div></div>
+          <div className={styles.cardTitle}><span className={styles.sectionIcon}><WalletIcon kind="redeem" /></span><div><h2>Redeem a code</h2><p>Got a ZamraBooking wallet code from someone? Add it here.</p></div></div>
           <form className={styles.actionForm} onSubmit={redeem}>
             <label className={styles.srOnly} htmlFor="wallet-redeem-code">Wallet code</label>
             <input id="wallet-redeem-code" placeholder="PM-XXXXX-XXXXX" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value.toUpperCase())} style={{ textTransform: "uppercase" }} />
@@ -213,7 +213,7 @@ export default function WalletPage() {
 
       <section className={styles.infoStrip} aria-label="Wallet benefits">
         <span className={styles.infoIcon}><WalletIcon kind="wallet" /></span>
-        <div><h2>Why use FlyPoomas Wallet?</h2><p>Earn ₹50 after a confirmed booking, pay for eligible INR flights with a sufficient balance, or share balance with a one-time code.</p></div>
+        <div><h2>Why use ZamraBooking Wallet?</h2><p>Earn ₹50 after a confirmed booking, pay for eligible INR flights with a sufficient balance, or share balance with a one-time code.</p></div>
       </section>
 
       {coupons.length > 0 && (

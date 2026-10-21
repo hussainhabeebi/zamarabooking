@@ -21,7 +21,7 @@ type Fare = {
   tripKey?: string; legIndex?: number; fareIdentifier?: string; sri?: string; msri?: string[]; segments?: Segment[];
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const FARE_LABEL: Record<string, string> = {
   PUBLISHED: "Published", SPECIAL_RETURN: "Special Return", TJ_FLEX: "Flex (free cancellation)",
   STUDENT: "Student fare", SENIOR_CITIZEN: "Senior citizen fare",
@@ -90,7 +90,7 @@ function Journey() {
     const c = new AbortController();
     fetch(`${API}/api/search`, {
       method: "POST", signal: c.signal,
-      headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
       body: JSON.stringify({
         origin: first.origin, destination: tripType === "MULTICITY" ? legs[legs.length - 1].destination : first.destination,
         departureDate: first.departureDate, ...(tripType === "ROUNDTRIP" && legs[1] ? { returnDate: legs[1].departureDate } : {}),
@@ -186,7 +186,7 @@ function Journey() {
         {legs.map((l) => day(l.departureDate)).join(" · ")} · {adults} adult{adults > 1 ? "s" : ""}{children ? `, ${children} child` : ""}{infants ? `, ${infants} infant` : ""}
         {fareType ? ` · ${FARE_LABEL[fareType] ?? fareType}` : ""}
       </p>
-      <a href="/" style={{ fontSize: 13, color: "#E31E24", fontWeight: 600, textDecoration: "none" }}>‹ New search</a>
+      <a href="/" style={{ fontSize: 13, color: "#0D4B96", fontWeight: 600, textDecoration: "none" }}>‹ New search</a>
 
       {error && <div style={errBox}>{error}</div>}
       {!fares && !error && <p style={{ padding: "40px 0", textAlign: "center", color: "#667085" }}>Searching live fares for every leg…</p>}
@@ -245,7 +245,7 @@ function Journey() {
             {!selection.length && <span style={{ fontSize: 12, color: "#667085" }}> so far</span>}
           </div>
           {selection.length ? (
-            <button onClick={continueToBook} style={{ background: "#E31E24", color: "#fff", border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 800, fontSize: 15, cursor: "pointer", flexShrink: 0 }}>Continue</button>
+            <button onClick={continueToBook} style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 800, fontSize: 15, cursor: "pointer", flexShrink: 0 }}>Continue</button>
           ) : nextMissing ? (
             <button onClick={() => goTo(nextMissing)} style={{ background: "#101828", color: "#fff", border: 0, borderRadius: 12, padding: "12px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", flexShrink: 0 }}>
               Choose {legLabel(nextMissing, legKeys.indexOf(nextMissing))} flight ↓
@@ -263,7 +263,7 @@ function FareRow({ fare, selected, onPick, showSegments, travellers = 1, show = 
   const inbound = segs.filter((s) => s.isReturn);
   return (
     <button type="button" onClick={onPick} style={{
-      textAlign: "left", width: "100%", background: selected ? "#fff5f5" : "#fff", border: `1.5px solid ${selected ? "#E31E24" : "#e5e7eb"}`,
+      textAlign: "left", width: "100%", background: selected ? "#fff5f5" : "#fff", border: `1.5px solid ${selected ? "#0D4B96" : "#e5e7eb"}`,
       borderRadius: 10, padding: 14, cursor: "pointer", display: "grid", gap: 6,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
@@ -282,7 +282,7 @@ function FareRow({ fare, selected, onPick, showSegments, travellers = 1, show = 
           )}
         </div>
         <div style={{ textAlign: "right" }}>
-          <b style={{ fontSize: 18, color: "#E31E24" }}>{show(price(fare), fare.currency)}</b>
+          <b style={{ fontSize: 18, color: "#0D4B96" }}>{show(price(fare), fare.currency)}</b>
           {travellers > 1 && <small style={{ display: "block", color: "#667085", fontSize: 11 }}>total for {travellers} travellers</small>}
         </div>
       </div>
@@ -300,7 +300,7 @@ const muted: React.CSSProperties = { fontSize: 13, color: "#667085", margin: "0 
 const errBox: React.CSSProperties = { marginTop: 14, padding: 12, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", fontSize: 14 };
 const stepBadge = (done: boolean): React.CSSProperties => ({
   display: "inline-grid", placeItems: "center", width: 22, height: 22, borderRadius: "50%", marginRight: 8, fontSize: 12, verticalAlign: "2px",
-  background: done ? "#16a34a" : "#E31E24", color: "#fff",
+  background: done ? "#16a34a" : "#0D4B96", color: "#fff",
 });
 const moreBtn: React.CSSProperties = { marginTop: 8, background: "none", border: "1px solid #d0d5dd", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontWeight: 600 };
 const chip = (bg: string): React.CSSProperties => ({ background: bg, borderRadius: 6, padding: "2px 7px", fontWeight: 700, color: "#344054" });

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
-import { bookings, bookingPassengers } from "@poomas/db/schema";
+import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import { agentNumberFrom, resolveAgentNumber, trackAgentActivity } from "../lib/agent-number.js";
 import { agentStats } from "../lib/agent-analytics.js";
@@ -10,7 +10,7 @@ async function duffelOrder(apiKey:string,orderId:string){try{const r=await fetch
 
 const PREFILL_TTL_SECONDS=20*60;
 function validIntegrationKey(c:any){
- const expected=c.env.POOMAS_INTEGRATION_KEY,supplied=c.req.header("X-POOMAS-INTEGRATION-KEY");
+ const expected=c.env.ZAMRA_INTEGRATION_KEY,supplied=c.req.header("X-ZAMRA-INTEGRATION-KEY");
  return Boolean(expected&&supplied&&supplied===expected);
 }
 function cleanText(v:unknown,max=120){return String(v??"").trim().slice(0,max);}
@@ -29,7 +29,7 @@ function normalizePassenger(raw:any){
  };
 }
 
-// Secure Leadvyne → Poomas booking-form handoff.
+// Secure Leadvyne → ZamraBooking booking-form handoff.
 // PII is stored briefly in KV; the WhatsApp URL contains only a random opaque token.
 integrationRoutes.post("/checkout-sessions",async(c)=>{
  if(!validIntegrationKey(c))return c.json({error:"Unauthorized integration"},401);
@@ -45,12 +45,12 @@ integrationRoutes.post("/checkout-sessions",async(c)=>{
  if(!fareId||!supplier)return c.json({error:"fareId and supplier are required"},400);
  if(!passengers.length||passengers.some((p:any)=>!p.firstName||!p.lastName))return c.json({error:"Valid passenger names are required"},400);
  if(!email||!mobile)return c.json({error:"Contact email and mobile are required"},400);
- // Leadvyne Live Agency: the agency's FlyPoomas agent number tags the link (currency + analytics).
+ // Leadvyne Live Agency: the agency's ZamraBooking agent number tags the link (currency + analytics).
  const agentNumber=agentNumberFrom(c,body);
  // An unknown / inactive number never blocks the customer's checkout: the link is just not tagged.
  const found=agentNumber?await resolveAgentNumber(c.env,c.get("db"),tenantId,agentNumber).catch(()=>null):null;
  const agent=found&&found.status==="APPROVED"?found:null;
- const warning=agentNumber&&!agent?(found?`Agency ${found.number} is ${found.status.toLowerCase()} on FlyPoomas; link not tagged`:`Unknown FlyPoomas agent number ${agentNumber}; link not tagged`):undefined;
+ const warning=agentNumber&&!agent?(found?`Agency ${found.number} is ${found.status.toLowerCase()} on ZamraBooking; link not tagged`:`Unknown ZamraBooking agent number ${agentNumber}; link not tagged`):undefined;
  const token=crypto.randomUUID().replace(/-/g,"")+crypto.randomUUID().replace(/-/g,"");
  const expiresAt=new Date(Date.now()+PREFILL_TTL_SECONDS*1000).toISOString();
  await c.env.SESSIONS_KV.put(`booking_prefill:${tenantId}:${token}`,JSON.stringify({
@@ -60,7 +60,7 @@ integrationRoutes.post("/checkout-sessions",async(c)=>{
  }),{expirationTtl:PREFILL_TTL_SECONDS});
  if(agent)c.executionCtx.waitUntil(trackAgentActivity(c.get("db"),tenantId,agent.id,"checkouts").catch((err)=>console.error("[agent-activity]",err)));
  const cur=agent?`&pc=${encodeURIComponent(agent.currency)}`:"";
- return c.json({sessionId:token,checkoutUrl:`https://flypoomas.com/book?session=${encodeURIComponent(token)}${cur}`,expiresAt,
+ return c.json({sessionId:token,checkoutUrl:`https://zamrabooking.com/book?session=${encodeURIComponent(token)}${cur}`,expiresAt,
   ...(agent?{agent:{number:agent.number,businessName:agent.businessName,currency:agent.currency}}:{}),...(warning?{warning}:{})},201);
 });
 
@@ -73,7 +73,7 @@ integrationRoutes.get("/checkout-sessions/:token",async(c)=>{
 });
 
 integrationRoutes.get("/pnr/:pnr",async(c)=>{
- const expected=c.env.POOMAS_INTEGRATION_KEY,supplied=c.req.header("X-POOMAS-INTEGRATION-KEY");
+ const expected=c.env.ZAMRA_INTEGRATION_KEY,supplied=c.req.header("X-ZAMRA-INTEGRATION-KEY");
  if(!expected||!supplied||supplied!==expected)return c.json({error:"Unauthorized integration"},401);
  const pnr=c.req.param("pnr").trim().toUpperCase(),tenantId=c.get("tenantId"),db=c.get("db");
  const [booking]=await db.select().from(bookings).where(and(eq(bookings.tenantId,tenantId),eq(bookings.pnr,pnr))).limit(1);

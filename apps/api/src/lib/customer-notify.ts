@@ -2,15 +2,15 @@
 // WhatsApp via the tenant's Leadvyne/Chatwoot inbox, whichever is available.
 // Never throws — a failed message must not fail the request or job that sent it.
 
-import { leadvyneConfigs, tenants } from "@poomas/db/schema";
+import { leadvyneConfigs, tenants } from "@zamrabooking/db/schema";
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@poomas/db";
+import type { Db } from "@zamrabooking/db";
 import type { Env } from "../types.js";
 import { sendWhatsApp } from "./notify.js";
 import { emailLayout, sendMail, type EmailCategory } from "./email.js";
 
-export const WEB_URL = "https://flypoomas.com";
-export const API_URL = "https://api.flypoomas.com";
+export const WEB_URL = "https://zamrabooking.com";
+export const API_URL = "https://api.zamrabooking.com";
 
 export interface CustomerMessage {
   email?: string | null;

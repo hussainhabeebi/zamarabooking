@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { bookingAmendments, bookings, payments, supportRequests, users } from "@poomas/db/schema";
+import { bookingAmendments, bookings, payments, supportRequests, users } from "@zamrabooking/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { settleRefund, syncCancellation } from "../../lib/trips.js";
@@ -55,7 +55,7 @@ cancellationsAdminRoutes.post("/:id/refresh", async (c) => {
 // MARK_SUCCESS           TripJack confirmed outside the API: cancel booking and refund to the original payment method
 // MARK_REJECTED          TripJack rejected: booking stays as it is
 // RETRY_REFUND           retry a refund the payment provider rejected (FAILED)
-// MARK_REFUNDED_MANUALLY refund was paid outside POOMAS (e.g. from the Nomod dashboard)
+// MARK_REFUNDED_MANUALLY refund was paid outside ZamraBooking (e.g. from the Nomod dashboard)
 cancellationsAdminRoutes.post("/:id/resolve", zValidator("json", z.object({
   action:       z.enum(["MARK_SUCCESS", "MARK_REJECTED", "RETRY_REFUND", "MARK_REFUNDED_MANUALLY"]),
   refundAmount: z.number().min(0).optional(),

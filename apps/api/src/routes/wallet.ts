@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { walletAccounts, walletTransactions } from "@poomas/db/schema";
+import { walletAccounts, walletTransactions } from "@zamrabooking/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { RAZORPAY_ENABLED } from "../lib/payment-gateway.js";

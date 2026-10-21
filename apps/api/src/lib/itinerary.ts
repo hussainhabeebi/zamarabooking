@@ -92,7 +92,7 @@ export function renderItineraryHtml(data: ItineraryDocData): string {
 <style>
   body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:#f1f5f9; color:#0f172a; }
   .doc { max-width:720px; margin:20px auto; background:#fff; border-radius:14px; overflow:hidden; border:1px solid #e2e8f0; }
-  .head { background:#E31E24; color:#fff; padding:22px 24px; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .head { background:#0D4B96; color:#fff; padding:22px 24px; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
   .head h1 { margin:0; font-size:20px; }
   .head .sub { opacity:.85; font-size:13px; margin-top:4px; }
   .pnr { text-align:right; }
@@ -108,7 +108,7 @@ export function renderItineraryHtml(data: ItineraryDocData): string {
   .code { font-weight:700; }
   .small { font-size:12px; color:#64748b; }
   .bag { margin-top:6px; }
-  .plane { color:#E31E24; font-size:20px; }
+  .plane { color:#0D4B96; font-size:20px; }
   .right { text-align:right; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th { text-align:left; font-size:11px; text-transform:uppercase; color:#64748b; padding:6px 8px; border-bottom:2px solid #f1f5f9; }
@@ -125,7 +125,7 @@ export function renderItineraryHtml(data: ItineraryDocData): string {
   <div class="head">
     <div>
       <h1>${docName} · ${esc(data.origin)} → ${esc(data.destination)}</h1>
-      <div class="sub">POOMAS · flypoomas.com${bookedAt ? ` · Booked ${esc(bookedAt)}` : ""}</div>
+      <div class="sub">ZamraBooking · zamrabooking.com${bookedAt ? ` · Booked ${esc(bookedAt)}` : ""}</div>
     </div>
     <div class="pnr"><small>Airline PNR</small><strong>${esc(pnr)}</strong></div>
   </div>

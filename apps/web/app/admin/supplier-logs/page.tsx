@@ -19,7 +19,7 @@ type LogEntry = {
 
 function getToken(): string {
   try {
-    const m = document.cookie.match(/(?:^|;\s*)poomas_token=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)zamra_token=([^;]+)/);
     return m ? decodeURIComponent(m[1]) : "";
   } catch { return ""; }
 }
@@ -40,7 +40,7 @@ const ENDPOINT_LABEL: Record<string, string> = {
 };
 
 export default function SupplierLogsPage() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
   const [logs, setLogs]           = useState<LogEntry[]>([]);
   const [loading, setLoading]     = useState(false);

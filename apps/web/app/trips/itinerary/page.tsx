@@ -213,5 +213,5 @@ function Info({ label, value, mono }: { label: string; value: string; mono?: boo
 
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 16 };
 const muted: React.CSSProperties = { margin: "0 0 12px", color: "#64748b", fontSize: 14, lineHeight: 1.55 };
-const primaryBtn: React.CSSProperties = { display: "inline-block", background: "#E31E24", color: "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 14, textDecoration: "none", border: 0, cursor: "pointer", fontFamily: "inherit" };
+const primaryBtn: React.CSSProperties = { display: "inline-block", background: "#0D4B96", color: "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 14, textDecoration: "none", border: 0, cursor: "pointer", fontFamily: "inherit" };
 const errBox: React.CSSProperties = { background: "#FEE2E2", color: "#991B1B", padding: "10px 14px", borderRadius: 10, fontSize: 14, marginTop: 12 };

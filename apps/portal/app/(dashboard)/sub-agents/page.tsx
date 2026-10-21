@@ -39,7 +39,7 @@ export default function SubAgentsPage() {
       const d = await api<{ inviteLink?: string | null }>("/api/agents/sub-agents/invite", { json: form });
       setForm({ businessName: "", contactEmail: "", contactPhone: "" }); setShowForm(false);
       if (d.inviteLink) setTimeout(() => setMsg({ ok: true, text: `Sub-agent invited. They get an email to set their password. Link: ${d.inviteLink}` }), 0);
-    }, "Sub-agent invited — FlyPoomas approves new agencies after a KYC check.");
+    }, "Sub-agent invited — ZamraBooking approves new agencies after a KYC check.");
   }
 
   return (

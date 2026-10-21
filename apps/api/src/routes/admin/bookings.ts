@@ -3,7 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import {
   bookings, bookingPassengers, payments, bookingAmendments, supportRequests,
   walletTransactions, supplierExchanges, users,
-} from "@poomas/db/schema";
+} from "@zamrabooking/db/schema";
 import { eq, and, asc, desc, or } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { tripjackClientFor, parseBookingDetails } from "../../lib/trips.js";

@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 export const ROUTES = new Map([
-  // Canonical Poomas v1 alias paths
+  // Canonical ZamraBooking v1 alias paths
   ["/v1/air/search", "/fms/v1/air-search-all"],
   ["/v1/air/fare-detail", "/fms/v2/farerule"],
   ["/v1/air/review", "/fms/v1/review"],
@@ -87,7 +87,7 @@ function httpsUrl(value, name) {
 }
 
 export function loadConfig(env = process.env) {
-  const required = ["POOMAS_GATEWAY_KEY"];
+  const required = ["ZAMRA_GATEWAY_KEY"];
   const missing = required.filter((name) => !env[name]);
   if (missing.length > 0) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
 
@@ -102,7 +102,7 @@ export function loadConfig(env = process.env) {
     // Optional fallback for self-hosted callers. Cloudflare normally supplies
     // the TripJack key per request after authenticating to this gateway.
     tripjackApiKey: env.TRIPJACK_API_KEY ?? "",
-    gatewayKey: env.POOMAS_GATEWAY_KEY,
+    gatewayKey: env.ZAMRA_GATEWAY_KEY,
     requestTimeoutMs: Number(env.REQUEST_TIMEOUT_MS ?? 45000),
     maxBodyBytes: Number(env.MAX_BODY_BYTES ?? 2_097_152),
     rateLimitPerMinute: Number(env.RATE_LIMIT_PER_MINUTE ?? 120),

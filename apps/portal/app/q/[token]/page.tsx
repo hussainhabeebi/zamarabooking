@@ -20,7 +20,7 @@ export default function PublicQuotePage() {
   if (error) return <main className="auth"><div className="auth-card"><h1>Quote not found</h1><p className="sub">{error}</p></div></main>;
   if (!d) return <main className="auth"><span className="spin" /></main>;
   const { quote: q, agency: a } = d;
-  const color = a?.color ?? "#E31E24";
+  const color = a?.color ?? "#0D4B96";
   const wa = (a?.phone ?? "").replace(/\D/g, "");
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 48px" }}>
@@ -51,7 +51,7 @@ export default function PublicQuotePage() {
         <a className="btn primary" style={{ background: color, borderColor: color, width: "100%", padding: 14 }} target="_blank" rel="noopener"
           href={`https://wa.me/${wa}?text=${encodeURIComponent(`Hi, I'd like to book from the quote you sent (${q.options[0]?.origin} → ${q.options[0]?.destination}). Option: `)}`}>Book on WhatsApp</a>
       )}
-      <p className="small muted" style={{ textAlign: "center", marginTop: 24 }}>Powered by FlyPoomas</p>
+      <p className="small muted" style={{ textAlign: "center", marginTop: 24 }}>Powered by ZamraBooking</p>
     </main>
   );
 }

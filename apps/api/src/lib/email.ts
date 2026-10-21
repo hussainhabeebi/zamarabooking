@@ -4,7 +4,7 @@
 // Never throws — a failed email must not fail the request or job that sent it.
 
 import { eq } from "drizzle-orm";
-import { emailLogs, tenants } from "@poomas/db/schema";
+import { emailLogs, tenants } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 
 type Db = Variables["db"];
@@ -20,7 +20,7 @@ export interface EmailSettings {
   bccOps: string;          // optional copy of booking / refund emails to the operations inbox
 }
 
-export const DEFAULT_EMAIL_SETTINGS: EmailSettings = { enabled: true, apiKey: "", fromName: "FlyPoomas", fromEmail: "", replyTo: "", bccOps: "" };
+export const DEFAULT_EMAIL_SETTINGS: EmailSettings = { enabled: true, apiKey: "", fromName: "ZamraBooking", fromEmail: "", replyTo: "", bccOps: "" };
 
 const settingsKey = (tenantId: string) => `admin_settings:${tenantId}:email`;
 
@@ -58,10 +58,10 @@ async function fromAddress(db: Db, tenantId: string | null, s: EmailSettings, en
   if (!address && tenantId) {
     // White-label tenants send from their own (Resend-verified) domain.
     const [t] = await db.select({ customDomain: tenants.customDomain }).from(tenants).where(eq(tenants.id, tenantId)).limit(1).catch(() => [] as { customDomain: string | null }[]);
-    address = `bookings@${t?.customDomain ?? "flypoomas.com"}`;
+    address = `bookings@${t?.customDomain ?? "zamrabooking.com"}`;
   }
-  address ||= "bookings@flypoomas.com";
-  const name = (s.fromName || "FlyPoomas").replace(/["<>]/g, "");
+  address ||= "bookings@zamrabooking.com";
+  const name = (s.fromName || "ZamraBooking").replace(/["<>]/g, "");
   return `${name} <${address}>`;
 }
 
@@ -134,7 +134,7 @@ export function emailLayout(opts: {
       `<tr><td style="padding:8px 0;color:#64748b;border-bottom:1px solid #eef2f7;width:42%">${esc(k)}</td><td style="padding:8px 0;color:#0f172a;font-weight:600;border-bottom:1px solid #eef2f7">${esc(v)}</td></tr>`).join("")}</table>`
     : "";
   const cta = opts.cta
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0"><tr><td style="border-radius:8px;background:#E31E24"><a href="${esc(opts.cta.href)}" style="display:inline-block;padding:12px 22px;color:#ffffff;font-weight:700;font-size:15px;text-decoration:none;border-radius:8px">${esc(opts.cta.label)}</a></td></tr></table>
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0"><tr><td style="border-radius:8px;background:#0D4B96"><a href="${esc(opts.cta.href)}" style="display:inline-block;padding:12px 22px;color:#ffffff;font-weight:700;font-size:15px;text-decoration:none;border-radius:8px">${esc(opts.cta.label)}</a></td></tr></table>
 <p style="font-size:12px;color:#94a3b8;margin:0 0 8px">If the button doesn't work, copy this link: <br><a href="${esc(opts.cta.href)}" style="color:#64748b;word-break:break-all">${esc(opts.cta.href)}</a></p>`
     : "";
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(opts.title)}</title></head>
@@ -142,13 +142,13 @@ export function emailLayout(opts: {
 ${opts.preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(opts.preheader)}</div>` : ""}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:24px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
-<tr><td style="padding:20px 28px;border-bottom:3px solid #E31E24"><img src="https://flypoomas.com/logo.png" alt="FlyPoomas" height="32" style="display:block;height:32px"></td></tr>
+<tr><td style="padding:20px 28px;border-bottom:3px solid #0D4B96"><img src="https://zamrabooking.com/logo.png" alt="ZamraBooking" height="32" style="display:block;height:32px"></td></tr>
 <tr><td style="padding:26px 28px 8px">
 <h1 style="font-size:21px;line-height:1.3;margin:0 0 14px;color:#0f172a">${esc(opts.title)}</h1>
 <div style="font-size:15px;line-height:1.6;color:#334155">${opts.body}</div>
 ${rows}${cta}
 </td></tr>
 <tr><td style="padding:16px 28px 22px;border-top:1px solid #eef2f7;font-size:12px;line-height:1.6;color:#94a3b8">
-${opts.footerNote ? `${esc(opts.footerNote)}<br>` : ""}FlyPoomas · <a href="https://flypoomas.com" style="color:#94a3b8">flypoomas.com</a> · Reply to this email if you need help.
+${opts.footerNote ? `${esc(opts.footerNote)}<br>` : ""}ZamraBooking · <a href="https://zamrabooking.com" style="color:#94a3b8">zamrabooking.com</a> · Reply to this email if you need help.
 </td></tr></table></td></tr></table></body></html>`;
 }

@@ -102,7 +102,7 @@ export default function ApiKeysPage() {
         <div style={{ fontSize: 12, fontWeight: 700, color: "#38bdf8", textTransform: "uppercase",
           letterSpacing: "0.05em", marginBottom: 12 }}>How to use your API key</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <CodeBlock label="Search flights (WhatsApp bot / any client)" code={`POST https://api.flypoomas.com/api/search
+          <CodeBlock label="Search flights (WhatsApp bot / any client)" code={`POST https://api.zamrabooking.com/api/search
 X-API-Key: pmsk_••••••••••••••
 Content-Type: application/json
 
@@ -114,7 +114,7 @@ Content-Type: application/json
   "cabinClass": "ECONOMY",
   "tripType": "ONEWAY"
 }`} />
-          <CodeBlock label="Get checkout token (after collecting passengers)" code={`POST https://api.flypoomas.com/api/checkout/session
+          <CodeBlock label="Get checkout token (after collecting passengers)" code={`POST https://api.zamrabooking.com/api/checkout/session
 X-API-Key: pmsk_••••••••••••••
 Content-Type: application/json
 
@@ -177,15 +177,15 @@ Content-Type: application/json
               {SCOPES.map((s) => (
                 <div key={s.id} onClick={() => toggleScope(s.id)}
                   style={{
-                    border: `1.5px solid ${form.scopes.includes(s.id) ? "#E31E24" : "#334155"}`,
+                    border: `1.5px solid ${form.scopes.includes(s.id) ? "#0D4B96" : "#334155"}`,
                     borderRadius: 8, padding: "10px 12px", cursor: "pointer",
                     background: form.scopes.includes(s.id) ? "#1a0a0a" : "#0f172a",
                     display: "flex", alignItems: "flex-start", gap: 10,
                   }}>
                   <div style={{
                     width: 16, height: 16, borderRadius: 4, marginTop: 1, flexShrink: 0,
-                    background: form.scopes.includes(s.id) ? "#E31E24" : "transparent",
-                    border: `2px solid ${form.scopes.includes(s.id) ? "#E31E24" : "#475569"}`,
+                    background: form.scopes.includes(s.id) ? "#0D4B96" : "transparent",
+                    border: `2px solid ${form.scopes.includes(s.id) ? "#0D4B96" : "#475569"}`,
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
                     {form.scopes.includes(s.id) && <span style={{ color: "white", fontSize: 10, fontWeight: 900 }}>✓</span>}
@@ -321,7 +321,7 @@ const inputStyle: React.CSSProperties = {
   color: "#e2e8f0", fontSize: 14,
 };
 const primaryBtn: React.CSSProperties = {
-  background: "#E31E24", color: "white", border: "none", borderRadius: 8,
+  background: "#0D4B96", color: "white", border: "none", borderRadius: 8,
   padding: "10px 20px", fontWeight: 700, fontSize: 13, cursor: "pointer",
 };
 const secondaryBtn: React.CSSProperties = {

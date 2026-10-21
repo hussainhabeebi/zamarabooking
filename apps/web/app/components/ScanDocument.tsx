@@ -14,10 +14,10 @@ export type ScannedTraveller = {
   issuingCountry: string | null; mrzVerified: boolean; confidence: number; warnings: string[];
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 let statusPromise: Promise<boolean> | null = null;
 function scanEnabled() {
-  statusPromise ??= fetch(`${API}/api/ai/status`, { headers: { "x-tenant-slug": "poomas" } })
+  statusPromise ??= fetch(`${API}/api/ai/status`, { headers: { "x-tenant-slug": "zamra" } })
     .then((r) => r.json()).then((d) => Boolean(d?.documentScan)).catch(() => false);
   return statusPromise;
 }
@@ -55,7 +55,7 @@ export function ScanDocument({ onScanned, label = "📷 Scan passport / ID" }: {
       const blob = await shrink(file);
       const form = new FormData();
       form.append("file", blob, blob === file ? file.name : "document.jpg");
-      const res = await fetch(`${API}/api/ai/scan-document`, { method: "POST", headers: { "x-tenant-slug": "poomas" }, body: form });
+      const res = await fetch(`${API}/api/ai/scan-document`, { method: "POST", headers: { "x-tenant-slug": "zamra" }, body: form });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.traveller) { setError(typeof d.error === "string" ? d.error : "We couldn't read the document. Please type the details."); return; }
       const t = d.traveller as ScannedTraveller;

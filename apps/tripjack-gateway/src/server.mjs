@@ -86,7 +86,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method !== "POST" && req.method !== "GET") return json(res, 405, { error: "METHOD_NOT_ALLOWED", requestId }, requestId);
-    if (!secretsEqual(String(req.headers["x-poomas-gateway-key"] ?? ""), config.gatewayKey)) {
+    if (!secretsEqual(String(req.headers["x-zamra-gateway-key"] ?? ""), config.gatewayKey)) {
       return json(res, 401, { error: "GATEWAY_AUTHENTICATION_FAILED", requestId }, requestId);
     }
     if (rateLimited(clientIp(req))) return json(res, 429, { error: "GATEWAY_RATE_LIMITED", requestId }, requestId);

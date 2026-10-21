@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 type Held = {
   id: string; status: string; origin: string; destination: string; departureDate: string | null; pnr: string | null;
@@ -23,7 +23,7 @@ export default function PayHeldFarePage() {
     const b = q.get("b") ?? "", t = q.get("t") ?? "";
     if (!b || !t) { setError("This payment link is incomplete."); return; }
     setIds({ b, t });
-    fetch(`${API}/api/book/held/${encodeURIComponent(b)}`, { headers: { "x-tenant-slug": "poomas", "X-Checkout-Token": t } })
+    fetch(`${API}/api/book/held/${encodeURIComponent(b)}`, { headers: { "x-tenant-slug": "zamra", "X-Checkout-Token": t } })
       .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error ?? "This payment link is no longer valid."); return d.booking as Held; })
       .then(setHeld)
       .catch((e) => setError(e.message));
@@ -35,7 +35,7 @@ export default function PayHeldFarePage() {
     try {
       const res = await fetch(`${API}/api/payments/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", "X-Checkout-Token": ids.t },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", "X-Checkout-Token": ids.t },
         body: JSON.stringify({ bookingId: ids.b, gateway: "NOMOD" }),
       });
       const d = await res.json().catch(() => ({}));
@@ -73,11 +73,11 @@ export default function PayHeldFarePage() {
       {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
       {payable && (
         <button type="button" onClick={pay} disabled={busy}
-          style={{ width: "100%", height: 52, border: 0, borderRadius: 14, background: "#E31E24", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? .7 : 1 }}>
+          style={{ width: "100%", height: 52, border: 0, borderRadius: 14, background: "#0D4B96", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? .7 : 1 }}>
           {busy ? "Opening payment…" : "Pay now"}
         </button>
       )}
-      <p style={{ marginTop: 18 }}><a href="/" style={{ color: "#E31E24", fontWeight: 700, textDecoration: "none" }}>← Search flights</a></p>
+      <p style={{ marginTop: 18 }}><a href="/" style={{ color: "#0D4B96", fontWeight: 700, textDecoration: "none" }}>← Search flights</a></p>
     </main>
   );
 }

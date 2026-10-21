@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: poomas
+      POSTGRES_DB: zamra
     ports:
       - "5432:5432"
     volumes:
@@ -27,7 +27,7 @@ services:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@flypoomas.com
+      PGADMIN_DEFAULT_EMAIL: admin@zamrabooking.com
       PGADMIN_DEFAULT_PASSWORD: password
     ports:
       - "5050:80"

@@ -23,7 +23,7 @@ export default function AdminLoginPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
         method:      "POST",
         credentials: "include",
-        headers:     { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+        headers:     { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
         body:        JSON.stringify({ email, password: pass }),
       });
 
@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
           setError("This login doesn't have admin access. Agencies sign in at the agent portal.");
           return;
         }
-        document.cookie = `poomas_admin_token=${token}; Path=/; SameSite=Lax; Secure`;
+        document.cookie = `zamra_admin_token=${token}; Path=/; SameSite=Lax; Secure`;
         router.push("/dashboard");
       } else {
         const data = await res.json().catch(() => ({})) as { error?: string; message?: string };
@@ -58,7 +58,7 @@ export default function AdminLoginPage() {
       }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="POOMAS Traveldays" height={36} style={{ display: "inline-block" }} />
+          <img src="/logo.png" alt="Zamra Travels" height={36} style={{ display: "inline-block" }} />
           <div style={{ fontSize: 13, color: "#64748b", marginTop: 8 }}>Admin panel</div>
         </div>
 
@@ -90,7 +90,7 @@ export default function AdminLoginPage() {
           <button
             type="submit" disabled={loading}
             style={{
-              background: "#E31E24", color: "white",
+              background: "#0D4B96", color: "white",
               border: "none", borderRadius: 8, padding: "13px",
               fontWeight: 700, fontSize: 15, cursor: "pointer",
               opacity: loading ? 0.7 : 1,

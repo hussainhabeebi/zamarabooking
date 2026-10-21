@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
@@ -30,7 +30,7 @@ export default function ResetPasswordPage() {
       const d = await res.json().catch(() => ({})) as { token?: string; error?: string; message?: string };
       if (!res.ok || !d.token) throw new Error(d.error ?? d.message ?? "Couldn't change the password.");
       // Signed in with the new password.
-      document.cookie = `poomas_token=${d.token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
+      document.cookie = `zamra_token=${d.token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
       window.location.assign("/account?password=reset");
     } catch (err) { setError(err instanceof Error ? err.message : "Couldn't change the password."); setLoading(false); }
   }
@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
     <div className="wa-desktop-fallback">
       <div className="wa-desktop-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="FlyPoomas" className="login-brand-logo" width="72" height="68" />
+        <img src="/logo.png" alt="ZamraBooking" className="login-brand-logo" width="68" height="68" />
         <h1 className="login-title">Choose a new password</h1>
         {email && <p className="login-intro">For {email}</p>}
         {checking && <p className="login-intro">Checking your link…</p>}

@@ -81,7 +81,7 @@ export default function AgentRequestPage() {
               <div key={m.id} style={{ alignSelf: m.fromStaff ? "flex-end" : "flex-start", maxWidth: "85%", background: m.fromStaff ? "#3b0d10" : "#0f172a", border: "1px solid #334155", borderRadius: 10, padding: "8px 10px", ...ui.text }}>
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.message}</div>
                 {m.attachments.map((f) => <button key={f.key} style={{ ...ui.ghost, padding: "4px 8px", marginTop: 6 }} onClick={() => file(f)}>📎 {f.name}</button>)}
-                <div style={{ ...ui.muted, marginTop: 4 }}>{m.fromStaff ? "FlyPoomas" : "Agency"} · {new Date(m.createdAt).toLocaleString("en-IN")}</div>
+                <div style={{ ...ui.muted, marginTop: 4 }}>{m.fromStaff ? "ZamraBooking" : "Agency"} · {new Date(m.createdAt).toLocaleString("en-IN")}</div>
               </div>
             ))}
           </div>

@@ -21,7 +21,7 @@ async function withFetch(handler: (url: string, init: any) => Response, fn: (cal
 
 test("sendMail posts to Resend with sender, reply-to, ops copy, idempotency and a text part", async () => {
   const logs: any[] = [];
-  const env: any = { RESEND_API_KEY: "re_secret_123", TENANT_CACHE_KV: kv({ "admin_settings:t1:email": { fromName: "FlyPoomas Bookings", fromEmail: "bookings@flypoomas.com", replyTo: "help@flypoomas.com", bccOps: "ops@flypoomas.com" } }) };
+  const env: any = { RESEND_API_KEY: "re_secret_123", TENANT_CACHE_KV: kv({ "admin_settings:t1:email": { fromName: "ZamraBooking Bookings", fromEmail: "bookings@zamrabooking.com", replyTo: "help@zamrabooking.com", bccOps: "ops@zamrabooking.com" } }) };
   await withFetch(() => Response.json({ id: "em_1" }), async (calls) => {
     const r = await sendMail(env, fakeDb(logs), "t1", {
       to: "asha@example.com", subject: "Booking confirmed", html: '<p>Hi <a href="https://x.co/t">trip</a></p>', category: "booking",
@@ -32,10 +32,10 @@ test("sendMail posts to Resend with sender, reply-to, ops copy, idempotency and 
     assert.equal(calls[0].init.headers.Authorization, "Bearer re_secret_123");
     assert.equal(calls[0].init.headers["Idempotency-Key"], "booking-confirmed:b1");
     const body = JSON.parse(calls[0].init.body);
-    assert.equal(body.from, "FlyPoomas Bookings <bookings@flypoomas.com>");
+    assert.equal(body.from, "ZamraBooking Bookings <bookings@zamrabooking.com>");
     assert.deepEqual(body.to, ["asha@example.com"]);
-    assert.equal(body.reply_to, "help@flypoomas.com");
-    assert.deepEqual(body.bcc, ["ops@flypoomas.com"]);
+    assert.equal(body.reply_to, "help@zamrabooking.com");
+    assert.deepEqual(body.bcc, ["ops@zamrabooking.com"]);
     assert.match(body.text, /Hi trip \(https:\/\/x\.co\/t\)/);
     assert.deepEqual(body.tags, [{ name: "category", value: "booking" }]);
   });
@@ -62,18 +62,18 @@ test("sendMail skips without a key or when turned off, logs failures, never thro
   await withFetch(() => Response.json({ id: "em_2" }), async (calls) => {
     await sendMail({ RESEND_API_KEY: "re_secret", TENANT_CACHE_KV: kv({ "admin_settings:t1:email": { apiKey: "re_admin_key" } }) } as any, fakeDb([]), "t1", { to: "a@b.co", subject: "x", html: "x", category: "auth" });
     assert.equal(calls[0].init.headers.Authorization, "Bearer re_admin_key");
-    assert.equal(JSON.parse(calls[0].init.body).from, "FlyPoomas <bookings@flypoomas.com>");
+    assert.equal(JSON.parse(calls[0].init.body).from, "ZamraBooking <bookings@zamrabooking.com>");
   });
 });
 
 test("layout escapes data and includes the call to action and a plain-text fallback", () => {
-  const html = emailLayout({ title: "Hello <b>", body: "<p>Body</p>", rows: [["PNR", "AB<12"]], cta: { label: "Open", href: "https://flypoomas.com/trips?a=1&b=2" } });
+  const html = emailLayout({ title: "Hello <b>", body: "<p>Body</p>", rows: [["PNR", "AB<12"]], cta: { label: "Open", href: "https://zamrabooking.com/trips?a=1&b=2" } });
   assert.match(html, /Hello &lt;b&gt;/);
   assert.match(html, /AB&lt;12/);
-  assert.match(html, /href="https:\/\/flypoomas\.com\/trips\?a=1&amp;b=2"/);
+  assert.match(html, /href="https:\/\/zamrabooking\.com\/trips\?a=1&amp;b=2"/);
   const text = htmlToText(html);
   assert.match(text, /Body/);
-  assert.match(text, /Open \(https:\/\/flypoomas\.com\/trips\?a=1&b=2\)/);
+  assert.match(text, /Open \(https:\/\/zamrabooking\.com\/trips\?a=1&b=2\)/);
 });
 
 test("plain-text rows read as label: value", () => {

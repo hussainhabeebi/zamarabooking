@@ -297,7 +297,7 @@ export default function HotelsPage() {
 
         <section className="hw-benefits" aria-labelledby="hw-benefits-title">
           <div className="hw-section-heading hw-benefits-heading">
-            <div><span className="hw-eyebrow">PLAN WITH CLARITY</span><h2 id="hw-benefits-title">Why book your stay with FlyPoomas?</h2></div>
+            <div><span className="hw-eyebrow">PLAN WITH CLARITY</span><h2 id="hw-benefits-title">Why book your stay with ZamraBooking?</h2></div>
             <p>See the details that matter before choosing a stay.</p>
           </div>
           <div className="hw-benefit-grid">
@@ -343,8 +343,8 @@ const css = `
   min-height: 31px; padding: 5px 10px; border-radius: 17px; border: 1px solid #dae3ed;
   background: white; color: #53647a; font-size: 11px; font-weight: 700; cursor: pointer; transition: background .2s, border-color .2s, color .2s;
 }
-.hw-cur:hover { border-color: #e31e24; color: #c91924; }
-.hw-cur-active, .hw-cur-active:hover { background: #e31e24; border-color: #e31e24; color: white; }
+.hw-cur:hover { border-color: #0D4B96; color: #c91924; }
+.hw-cur-active, .hw-cur-active:hover { background: #0D4B96; border-color: #0D4B96; color: white; }
 .hw-nat { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: #53647a; font-weight: 650; }
 .hw-nat select { border: 1px solid #d0d5dd; border-radius: 8px; padding: 6px 8px; font-size: 13px; background: #fff; color: #1e293b; max-width: 220px; }
 .hw-occupancy { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; min-width: 0; }
@@ -361,7 +361,7 @@ const css = `
   font-size: 14px; width: 100%; min-width: 0; outline: none; min-height: 47px; background: white;
   color: #172b44; font-family: inherit;
 }
-.hw-input:focus, .hw-select:focus-visible { border-color: #e31e24; box-shadow: 0 0 0 3px #e31e241c; }
+.hw-input:focus, .hw-select:focus-visible { border-color: #0D4B96; box-shadow: 0 0 0 3px #0D4B961c; }
 .hw-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .hw-dropdown {
   position: absolute; top: calc(100% + 4px); left: 0; right: 0;
@@ -373,17 +373,17 @@ const css = `
   display: flex; align-items: center; gap: 8px; padding: 12px 14px; cursor: pointer;
 }
 .hw-dropdown li:hover { background: #f3f4f6; }
-.hw-code { font-weight: 700; font-size: 15px; color: #E31E24; min-width: 38px; }
+.hw-code { font-weight: 700; font-size: 15px; color: #0D4B96; min-width: 38px; }
 .hw-city { font-size: 14px; color: #1e293b; flex: 1; }
 .hw-flag { font-size: 18px; }
 .hw-search-btn {
-  background: #e31e24; color: white; border: none; border-radius: 9px;
+  background: #0D4B96; color: white; border: none; border-radius: 9px;
   padding: 11px 14px; font-weight: 750; font-size: 13px; cursor: pointer;
   width: 100%; min-height: 47px; font-family: inherit; white-space: nowrap;
 }
 .hw-search-btn:hover { background: #c91924; }
 .hw-search-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .12s ease, box-shadow .2s ease, background .2s ease; }
-.hw-search-btn:hover:not(:disabled) { box-shadow: 0 8px 20px rgba(227,30,36,.28); transform: translateY(-1px); }
+.hw-search-btn:hover:not(:disabled) { box-shadow: 0 8px 20px rgba(13,75,150,.28); transform: translateY(-1px); }
 .hw-search-btn:active:not(:disabled) { transform: scale(.97); }
 .hw-search-btn:disabled { cursor: progress; }
 .hw-search-btn .search-spinner { display: inline-block; flex-shrink: 0; }
@@ -412,7 +412,7 @@ const css = `
 .hw-benefit-icon { display: grid; place-items: center; width: 32px; height: 32px; margin-bottom: 13px; border-radius: 9px; background: #fff1f2; color: #c71c28; font-weight: 800; }
 .hw-benefit h3 { margin: 0 0 6px; color: #152944; font-size: 15px; }
 .hw-benefit p { margin: 0; color: #65768c; font-size: 12px; line-height: 1.55; }
-.hw-hub:focus-visible, .hw-cur:focus-visible, .hw-search-btn:focus-visible { outline: 2px solid #b91c1c; outline-offset: 3px; }
+.hw-hub:focus-visible, .hw-cur:focus-visible, .hw-search-btn:focus-visible { outline: 2px solid #0A3A75; outline-offset: 3px; }
 @media (max-width: 1100px) {
   .hw-grid { grid-template-columns: minmax(160px,1.2fr) minmax(250px,1.6fr) minmax(180px,1.25fr); }
   .hw-search-btn { grid-column: 1 / -1; }

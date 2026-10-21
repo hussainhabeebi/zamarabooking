@@ -13,8 +13,8 @@
 import {
   TripjackInsuranceClient, parseTripsafeBooking, tripsafeSearchBody, normalizeTripsafeProduct,
   type TripsafeTripInput, type TripsafeTraveller, type TripsafeBookResult, type TripsafeBookingDetails,
-} from "@poomas/suppliers";
-import { supplierExchanges } from "@poomas/db/schema";
+} from "@zamrabooking/suppliers";
+import { supplierExchanges } from "@zamrabooking/db/schema";
 import { and, asc, desc, eq, inArray, like, or } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { collectExchanges, persistExchanges } from "./api-exchanges.js";
@@ -48,7 +48,7 @@ export async function tripsafeSettings(env: Env, tenantId: string): Promise<Trip
 export function tripsafeClient(env: Env, settings: TripsafeSettings) {
   return new TripjackInsuranceClient({
     apiKey:   settings.apiKey,
-    baseUrl:  env.TRIPJACK_API_BASE_URL,   // the Poomas TripJack gateway
+    baseUrl:  env.TRIPJACK_API_BASE_URL,   // the ZamraBooking TripJack gateway
     proxyKey: env.TRIPJACK_PROXY_KEY,
   });
 }

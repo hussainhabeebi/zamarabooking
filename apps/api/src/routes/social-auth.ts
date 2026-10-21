@@ -4,7 +4,7 @@ import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { SignJWT } from "jose";
 import { and, eq, gt, lt } from "drizzle-orm";
-import { users, socialAuthChallenges } from "@poomas/db/schema";
+import { users, socialAuthChallenges } from "@zamrabooking/db/schema";
 import { hashProof, verifySocialIdentity, type SocialProvider } from "../lib/social-identity.js";
 import type { Env, Variables } from "../types.js";
 
@@ -22,7 +22,7 @@ function configuration(env: Env, provider: SocialProvider) {
 socialAuthRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   const origin = c.req.header("Origin");
-  const allowed = (c.env.SOCIAL_AUTH_ORIGINS ?? "https://flypoomas.com,https://www.flypoomas.com").split(",").map((x) => x.trim());
+  const allowed = (c.env.SOCIAL_AUTH_ORIGINS ?? "https://zamrabooking.com,https://www.zamrabooking.com").split(",").map((x) => x.trim());
   if (c.req.method === "POST" && (!origin || !allowed.includes(origin))) {
     throw new HTTPException(403, { message: "Sign-in origin is not allowed" });
   }

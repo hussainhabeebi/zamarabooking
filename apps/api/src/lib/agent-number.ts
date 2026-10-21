@@ -1,12 +1,12 @@
-// FlyPoomas agent numbers (FPA10001 …) and agency activity tracking.
+// ZamraBooking agent numbers (FPA10001 …) and agency activity tracking.
 //
 // Every agency gets an agent number. Leadvyne Live Agency stores it per client
 // and sends it with searches and checkout links (header X-FP-Agent or body
-// agentNumber), so FlyPoomas knows the agency's currency and can count its
+// agentNumber), so ZamraBooking knows the agency's currency and can count its
 // searches, checkout links and bookings.
 
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { agentActivityDaily, agents } from "@poomas/db/schema";
+import { agentActivityDaily, agents } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import type { DisplayCurrency } from "./fx.js";
 

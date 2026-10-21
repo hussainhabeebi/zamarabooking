@@ -22,9 +22,9 @@ import { SignJWT } from "jose";
 import {
   agentDocuments, agentQuotes, agentRequestMessages, agentRequests, agentTravellers, agents, bookings, payments,
   users, walletAccounts, walletTransactions, markupRules, tenants,
-} from "@poomas/db/schema";
+} from "@zamrabooking/db/schema";
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
-import type { Db } from "@poomas/db";
+import type { Db } from "@zamrabooking/db";
 import type { Env, Variables } from "../types.js";
 import { pbkdf2HashPassword } from "./auth.js";
 import {
@@ -38,7 +38,7 @@ import { roundMoney } from "../lib/customer-wallet.js";
 
 type Ctx = Context<{ Bindings: Env; Variables: Variables }>;
 
-export const portalUrl = (env: Pick<Env, "PORTAL_URL">) => (env.PORTAL_URL || "https://portal.flypoomas.com").replace(/\/+$/, "");
+export const portalUrl = (env: Pick<Env, "PORTAL_URL">) => (env.PORTAL_URL || "https://portal.zamrabooking.com").replace(/\/+$/, "");
 const AGENT_ROLES = ["AGENT_ADMIN", "AGENT_STAFF", "AGENT_ACCOUNTANT"] as const;
 const FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"];
 const MAX_FILE = 8 * 1024 * 1024;
@@ -86,13 +86,13 @@ async function rateLimited(c: Ctx, name: string, limit: number) {
 }
 
 export function logoUrl(agentId: string, s: AgentSettings) {
-  return s.logoKey ? `https://api.flypoomas.com/api/agent-public/logo/${agentId}?v=${encodeURIComponent(s.logoKey.slice(-12))}` : null;
+  return s.logoKey ? `https://api.zamrabooking.com/api/agent-public/logo/${agentId}?v=${encodeURIComponent(s.logoKey.slice(-12))}` : null;
 }
 
 export function publicBranding(a: { id: string; businessName: string; phone: string; email: string; whatsapp: string | null; settings: unknown }) {
   const s = settingsOf(a);
   return {
-    agentId: a.id, name: s.displayName || a.businessName, logoUrl: logoUrl(a.id, s), color: s.brandColor || "#E31E24",
+    agentId: a.id, name: s.displayName || a.businessName, logoUrl: logoUrl(a.id, s), color: s.brandColor || "#0D4B96",
     phone: s.contactPhone || a.whatsapp || a.phone, email: s.contactEmail || a.email, address: s.address ?? null,
   };
 }
@@ -159,8 +159,8 @@ export async function sendAgentPasswordReset(env: Env, db: Db, tenantId: string,
   await env.SESSIONS_KV.put(`agent_pwreset:${token}`, JSON.stringify({ tenantId, userId }), { expirationTtl: RESET_TTL });
   const link = `${portalUrl(env)}/reset-password?token=${token}`;
   await notifyCustomer(env, db, tenantId, {
-    email, category: "auth", subject: "Reset your FlyPoomas agent portal password",
-    html: emailShell("Reset your password", `<p>Hi ${escapeHtml(name || "there")}, use the button below to choose a new password for the FlyPoomas agent portal. The link works for 1 hour. If you didn't ask for this, ignore this email.</p>`, { label: "Choose a new password", href: link }),
+    email, category: "auth", subject: "Reset your ZamraBooking agent portal password",
+    html: emailShell("Reset your password", `<p>Hi ${escapeHtml(name || "there")}, use the button below to choose a new password for the ZamraBooking agent portal. The link works for 1 hour. If you didn't ask for this, ignore this email.</p>`, { label: "Choose a new password", href: link }),
     whatsapp: "",
   });
   return link;
@@ -180,7 +180,7 @@ agentPublicRoutes.post("/password/forgot", zValidator("json", z.object({ email: 
     }
     return reply;
   }
-  // An agency created by FlyPoomas that never set up its login: send a fresh invitation.
+  // An agency created by ZamraBooking that never set up its login: send a fresh invitation.
   const [a] = await db.select({ id: agents.id, businessName: agents.businessName, ownerName: agents.ownerName, status: agents.status }).from(agents)
     .where(and(eq(agents.tenantId, tenantId), eq(agents.email, email))).limit(1);
   if (a && a.status !== "REJECTED") {
@@ -314,7 +314,7 @@ agentPublicRoutes.post("/site/:slug/lead", zValidator("json", z.object({
   c.executionCtx.waitUntil(notifyCustomer(c.env, db, tenantId, {
     email: a.email, phone: a.whatsapp ?? a.phone, category: "agency",
     subject: `New customer enquiry — ${b.name}`,
-    html: emailShell("New enquiry from your FlyPoomas page", `<p><b>${escapeHtml(b.name)}</b> (${escapeHtml(b.phone)}) — ${escapeHtml(title)}</p>${b.message ? `<p>${escapeHtml(b.message)}</p>` : ""}`, { label: "Open in portal", href: `${portalUrl(c.env)}/requests/${r.id}` }),
+    html: emailShell("New enquiry from your ZamraBooking page", `<p><b>${escapeHtml(b.name)}</b> (${escapeHtml(b.phone)}) — ${escapeHtml(title)}</p>${b.message ? `<p>${escapeHtml(b.message)}</p>` : ""}`, { label: "Open in portal", href: `${portalUrl(c.env)}/requests/${r.id}` }),
     whatsapp: `🛎 *New enquiry* — ${b.name} (${b.phone})\n${title}${b.message ? `\n${b.message}` : ""}\nPortal: ${portalUrl(c.env)}/requests/${r.id}`,
   }).then(() => {}));
   return c.json({ ok: true, message: `Thanks! ${settingsOf(a).displayName || a.businessName} will contact you shortly.` }, 201);
@@ -482,8 +482,8 @@ export async function createInvite(env: Env, db: Db, inv: Invite, businessName: 
   await env.SESSIONS_KV.put(`agent_invite:${token}`, JSON.stringify(inv), { expirationTtl: 7 * 86_400 });
   const link = `${portalUrl(env)}/accept-invite?token=${token}`;
   await notifyCustomer(env, db, inv.tenantId, {
-    email: inv.email, category: "auth", subject: `You're invited to ${businessName} on FlyPoomas`,
-    html: emailShell(`Join ${businessName} on FlyPoomas`, `<p>Hi ${escapeHtml(inv.name)}, you've been invited as <b>${inv.role.replace("AGENT_", "").toLowerCase()}</b>. Set your password to start booking. The link works for 7 days.</p>`, { label: "Accept invitation", href: link }),
+    email: inv.email, category: "auth", subject: `You're invited to ${businessName} on ZamraBooking`,
+    html: emailShell(`Join ${businessName} on ZamraBooking`, `<p>Hi ${escapeHtml(inv.name)}, you've been invited as <b>${inv.role.replace("AGENT_", "").toLowerCase()}</b>. Set your password to start booking. The link works for 7 days.</p>`, { label: "Accept invitation", href: link }),
     whatsapp: "",
   });
   return link;
@@ -600,7 +600,7 @@ agentPortalRoutes.post("/wallet/topup", zValidator("json", z.object({ amount: z.
     body: JSON.stringify({
       currency: wallet.currency,
       items: [{ name: `Wallet top-up · ${a.businessName}`.slice(0, 80), amount: amount.toFixed(2), quantity: 1 }],
-      title: "FlyPoomas agent wallet top-up", note: `Agency ${a.id}`,
+      title: "ZamraBooking agent wallet top-up", note: `Agency ${a.id}`,
       shipping_address_required: false, allow_tip: false, allow_tabby: false, allow_tamara: false, allow_service_fee: false, payment_expiry_limit: 1,
       success_url: `${portalUrl(c.env)}/wallet?topup=success`, failure_url: `${portalUrl(c.env)}/wallet?topup=failed`,
     }),
@@ -666,7 +666,7 @@ agentPortalRoutes.get("/bookings/:id/invoice", async (c) => {
   const [b] = await db.select().from(bookings).where(and(eq(bookings.id, c.req.param("id")), eq(bookings.tenantId, tenantId))).limit(1);
   if (!b || !b.agentId || !scope.includes(b.agentId)) return c.json({ error: "Booking not found" }, 404);
   const [a] = await db.select().from(agents).where(eq(agents.id, b.agentId)).limit(1);
-  const { bookingPassengers, bookingAmendments } = await import("@poomas/db/schema");
+  const { bookingPassengers, bookingAmendments } = await import("@zamrabooking/db/schema");
   const [pax, refunds] = await Promise.all([
     db.select({ firstName: bookingPassengers.firstName, lastName: bookingPassengers.lastName, type: bookingPassengers.passengerType }).from(bookingPassengers).where(eq(bookingPassengers.bookingId, b.id)),
     db.select({ id: bookingAmendments.id, refundAmount: bookingAmendments.refundAmount, supplierCharges: bookingAmendments.supplierCharges, refundedAt: bookingAmendments.refundedAt, refundStatus: bookingAmendments.refundStatus })
@@ -890,7 +890,7 @@ async function mouContext(c: Ctx) {
     getOnboarding(c.env, tenantId), getProgram(c.env, tenantId),
     db.select({ name: tenants.name, companyName: tenants.companyName, supportEmail: tenants.supportEmail, supportPhone: tenants.supportPhone }).from(tenants).where(eq(tenants.id, tenantId)).limit(1),
   ]);
-  return { a, cfg, program, tenant: t ?? { name: "FlyPoomas" } };
+  return { a, cfg, program, tenant: t ?? { name: "ZamraBooking" } };
 }
 
 // The MOU to review (generated from the agency's details), or the signed copy.
@@ -933,8 +933,8 @@ agentPortalRoutes.post("/mou/accept", zValidator("json", z.object({
   await updateSettings(db, a.id, { mou: acceptance });
   await audit(db, { tenantId, userId: c.get("userId"), action: "AGENT_MOU_ACCEPTED", entity: "Agent", entityId: a.id, after: { version: cfg.mouVersion, name: b.name, designation: b.designation, hash }, ip: ip(c) });
   c.executionCtx.waitUntil(notifyCustomer(c.env, db, tenantId, {
-    email: a.email, category: "agency", subject: `Your FlyPoomas MOU (${m.ref})`,
-    html: emailShell("MOU signed", `<p>Thank you, ${escapeHtml(b.name)}. ${escapeHtml(a.businessName)}'s Memorandum of Understanding with FlyPoomas was accepted on ${escapeHtml(new Date(acceptedAt).toUTCString())}. A copy is below and in the agent portal under Profile, branding &amp; KYC.</p><hr>${frozen}`),
+    email: a.email, category: "agency", subject: `Your ZamraBooking MOU (${m.ref})`,
+    html: emailShell("MOU signed", `<p>Thank you, ${escapeHtml(b.name)}. ${escapeHtml(a.businessName)}'s Memorandum of Understanding with ZamraBooking was accepted on ${escapeHtml(new Date(acceptedAt).toUTCString())}. A copy is below and in the agent portal under Profile, branding &amp; KYC.</p><hr>${frozen}`),
     whatsapp: "",
   }).catch(() => {}));
   return c.json({ ok: true, acceptedAt });

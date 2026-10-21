@@ -6,8 +6,8 @@
 // therefore never overdraw even under concurrent requests; the ledger row is
 // written from the returned balance.
 
-import type { Db } from "@poomas/db";
-import { walletAccounts, walletTransactions, walletCoupons, bookings } from "@poomas/db/schema";
+import type { Db } from "@zamrabooking/db";
+import { walletAccounts, walletTransactions, walletCoupons, bookings } from "@zamrabooking/db/schema";
 import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
 
 export const CUSTOMER_WALLET_CURRENCY = "INR" as const;

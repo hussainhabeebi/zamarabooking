@@ -62,7 +62,7 @@ function Toggle({ label, description, checked, onChange, color }: {
 }
 
 function saveBtn(disabled: boolean): React.CSSProperties {
-  return { background: "#E31E24", color: "white", border: "none", borderRadius: 8,
+  return { background: "#0D4B96", color: "white", border: "none", borderRadius: 8,
     padding: "9px 20px", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: disabled ? 0.7 : 1 };
 }
 
@@ -177,7 +177,7 @@ function PaymentSettings() {
                 <input type="password" placeholder="Optional until Nomod webhook is configured" value={s.nomod.webhookSecret}
                   onChange={(e) => setS((p) => ({ ...p, nomod: { ...p.nomod, webhookSecret: e.target.value } }))}
                   style={inputStyle} autoComplete="new-password" />
-                <Hint>Webhook URL: <code style={codeStyle}>https://api.flypoomas.com/webhooks/nomod</code></Hint>
+                <Hint>Webhook URL: <code style={codeStyle}>https://api.zamrabooking.com/webhooks/nomod</code></Hint>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
@@ -325,8 +325,8 @@ function WhatsAppSettings() {
     provider: "LEADVYNE" as "LEADVYNE" | "WABA_DIRECT",
     leadvyne: { apiKey: "", apiSecret: "", instanceId: "", baseUrl: "https://api.leadvyne.com" },
     defaultCountryCode: "91",
-    eticketTemplate: "poomas_eticket_v1",
-    bookingConfirmTemplate: "poomas_booking_confirm_v1",
+    eticketTemplate: "zamra_eticket_v1",
+    bookingConfirmTemplate: "zamra_booking_confirm_v1",
     webhookSecret: "",
   });
 
@@ -398,7 +398,7 @@ function WhatsAppSettings() {
                 <input type="url" placeholder="https://api.leadvyne.com" value={s.leadvyne.baseUrl}
                   onChange={(e) => setS((p) => ({ ...p, leadvyne: { ...p.leadvyne, baseUrl: e.target.value } }))}
                   style={inputStyle} />
-                <Hint>Webhook inbound URL: <code style={codeStyle}>https://api.flypoomas.com/webhooks/leadvyne</code></Hint>
+                <Hint>Webhook inbound URL: <code style={codeStyle}>https://api.zamrabooking.com/webhooks/leadvyne</code></Hint>
               </div>
               <div>
                 <Label>Webhook Secret</Label>
@@ -472,8 +472,8 @@ function EticketSettings() {
   const [s, setS] = useState({
     autoSendOnConfirm:  true,
     channels:           ["WHATSAPP", "EMAIL"] as Array<"WHATSAPP" | "EMAIL">,
-    emailFrom:          "tickets@flypoomas.com",
-    emailFromName:      "POOMAS Flights",
+    emailFrom:          "tickets@zamrabooking.com",
+    emailFromName:      "ZamraBooking",
     includeItinerary:   true,
     includeBaggage:     true,
     includeCheckinLink: false,
@@ -515,14 +515,14 @@ function EticketSettings() {
   return (
     <form onSubmit={save}>
       <Toggle label="Auto-send on confirmation" description="Automatically deliver e-ticket when booking is confirmed"
-        checked={s.autoSendOnConfirm} onChange={(v) => setS((p) => ({ ...p, autoSendOnConfirm: v }))} color="#E31E24" />
+        checked={s.autoSendOnConfirm} onChange={(v) => setS((p) => ({ ...p, autoSendOnConfirm: v }))} color="#0D4B96" />
 
       <div style={{ marginBottom: 16 }}>
         <Label>Delivery Channels</Label>
         <div style={{ display: "flex", gap: 10 }}>
           {(["WHATSAPP", "EMAIL"] as const).map((ch) => (
             <div key={ch} onClick={() => toggleChannel(ch)} style={{
-              border: `2px solid ${s.channels.includes(ch) ? "#E31E24" : "#334155"}`,
+              border: `2px solid ${s.channels.includes(ch) ? "#0D4B96" : "#334155"}`,
               borderRadius: 8, padding: "10px 16px", cursor: "pointer",
               background: s.channels.includes(ch) ? "#1a0a0a" : "#0f172a",
               color: s.channels.includes(ch) ? "#f1f5f9" : "#94a3b8",
@@ -588,7 +588,7 @@ export default function SettingsPage() {
         Payment gateways, WhatsApp messaging, and e-ticket delivery configuration.
       </p>
 
-      <Section color="#E31E24" title="Payment Gateways" badge="NoMod">
+      <Section color="#0D4B96" title="Payment Gateways" badge="NoMod">
         <PaymentSettings />
       </Section>
 

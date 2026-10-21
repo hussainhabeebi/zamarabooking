@@ -30,13 +30,13 @@ type HotelSearchResult = {
 interface PageProps { searchParams: Promise<SearchParams>; }
 
 async function searchHotels(params: SearchParams): Promise<HotelSearchResult> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.flypoomas.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
   const rooms  = parseInt(params.rooms ?? "1");
   const adults = parseInt(params.adults ?? "1");
   try {
     const res = await fetch(`${apiUrl}/api/hotels/search`, {
       method:  "POST",
-      headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
       body: JSON.stringify({
         cityCode:    params.city ?? "",
         ...(params.cityName ? { cityName: params.cityName } : {}),

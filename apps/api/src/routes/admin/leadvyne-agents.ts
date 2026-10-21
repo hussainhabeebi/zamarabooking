@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { agents, users, walletAccounts } from "@poomas/db/schema";
+import { agents, users, walletAccounts } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../../types.js";
 import { DISPLAY_CURRENCIES, type DisplayCurrency } from "../../lib/fx.js";
 import {

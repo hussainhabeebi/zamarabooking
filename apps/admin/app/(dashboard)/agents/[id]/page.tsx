@@ -124,6 +124,6 @@ const back: React.CSSProperties = { color: "#94a3b8", fontSize: 13, textDecorati
 const card: React.CSSProperties = { background: "#1e293b", borderRadius: 12, padding: 16, border: "1px solid #334155", marginBottom: 16 };
 const h2: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: "#f1f5f9", margin: "0 0 12px" };
 const dl: React.CSSProperties = { display: "grid", gridTemplateColumns: "160px 1fr", gap: "8px 12px", fontSize: 13, margin: 0 };
-const btn: React.CSSProperties = { background: "#E31E24", color: "#fff", border: 0, borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const btn: React.CSSProperties = { background: "#0D4B96", color: "#fff", border: 0, borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { ...btn, background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0" };
 const errBox: React.CSSProperties = { background: "rgba(239,68,68,.1)", border: "1px solid #7f1d1d", color: "#fca5a5", borderRadius: 8, padding: "10px 12px", fontSize: 13, margin: "12px 0" };

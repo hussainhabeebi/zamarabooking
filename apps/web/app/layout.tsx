@@ -4,17 +4,17 @@ import SiteNav from "./components/SiteNav";
 import SiteFooter from "./components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "FlyPoomas",
+  title: "ZamraBooking",
   description: "Book flights at best prices — India, Gulf & beyond",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "FlyPoomas" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "ZamraBooking" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#E31E24",
+  themeColor: "#0D4B96",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="/" className="site-logo-link">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="" height={34} className="site-logo" />
-            <span className="site-brand-name">FlyPoomas</span>
+            <span className="site-brand-name">ZamraBooking</span>
           </a>
           <SiteNav />
         </header>

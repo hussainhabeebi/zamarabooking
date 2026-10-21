@@ -13,10 +13,10 @@
 //   BookingSummary.json        which certification case this booking covers,
 //                              and any required service that is missing
 //
-// Requests are shown as sent to TripJack: the Poomas gateway URL is replaced by
+// Requests are shown as sent to TripJack: the ZamraBooking gateway URL is replaced by
 // TripJack's endpoint and our internal gateway secret is never included.
 
-import { bookingPassengers, supplierExchanges, type bookings } from "@poomas/db/schema";
+import { bookingPassengers, supplierExchanges, type bookings } from "@zamrabooking/db/schema";
 import { and, asc, desc, eq, gte, lte, or } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { passengerNameProblem } from "./passenger-names.js";
@@ -107,7 +107,7 @@ export async function certificationSummary(db: Db, b: Booking) {
   const fareIdentifiers: string[] = Array.isArray(tj.fareIdentifiers) ? tj.fareIdentifiers : [];
   const nameProblems = pax.flatMap((p) => [passengerNameProblem(p.firstName, "First name"), passengerNameProblem(p.lastName, "Last name")]).filter(Boolean);
   return {
-    poomasBookingId: b.id,
+    zamraBookingId: b.id,
     tripjackBookingId: b.supplierBookingRef,
     pnr: b.pnr,
     ticketNumbers: b.ticketNumbers,

@@ -3,7 +3,7 @@
 // Booking flow:   Search → Create Booking → Get Booking Detail (policy IDs + COI links)
 // Amendment flow: Raise (priced quote) → Confirm → Get Booking Detail
 //
-// Calls go through the Poomas TripJack gateway (fixed, whitelisted IP), which
+// Calls go through the ZamraBooking TripJack gateway (fixed, whitelisted IP), which
 // forwards /insurance/v2/* 1:1 to TripJack's main host. Auth is the `apikey`
 // header. Every exchange is handed to the recorder verbatim so TripJack
 // certification logs can be produced (separate request / response JSON files).
@@ -370,7 +370,7 @@ export class TripjackInsuranceClient {
       Accept: "application/json",
       ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
       ...(this.apiKey ? { apikey: this.apiKey } : {}),
-      ...(this.proxyKey ? { "X-Poomas-Gateway-Key": this.proxyKey } : {}),
+      ...(this.proxyKey ? { "X-Zamra-Gateway-Key": this.proxyKey } : {}),
     };
     const requestBody = method === "POST" ? JSON.stringify(body ?? {}) : "";
     const startedAt = new Date();

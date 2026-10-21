@@ -8,8 +8,8 @@
 // When the ticket is issued each parent is credited its markup share, and the
 // agent gets its tier commission.
 
-import type { Db } from "@poomas/db";
-import { agents, auditLogs, bookings, commissions, walletAccounts, walletTransactions, users } from "@poomas/db/schema";
+import type { Db } from "@zamrabooking/db";
+import { agents, auditLogs, bookings, commissions, walletAccounts, walletTransactions, users } from "@zamrabooking/db/schema";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Env } from "../types.js";
 import { getAgentMarkup, markupAmount, type AgentMarkup } from "./agent-markup.js";
@@ -248,7 +248,7 @@ export async function assertAgentCanBook(env: Env, db: Db, tenantId: string, age
         sql`${bookings.departureDate}::date = ${trip.departureDate}::date`, gte(bookings.createdAt, dayAgo),
         inArray(bookings.status, ["HELD", "PAYMENT_PENDING", "CONFIRMED", "TICKETED"])));
     if (recent.length) {
-      const { bookingPassengers } = await import("@poomas/db/schema");
+      const { bookingPassengers } = await import("@zamrabooking/db/schema");
       const pax = await db.select({ first: bookingPassengers.firstName, last: bookingPassengers.lastName }).from(bookingPassengers)
         .where(inArray(bookingPassengers.bookingId, recent.map((r) => r.id)));
       const seen = new Set(pax.map((p) => `${p.first} ${p.last}`.toLowerCase().replace(/\s+/g, " ").trim()));

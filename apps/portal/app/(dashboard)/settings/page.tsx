@@ -9,7 +9,7 @@ const DOC_LABEL: Record<string, string> = { GST_CERTIFICATE: "GST certificate", 
 
 export default function SettingsPage() {
   const { me, reload } = useMe();
-  const [f, setF] = useState({ displayName: "", brandColor: "#E31E24", contactPhone: "", contactEmail: "", whatsapp: "", address: "", gstNumber: "", slug: "", miniSite: true, markupType: "FLAT", markupValue: "" });
+  const [f, setF] = useState({ displayName: "", brandColor: "#0D4B96", contactPhone: "", contactEmail: "", whatsapp: "", address: "", gstNumber: "", slug: "", miniSite: true, markupType: "FLAT", markupValue: "" });
   const [docs, setDocs] = useState<Doc[]>([]);
   const [docType, setDocType] = useState("GST_CERTIFICATE");
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!me) return;
     const s = me.settings;
-    setF({ displayName: s.displayName ?? "", brandColor: s.brandColor ?? "#E31E24", contactPhone: s.contactPhone ?? "", contactEmail: s.contactEmail ?? "", whatsapp: me.agent.whatsapp ?? "", address: s.address ?? "", gstNumber: s.gstNumber ?? "", slug: s.slug ?? "", miniSite: s.miniSite !== false, markupType: s.ownMarkup?.type ?? "FLAT", markupValue: s.ownMarkup ? String(s.ownMarkup.value) : "" });
+    setF({ displayName: s.displayName ?? "", brandColor: s.brandColor ?? "#0D4B96", contactPhone: s.contactPhone ?? "", contactEmail: s.contactEmail ?? "", whatsapp: me.agent.whatsapp ?? "", address: s.address ?? "", gstNumber: s.gstNumber ?? "", slug: s.slug ?? "", miniSite: s.miniSite !== false, markupType: s.ownMarkup?.type ?? "FLAT", markupValue: s.ownMarkup ? String(s.ownMarkup.value) : "" });
   }, [me]);
 
   async function save(e: FormEvent) {
@@ -126,7 +126,7 @@ export default function SettingsPage() {
         <p className="small muted" style={{ marginBottom: 0 }}>
           {me?.onboarding?.mou.accepted
             ? `Signed by ${me.onboarding.mou.acceptedBy} on ${new Date(me.onboarding.mou.acceptedAt!).toLocaleDateString("en-GB")}.`
-            : "Your Memorandum of Understanding with FlyPoomas is ready to review and sign."}
+            : "Your Memorandum of Understanding with ZamraBooking is ready to review and sign."}
         </p>
       </div>
 

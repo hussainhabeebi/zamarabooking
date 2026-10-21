@@ -26,7 +26,7 @@ const CANCEL_LABEL: Record<string, string> = {
   SUCCESS: "Cancelled", REJECTED: "Cancellation was not accepted by the airline", FAILED: "Cancellation request failed",
 };
 
-const REFUND_TO: Record<string, string> = { WALLET: "your POOMAS wallet", NOMOD: "your original card / payment method", MANUAL: "your original payment method" };
+const REFUND_TO: Record<string, string> = { WALLET: "your ZamraBooking wallet", NOMOD: "your original card / payment method", MANUAL: "your original payment method" };
 
 const fmtTime = (s: string) => { const d = new Date(s); return isNaN(+d) ? s : d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }); };
 const fmtDate = (s: string | null) => { if (!s) return "—"; const d = new Date(s); return isNaN(+d) ? s : d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); };
@@ -143,7 +143,7 @@ export default function TripDetail({ mode, id }: { mode: Mode; id?: string }) {
                 <div style={{ fontWeight: 700 }}>{s.from.code}{s.from.city ? ` · ${s.from.city}` : ""}</div>
                 <small style={{ color: "#64748b" }}>{fmtDate(s.departure)}{s.from.terminal ? ` · ${s.from.terminal}` : ""}</small>
               </div>
-              <span style={{ color: "#E31E24" }}>✈</span>
+              <span style={{ color: "#0D4B96" }}>✈</span>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 22, fontWeight: 800 }}>{fmtTime(s.arrival)}</div>
                 <div style={{ fontWeight: 700 }}>{s.to.code}{s.to.city ? ` · ${s.to.city}` : ""}</div>
@@ -190,7 +190,7 @@ export default function TripDetail({ mode, id }: { mode: Mode; id?: string }) {
         <div style={row}><span>Total paid</span><strong>{inr(trip.totalAmount, trip.currency)}</strong></div>
         {trip.payments.map((p) => (
           <div key={p.id} style={row}>
-            <small style={{ color: "#64748b" }}>{p.gateway === "WALLET" ? "POOMAS wallet" : p.gateway === "NOMOD" ? "Card (Nomod)" : p.gateway} · {fmtDate(p.createdAt)}</small>
+            <small style={{ color: "#64748b" }}>{p.gateway === "WALLET" ? "ZamraBooking wallet" : p.gateway === "NOMOD" ? "Card (Nomod)" : p.gateway} · {fmtDate(p.createdAt)}</small>
             <small style={{ fontWeight: 700, color: p.status === "SUCCESS" ? "#166534" : "#475569" }}>{p.status.replace("_", " ").toLowerCase()}</small>
           </div>
         ))}
@@ -235,7 +235,7 @@ export default function TripDetail({ mode, id }: { mode: Mode; id?: string }) {
             <>
               <div style={row}><span>You paid</span><span>{inr(quote.amountPaid, quote.currency)}</span></div>
               <div style={row}><span>Airline & supplier cancellation charges</span><span style={{ color: "#b91c1c" }}>−{inr(quote.supplierCharges, quote.currency)}</span></div>
-              {quote.serviceFee > 0 && <div style={row}><span>POOMAS service fee (non-refundable)</span><span style={{ color: "#b91c1c" }}>−{inr(quote.serviceFee, quote.currency)}</span></div>}
+              {quote.serviceFee > 0 && <div style={row}><span>ZamraBooking service fee (non-refundable)</span><span style={{ color: "#b91c1c" }}>−{inr(quote.serviceFee, quote.currency)}</span></div>}
               <div style={{ ...row, fontSize: 17 }}><strong>Your refund</strong><strong style={{ color: "#166534" }}>{inr(quote.refundAmount, quote.currency)}</strong></div>
               <p style={{ ...muted, margin: "8px 0" }}>Refunded to {quote.refundTo} once the airline confirms the cancellation. The final amount is confirmed by the airline. This quote is valid for 10 minutes.</p>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, margin: "8px 0 12px" }}>
@@ -284,7 +284,7 @@ export default function TripDetail({ mode, id }: { mode: Mode; id?: string }) {
                 <span style={{ minWidth: 0 }}>
                   <strong style={{ fontSize: 14 }}>{SUPPORT_TYPES.find(([v]) => v === r.type)?.[1] ?? r.type}</strong>
                   <small style={{ display: "block", color: "#64748b" }}>{r.message}</small>
-                  {r.adminNote && <small style={{ display: "block", color: "#0f766e", marginTop: 2 }}>POOMAS: {r.adminNote}</small>}
+                  {r.adminNote && <small style={{ display: "block", color: "#0f766e", marginTop: 2 }}>ZamraBooking: {r.adminNote}</small>}
                 </span>
                 <small style={{ fontWeight: 700, color: r.status === "RESOLVED" ? "#166534" : "#92400e", whiteSpace: "nowrap" }}>{r.status.replace("_", " ").toLowerCase()}</small>
               </div>
@@ -310,7 +310,7 @@ const h2: React.CSSProperties = { margin: "0 0 10px", fontSize: 16, fontWeight: 
 const muted: React.CSSProperties = { margin: "0 0 12px", color: "#64748b", fontSize: 13 };
 const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderTop: "1px solid #f1f5f9", fontSize: 14 };
 const input: React.CSSProperties = { padding: "11px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 15, fontFamily: "inherit", width: "100%", boxSizing: "border-box" };
-const primaryBtn: React.CSSProperties = { display: "inline-block", background: "#E31E24", color: "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 14, textDecoration: "none", border: 0, cursor: "pointer", fontFamily: "inherit" };
+const primaryBtn: React.CSSProperties = { display: "inline-block", background: "#0D4B96", color: "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 14, textDecoration: "none", border: 0, cursor: "pointer", fontFamily: "inherit" };
 const secondaryBtn: React.CSSProperties = { ...primaryBtn, background: "#fff", color: "#0f172a", border: "1.5px solid #e2e8f0" };
 const primaryBtnBtn = primaryBtn;
 const secondaryBtnBtn = secondaryBtn;

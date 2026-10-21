@@ -1,7 +1,7 @@
 export const SERVER_API =
   process.env.API_BASE_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
-  "https://api.flypoomas.com";
+  "https://api.zamrabooking.com";
 
 export const SERVER_TOKEN = process.env.ADMIN_SERVICE_TOKEN ?? "";
 
@@ -12,8 +12,8 @@ export async function serverAuthHeaders(): Promise<Record<string, string>> {
   let token = "";
   try {
     const { cookies } = await import("next/headers");
-    const raw = (await cookies()).get("poomas_admin_token")?.value;
+    const raw = (await cookies()).get("zamra_admin_token")?.value;
     if (raw) token = decodeURIComponent(raw);
   } catch {}
-  return { Authorization: `Bearer ${token || SERVER_TOKEN || process.env.ADMIN_API_TOKEN || ""}`, "x-tenant-slug": "poomas" };
+  return { Authorization: `Bearer ${token || SERVER_TOKEN || process.env.ADMIN_API_TOKEN || ""}`, "x-tenant-slug": "zamra" };
 }

@@ -50,9 +50,9 @@ export default function AccountPage() {
       <main className="account-entry-page">
         <section className="account-entry-card" aria-labelledby="account-entry-title">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="account-entry-logo" src="/logo.png" alt="" width="64" height="60" />
-          <p className="account-entry-eyebrow">WELCOME TO FLYPOOMAS</p>
-          <h1 id="account-entry-title">Your FlyPoomas account</h1>
+          <img className="account-entry-logo" src="/logo.png" alt="" width="60" height="60" />
+          <p className="account-entry-eyebrow">WELCOME TO ZAMRABOOKING</p>
+          <h1 id="account-entry-title">Your ZamraBooking account</h1>
           <p className="account-entry-intro">Manage your bookings, saved travellers, wallet and travel details in one place.</p>
           <div className="account-entry-actions"><a href="/login?next=/account" className="account-entry-primary">Sign in</a><a href="/signup?next=/account" className="account-entry-secondary">Create account</a></div>
           <div className="account-entry-benefits" aria-label="Your account can help you">
@@ -85,7 +85,7 @@ export default function AccountPage() {
         <h2 style={h2}>Profile</h2>
         <form onSubmit={(e: FormEvent) => { e.preventDefault(); run(async () => {
           await apiCall("/api/profile/account", { method: "PUT", body: JSON.stringify({ name: name.trim(), phone: phone.trim() || null, whatsappOptIn: whatsapp }) });
-          setNotice("Profile saved."); await load(); window.dispatchEvent(new Event("poomas:profile-updated"));
+          setNotice("Profile saved."); await load(); window.dispatchEvent(new Event("zamrabooking:profile-updated"));
         }); }} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <label style={label}>Email<input value={account.email ?? ""} disabled style={{ ...input, background: "#f8fafc" }} /></label>
           <label style={label}>Full name<input required minLength={2} value={name} onChange={(e) => setName(e.target.value)} style={input} /></label>
@@ -130,7 +130,7 @@ const h2: React.CSSProperties = { margin: "0 0 10px", fontSize: 16, fontWeight: 
 const muted: React.CSSProperties = { margin: "0 0 10px", color: "#64748b", fontSize: 13 };
 const label: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 5, fontSize: 13, fontWeight: 600, color: "#334155" };
 const input: React.CSSProperties = { padding: "11px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 15, fontFamily: "inherit", fontWeight: 400 };
-const btn: React.CSSProperties = { display: "inline-block", background: "#E31E24", color: "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 14, textDecoration: "none", fontFamily: "inherit" };
+const btn: React.CSSProperties = { display: "inline-block", background: "#0D4B96", color: "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 14, textDecoration: "none", fontFamily: "inherit" };
 const btn2: React.CSSProperties = { ...btn, background: "#fff", color: "#0f172a", border: "1.5px solid #e2e8f0" };
 const tile: React.CSSProperties = { ...card, display: "flex", flexDirection: "column", gap: 2, textDecoration: "none", color: "#0f172a", fontSize: 14 };
 const box: React.CSSProperties = { padding: "10px 14px", borderRadius: 10, fontSize: 14, marginBottom: 12 };

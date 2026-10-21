@@ -38,7 +38,7 @@ export function formatIn(amount: number, code: string): string {
 // Reads the effective rates (browser or server).
 export async function fetchFxRates(apiUrl: string, init: RequestInit = {}): Promise<FxRates> {
   try {
-    const res = await fetch(`${apiUrl}/api/search/fx`, { headers: { "x-tenant-slug": "poomas" }, cache: "no-store", ...init });
+    const res = await fetch(`${apiUrl}/api/search/fx`, { headers: { "x-tenant-slug": "zamra" }, cache: "no-store", ...init });
     const d = await res.json() as { rates?: Record<string, unknown> };
     const out: FxRates = {};
     for (const [k, v] of Object.entries(d.rates ?? {})) {

@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { bookings, bookingPassengers } from "@poomas/db/schema";
+import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 
@@ -73,7 +73,7 @@ eticketRoutes.post("/:bookingId/send", zValidator("json", sendSchema), async (c)
   const pnr       = booking.pnr ?? "TBD";
 
   // Public URL for the e-ticket HTML (stored in PUBLIC_ASSETS_R2 after generation)
-  const eticketUrl = `https://assets.flypoomas.com/etickets/${bookingId}.html`;
+  const eticketUrl = `https://assets.zamrabooking.com/etickets/${bookingId}.html`;
 
   const results: Record<string, unknown> = {};
 

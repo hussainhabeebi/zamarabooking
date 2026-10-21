@@ -16,7 +16,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { tripsafeProblems } from "@poomas/suppliers";
+import { tripsafeProblems } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
 import { buildZip } from "../../lib/zip.js";
 import {

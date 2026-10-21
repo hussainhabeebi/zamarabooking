@@ -1,11 +1,11 @@
 {
-  "name": "FlyPoomas",
-  "short_name": "FlyPoomas",
+  "name": "ZamraBooking",
+  "short_name": "ZamraBooking",
   "description": "Book flights at best prices",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#E31E24",
+  "theme_color": "#0D4B96",
   "icons": [
     { "src": "/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]

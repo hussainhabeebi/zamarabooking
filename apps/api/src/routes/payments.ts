@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { bookings, payments } from "@poomas/db/schema";
+import { bookings, payments } from "@zamrabooking/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { issueTripToken } from "./trips.js";
@@ -164,15 +164,15 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
     }
 
     const checkoutToken = c.req.header("X-Checkout-Token") ?? "";
-    const resultUrl = `https://flypoomas.com/checkout/payment-result?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}`;
+    const resultUrl = `https://zamrabooking.com/checkout/payment-result?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}`;
     const amount = amountFull.toFixed(2);
     const linkRes = await fetch("https://api.nomod.com/v1/links", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-KEY": apiKey },
       body: JSON.stringify({
         currency: cur,
-        items: [{ name: `POOMAS flight booking ${bookingId.slice(0, 8)}`, amount, quantity: 1 }],
-        title: "POOMAS flight booking",
+        items: [{ name: `ZamraBooking flight booking ${bookingId.slice(0, 8)}`, amount, quantity: 1 }],
+        title: "ZamraBooking flight booking",
         note: `Payment for booking ${bookingId}`,
         shipping_address_required: false,
         allow_tip: false,
