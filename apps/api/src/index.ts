@@ -36,6 +36,11 @@ import { profileRoutes }       from "./routes/profile.js";
 import { customerWalletRoutes } from "./routes/customer-wallet.js";
 import { customerTripRoutes, guestTripRoutes } from "./routes/trips.js";
 import { customerAccountRoutes, customerSupportRoutes, createGuestSupportRequest } from "./routes/customer-account.js";
+import { syncAllManualFareSheets } from "./lib/flight-sources.js";
+import { createDb } from "@zamrabooking/db";
+
+// wrangler.toml [triggers] crons.
+const SHEET_SYNC_CRON = "41 * * * *";
 
 export { TenantRateLimiter };
 
@@ -135,8 +140,15 @@ export default {
       await handleNotifyQueue(batch as MessageBatch<never>, env);
     }
   },
-  // Cron (wrangler.toml [triggers]): re-check routes with fare alerts.
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  // Cron (wrangler.toml [triggers]): hourly Google Sheet sync of manual fares;
+  // every 4 hours, re-check routes with fare alerts and refresh exchange rates.
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === SHEET_SYNC_CRON) {
+      ctx.waitUntil(syncAllManualFareSheets(env, createDb(env.DATABASE_URL))
+        .then((r) => console.info("[manual-fares] sheet sync", JSON.stringify(Object.fromEntries(Object.entries(r).map(([t, s]) => [t, { ok: s.ok, imported: s.imported, skipped: s.skipped }])))))
+        .catch((err) => console.error("[manual-fares] sheet sync", err)));
+      return;
+    }
     ctx.waitUntil(sweepFareAlerts(env).then((r) => console.info("[fare-alert-sweep]", r)).catch((err) => console.error("[fare-alert-sweep]", err)));
     // Automatic exchange rates (INR ↔ GCC currencies, USD) for prices and AED payments.
     ctx.waitUntil(refreshAutoRates(env).then((r) => console.info("[fx] auto rates", r.ok ? r.rates.source : r.error)).catch((err) => console.error("[fx]", err)));

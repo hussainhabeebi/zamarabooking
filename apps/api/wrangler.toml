@@ -74,8 +74,9 @@ tag                = "v1"
 new_sqlite_classes = ["TenantRateLimiter"]
 
 # ── Cron: fare-alert sweep (re-checks alert routes nobody searched lately) ──
+# and, hourly, the manual fares Google Sheet sync (SHEET_SYNC_CRON in src/index.ts).
 [triggers]
-crons = ["17 */4 * * *"]
+crons = ["17 */4 * * *", "41 * * * *"]
 
 # ── Environment Variables (non-secret) ───────────────────────────
 [vars]

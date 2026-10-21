@@ -2,8 +2,12 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import {
   bookings, bookingPassengers, payments, bookingAmendments, supportRequests,
-  walletTransactions, supplierExchanges, users,
+  walletTransactions, supplierExchanges, users, tenants,
 } from "@zamrabooking/db/schema";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { isOfflineSupplier } from "../../lib/flight-sources.js";
+import { renderETicketHtml, storeETicket } from "../../lib/eticket.js";
 import { eq, and, asc, desc, or } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { tripjackClientFor, parseBookingDetails } from "../../lib/trips.js";
@@ -228,4 +232,50 @@ bookingsAdminRoutes.post("/:id/refresh-details", async (c) => {
       `Admin booking-details check failed: ${describeError(err)}`, errorDetail(err));
     return c.json({ ok: false, error: describeError(err) }, 502);
   }
+});
+
+// Poomas / manual fares: staff issued the ticket themselves (on Poomas or with the
+// airline) and enter the PNR here. Saves it, builds the e-ticket and sends it to
+// the customer. Can be repeated to correct a PNR or ticket numbers (the e-ticket is
+// rebuilt; the confirmation email goes out once per booking).
+bookingsAdminRoutes.post("/:id/issue-ticket", zValidator("json", z.object({
+  pnr:           z.string().trim().toUpperCase().regex(/^[A-Z0-9]{5,8}$/, "The PNR is 5–8 letters and digits"),
+  ticketNumbers: z.array(z.string().trim().max(30)).max(18).default([]),
+  supplierRef:   z.string().trim().max(100).optional(),
+})), async (c) => {
+  const b = await loadBooking(c, c.req.param("id"));
+  if (!isOfflineSupplier(b.supplier)) throw new HTTPException(400, { message: "Only Poomas and manual fare bookings are ticketed here." });
+  if (b.status !== "CONFIRMED" && b.status !== "TICKETED") {
+    throw new HTTPException(400, { message: b.status === "PAYMENT_PENDING" ? "The customer hasn't paid for this booking yet." : `This booking is ${b.status}.` });
+  }
+  const { pnr, supplierRef } = c.req.valid("json");
+  const ticketNumbers = c.req.valid("json").ticketNumbers.filter(Boolean);
+  const db = c.get("db");
+  const flightData = (b.flightData ?? {}) as Record<string, any>;
+  const firstIssue = b.status !== "TICKETED";
+  await db.update(bookings).set({
+    status: "TICKETED", pnr, ticketNumbers,
+    ...(supplierRef ? { supplierBookingRef: supplierRef } : {}),
+    flightData: { ...flightData, offline: { ...(flightData.offline ?? {}), ticketing: "ISSUED", issuedAt: new Date().toISOString(), issuedBy: c.get("userId") ?? null } },
+    updatedAt: new Date(),
+  }).where(eq(bookings.id, b.id));
+
+  const paxRows = await db.select().from(bookingPassengers).where(eq(bookingPassengers.bookingId, b.id));
+  const [tenantRow] = await db.select({ name: tenants.name, logoUrl: tenants.logoUrl, primaryColor: tenants.primaryColor, supportEmail: tenants.supportEmail })
+    .from(tenants).where(eq(tenants.id, b.tenantId)).limit(1);
+  const departureTime = flightData.departureTime ?? b.departureDate.toISOString();
+  const eticketKey = await storeETicket(c.env.DOCUMENTS_R2, b.id, renderETicketHtml({
+    bookingRef: b.id, pnr, ticketNumbers,
+    airline: flightData.airline ?? "", airlineName: flightData.airlineName ?? flightData.airline ?? "", flightNumber: flightData.flightNumber ?? "",
+    origin: b.origin, destination: b.destination, departureTime, arrivalTime: flightData.arrivalTime ?? departureTime,
+    cabinClass: flightData.cabinClass ?? b.cabinClass, isRefundable: Boolean(flightData.isRefundable),
+    baggage: flightData.baggage ?? { cabin: "As per airline", checked: "As per airline" },
+    passengers: paxRows.map((p, i) => ({ name: `${p.firstName} ${p.lastName}`, type: p.passengerType, ticketNumber: ticketNumbers[i] })),
+    totalAmount: Number(b.totalAmount), currency: b.currency,
+    brandName: tenantRow?.name ?? "Zamra Travels", brandLogo: tenantRow?.logoUrl ?? undefined,
+    primaryColor: tenantRow?.primaryColor ?? "#0D4B96", supportEmail: tenantRow?.supportEmail ?? undefined,
+  }));
+  await logBookingEvent(c.env, b.id, "TICKET", "info", `${firstIssue ? "Ticket issued" : "Ticket details corrected"} by staff — PNR ${pnr}`, { ticketNumbers, supplierRef: supplierRef ?? null });
+  if (firstIssue) await c.env.NOTIFY_QUEUE.send({ type: "NOTIFY_BOOKING_CONFIRMATION", bookingId: b.id, tenantId: b.tenantId, eticketKey });
+  return c.json({ ok: true, pnr, ticketNumbers, emailed: firstIssue });
 });

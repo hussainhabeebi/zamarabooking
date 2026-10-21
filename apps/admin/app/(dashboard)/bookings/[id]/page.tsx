@@ -2,6 +2,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { API, apiHeaders } from "../../../../lib/api";
+import { IssueTicket } from "./IssueTicket";
+
+// Poomas / manual fares: paid on Zamra, ticketed by staff (no airline API call).
+const OFFLINE = ["POOMAS", "MANUAL"];
 
 type Tab = "overview" | "errors" | "passengers" | "payments" | "logs" | "support";
 const TABS: [Tab, string][] = [["overview", "Overview"], ["errors", "Booking error log"], ["passengers", "Passengers"], ["payments", "Payments & refunds"], ["logs", "API logs"], ["support", "Support"]];
@@ -79,14 +83,14 @@ export default function BookingDetailPage() {
   }
 
   async function retryBooking() {
-    if (!confirm("Book this paid booking with TripJack now?")) return;
+    if (!confirm(offline ? "Record the payment for this booking now?" : "Book this paid booking with TripJack now?")) return;
     setBusy("retry"); setError(""); setNotice("");
     try {
       const res = await fetch(`${API}/api/admin/bookings/${id}/retry-booking`, { method: "POST", headers: apiHeaders() });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.ok) throw new Error(d.message ?? d.error ?? `HTTP ${res.status}`);
-      setNotice(`TripJack booking done — status ${d.status}${d.pnr ? ` · PNR ${d.pnr}` : ""}.`);
-    } catch (e: any) { setError(`TripJack booking failed: ${e.message}`); } finally { setBusy(""); load(); }
+      setNotice(offline ? `Payment recorded — status ${d.status}. Issue the ticket below.` : `TripJack booking done — status ${d.status}${d.pnr ? ` · PNR ${d.pnr}` : ""}.`);
+    } catch (e: any) { setError(`${offline ? "Recording the payment" : "TripJack booking"} failed: ${e.message}`); } finally { setBusy(""); load(); }
   }
 
   if (error && !data) return <div><a href="/bookings" style={backLink}>← Bookings</a><div style={errBox}>{error}</div></div>;
@@ -94,6 +98,7 @@ export default function BookingDetailPage() {
 
   const b = data.booking;
   const fd = (b.flightData ?? {}) as Record<string, unknown>;
+  const offline = OFFLINE.includes(b.supplier);
 
   return (
     <div>
@@ -122,19 +127,19 @@ export default function BookingDetailPage() {
         <div style={{ ...errBox, display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
           <span>
             {data.paymentConfirmed
-              ? "Paid, but the airline booking has not completed. The customer is waiting on the confirmation page."
+              ? offline ? "Paid, but the payment hasn't been recorded on the booking yet." : "Paid, but the airline booking has not completed. The customer is waiting on the confirmation page."
               : "Waiting for payment — no successful payment has been recorded from the gateway yet."}
             {data.paymentConfirmed && <><br />Background job: {data.queueReceipt
               ? `received (attempt ${data.queueReceipt.attempt}, ${new Date(data.queueReceipt.at).toLocaleString()})${data.queueReceipt.error ? ` — failed: ${data.queueReceipt.error}` : ""}`
               : "never received this booking"}</>}
             {data.queueError && <><br /><b>Last error (attempt {data.queueError.attempt}, {new Date(data.queueError.at).toLocaleString()}):</b> {data.queueError.message}</>}
           </span>
-          <button disabled={!!busy} onClick={retryBooking} style={btn}>{busy === "retry" ? "Booking with TripJack…" : "Retry airline booking"}</button>
+          <button disabled={!!busy} onClick={retryBooking} style={btn}>{busy === "retry" ? (offline ? "Recording…" : "Booking with TripJack…") : offline ? "Record payment" : "Retry airline booking"}</button>
         </div>
       )}
       {(() => {
         const lastError = [...(data.events ?? [])].reverse().find((e: any) => e.level === "error");
-        const missing = ["CONFIRMED", "TICKETED", "PAYMENT_PENDING", "PAYMENT_FAILED"].includes(b.status) && (!b.pnr || b.status !== "TICKETED");
+        const missing = !offline && ["CONFIRMED", "TICKETED", "PAYMENT_PENDING", "PAYMENT_FAILED"].includes(b.status) && (!b.pnr || b.status !== "TICKETED");
         return missing && lastError ? (
           <div style={errBox}>
             <b>Why the PNR / ticket is missing ({lastError.step.replace(/_/g, " ").toLowerCase()}, {new Date(lastError.at).toLocaleString()}):</b> {lastError.message}
@@ -146,6 +151,7 @@ export default function BookingDetailPage() {
         <div style={errBox}><b>Airline booking failed:</b> {data.queueError.message}</div>
       )}
       {notice && <div style={okBox}>{notice}</div>}
+      {offline && <IssueTicket key={`${b.status}-${b.pnr ?? ""}`} booking={b} passengers={data.passengers} onDone={(m) => { setNotice(m); load(); }} />}
 
       {tab === "overview" && (
         <div style={grid}>

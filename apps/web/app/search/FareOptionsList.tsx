@@ -7,6 +7,7 @@ import FareRulesButton from "./FareRulesButton";
 
 export interface FareOptionRow {
   id: string;
+  supplier?: string;
   label: string;
   price: string;
   diff?: string;
@@ -36,7 +37,8 @@ export default function FareOptionsList({ options, seatsLeft }: { options: FareO
                   {o.diff && <span className="fare-variant-diff">+{o.diff}</span>}
                 </div>
                 {o.perks && <div className="fare-variant-perks">{o.perks}</div>}
-                {isSel && <FareRulesButton fareId={o.id} />}
+                {/* Fare rules come from TripJack; Poomas / manual fares have none online. */}
+                {isSel && o.supplier === "TRIPJACK" && <FareRulesButton fareId={o.id} />}
               </div>
               {isSel && <a className="fare-variant-book" href={o.bookUrl} onClick={(e) => e.stopPropagation()}>Book</a>}
             </label>

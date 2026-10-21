@@ -1,7 +1,7 @@
 // POST /api/book — public B2C direct booking (no auth required)
 // TripJack and Riya support direct booking without an explicit hold step.
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
@@ -22,6 +22,7 @@ import { passengerNameProblem } from "../lib/passenger-names.js";
 import { fallbackHoldDeadline, findHoldDeadline, holdLabel } from "../lib/fare-hold.js";
 import { parseBookingDetails } from "../lib/trips.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "../lib/customer-notify.js";
+import { isOfflineSupplier, quoteOfflineFare, type OfflineSupplier } from "../lib/flight-sources.js";
 
 const ssrPick = z.object({ key: z.string().min(1), code: z.string().min(1) });
 
@@ -53,7 +54,8 @@ const passengerSchema = z.object({
 
 const directBookSchema = z.object({
   fareId:        z.string().min(1),
-  supplier:      z.enum(["TRIPJACK", "RIYA"]),
+  // POOMAS / MANUAL: paid here, ticketed by staff (lib/flight-sources.ts).
+  supplier:      z.enum(["TRIPJACK", "RIYA", "POOMAS", "MANUAL"]),
   // Up to 9 seats (adults + children); lap infants come on top, one per adult.
   passengers:    z.array(passengerSchema).min(1).max(18),
   contactEmail:  z.string().email(),
@@ -270,12 +272,16 @@ bookDirectRoutes.post("/", zValidator("json", directBookSchema, (result, c) => {
     }
   }
 
+  if (isOfflineSupplier(body.supplier)) {
+    return bookOfflineFare(c, body, body.supplier, { customerId, agent, leadAgentTag, requestId });
+  }
+
   const { platformCredentials: platformCreds, supplierConfigs } = await resolveFlightSuppliers(c.env, tenant, tenantId);
 
   if (!supplierConfigs.some((s) => s.name === body.supplier && s.isEnabled)) {
     return c.json({ errorCode: "BOOKING_UNAVAILABLE", requestId }, 503);
   }
-  const adapter = getBookableAdapter(body.supplier, supplierConfigs, platformCreds);
+  const adapter = getBookableAdapter(body.supplier as "TRIPJACK" | "RIYA", supplierConfigs, platformCreds);
   if (!adapter.book) {
     throw new HTTPException(400, { message: `${body.supplier} does not support direct booking` });
   }
@@ -693,6 +699,124 @@ bookDirectRoutes.post("/", zValidator("json", directBookSchema, (result, c) => {
     status:           result.status,
   }, 201);
 });
+
+// Poomas / manual fares: no supplier call before payment. The fare is priced on the
+// server (remembered Poomas search price, or the manual fare row), saved as
+// PAYMENT_PENDING, and after payment waits in Admin for staff to issue the ticket.
+async function bookOfflineFare(
+  c: Context<{ Bindings: Env; Variables: Variables }>,
+  body: z.infer<typeof directBookSchema>,
+  supplier: OfflineSupplier,
+  ctx: {
+    customerId: string | null;
+    agent: Awaited<ReturnType<typeof optionalAgent>>;
+    leadAgentTag: Record<string, unknown>;
+    requestId: string;
+  },
+) {
+  const db = c.get("db");
+  const tenantId = c.get("tenantId");
+  const { agent, requestId } = ctx;
+  const count = (t: string) => body.passengers.filter((p) => p.type === t).length;
+  const pax = { adults: count("ADULT"), children: count("CHILD"), infants: count("INFANT") };
+
+  if (body.holdOnly) return c.json({ errorCode: "HOLD_NOT_ALLOWED", error: "This fare can't be held. Please pay now to book it.", requestId }, 400);
+  if (body.passengers.some((p) => p.ssr?.baggage?.length || p.ssr?.meal?.length || p.ssr?.extra?.length || p.ssr?.seat?.length)) {
+    return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: "Meals, baggage and seats can't be added to this fare online. Ask us after booking.", requestId }, 400);
+  }
+  const fare = await quoteOfflineFare(c.env, db, tenantId, supplier, body.fareId, pax);
+  if (!fare || fare.origin !== body.origin.toUpperCase() || fare.destination !== body.destination.toUpperCase()) {
+    return c.json({ error: "This fare is no longer available. Please search again.", errorCode: "FARE_EXPIRED", requestId }, 409);
+  }
+
+  const supplierAmount = fare.totalFare;
+  const companyFareAmount = await customerPrice(db, tenantId, supplierAmount, {
+    origin: fare.origin, destination: fare.destination, supplier, airline: fare.airline,
+  }, agent?.agentId ?? null);
+  const agentQuote = agent ? (await agentPricing(c.env, db, tenantId, agent.agentId)).price(companyFareAmount) : null;
+  const customerAmount = agentQuote?.net ?? companyFareAmount;
+  const markupAmount = Math.max(0, Math.round((customerAmount - supplierAmount) * 100) / 100);
+  const { raw, ...fareSnapshot } = fare;
+
+  let booking: typeof bookings.$inferSelect | undefined;
+  try {
+    [booking] = await db.insert(bookings).values({
+      tenantId,
+      userId:        ctx.customerId,
+      ...(agent ? { agentId: agent.agentId } : {}),
+      channel:       agent ? "B2B_PORTAL" : "B2C_WEB",
+      status:        "PAYMENT_PENDING",
+      tripType:      "ONEWAY",
+      cabinClass:    (["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"].includes(fare.cabinClass) ? fare.cabinClass : "ECONOMY") as "ECONOMY",
+      origin:        fare.origin,
+      destination:   fare.destination,
+      departureDate: new Date(body.departureDate),
+      flightData: {
+        id: body.fareId,
+        ...(body.searchId ? { searchId: body.searchId } : {}),
+        ...ctx.leadAgentTag,
+        ...(agent && agentQuote ? { agentPricing: {
+          agentUserId: agent.userId, companyPrice: companyFareAmount, net: agentQuote.net,
+          selling: agentQuote.selling, shares: agentQuote.shares,
+        } } : {}),
+        // Flight details for the e-ticket and Admin.
+        airline: fare.airline, airlineName: fare.airlineName, flightNumber: fare.flightNumber,
+        origin: fare.origin, destination: fare.destination,
+        departureTime: fare.departureTime, arrivalTime: fare.arrivalTime, cabinClass: fare.cabinClass,
+        isRefundable: fare.isRefundable, baggage: fare.baggage,
+        offline: {
+          supplier,
+          ticketing: "AWAITING_PAYMENT",
+          fare: fareSnapshot,
+          sourceRef: raw,
+          ...(body.gstInfo ? { gstInfo: body.gstInfo } : {}),
+          ...(body.emergencyContact ? { emergencyContact: body.emergencyContact } : {}),
+          pax: body.passengers.map((p) => ({
+            type: p.type, firstName: p.firstName.trim(), lastName: p.lastName.trim(),
+            ...(p.passportIssueDate ? { passportIssueDate: p.passportIssueDate } : {}),
+            ...(p.panNumber ? { panNumber: p.panNumber.toUpperCase() } : {}),
+            ...(p.documentId ? { documentId: p.documentId } : {}),
+          })),
+        },
+      },
+      ...(body.gstInfo ? { gstNumber: body.gstInfo.gstNumber.toUpperCase() } : {}),
+      adultCount:   pax.adults,
+      childCount:   pax.children,
+      infantCount:  pax.infants,
+      baseFare:     String(supplierAmount),
+      taxes:        "0",
+      markup:       String(markupAmount),
+      totalAmount:  String(supplierAmount + markupAmount),
+      currency:     body.currency,
+      supplier,
+      contactEmail: body.contactEmail,
+      contactPhone: body.contactPhone,
+    }).returning();
+    (c as any).set("exchangeBookingId", booking?.id);
+    await db.insert(bookingPassengers).values(body.passengers.map((p) => ({
+      bookingId:       booking!.id,
+      passengerType:   p.type,
+      firstName:       p.firstName,
+      lastName:        p.lastName,
+      dob:             p.dob ? new Date(p.dob) : null,
+      gender:          p.gender ?? null,
+      nationality:     p.nationality ?? null,
+      passportNumber:  p.passportNumber ?? null,
+      passportExpiry:  p.passportExpiry ? new Date(p.passportExpiry) : null,
+      passportCountry: p.passportCountry ?? p.nationality ?? null,
+    })));
+  } catch (err: unknown) {
+    console.error("[book-save]", JSON.stringify({ requestId, supplier, error: err instanceof Error ? err.message : String(err) }));
+    return c.json({ errorCode: "BOOKING_SAVE_FAILED", requestId }, 500);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const checkoutToken = await signToken({ sub: booking!.id, tenantId, iat: now, exp: now + 20 * 60 }, c.env.JWT_SECRET);
+  return c.json({
+    success: true, bookingId: booking!.id, amount: supplierAmount + markupAmount, currency: body.currency,
+    requiresPayment: true, checkoutToken, requestId,
+  }, 201);
+}
 
 // First airline code in a TripJack review response (tripInfos[].sI[].fD.aI.code).
 function findAirlineCode(value: unknown, depth = 0): string | undefined {

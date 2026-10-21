@@ -2,6 +2,9 @@
 // Only RIYA and TRIPJACK implement book/PNR/cancel flows.
 // GOOGLE_SERP implements search only and always returns isBookable: false.
 
+// Flight sources with an adapter. MANUAL fares come from the Zamra database instead.
+export type SupplierName = "RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL" | "POOMAS";
+
 export interface SearchParams {
   origin:       string;  // IATA code
   destination:  string;
@@ -35,7 +38,7 @@ export interface FareSegment {
 
 export interface NormalizedFare {
   id:            string;         // Supplier-specific fare key (used for hold/book)
-  supplier:      "RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL";
+  supplier:      SupplierName | "MANUAL";
   isBookable:    boolean;        // false for SERP results
   airline:       string;         // IATA airline code
   airlineName:   string;
@@ -179,7 +182,7 @@ export interface CancelResult {
 
 // Core supplier interface — every adapter implements search()
 export interface SupplierAdapter {
-  readonly name: "RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL";
+  readonly name: SupplierName;
 
   search(params: SearchParams): Promise<NormalizedFare[]>;
   getFareRules?(fareId: string, sessionId?: string): Promise<FareRule[]>;

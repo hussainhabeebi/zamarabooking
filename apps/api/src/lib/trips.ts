@@ -17,6 +17,7 @@ import { creditWallet, getOrCreateCustomerWallet, roundMoney } from "./customer-
 import { refundNomodCharge, resolveNomodApiKey } from "./payment-gateway.js";
 import { logSupplierCall } from "./supplier-logger.js";
 import { describeError, errorDetail, logBookingEvent } from "./booking-recovery.js";
+import { isOfflineSupplier } from "./flight-sources.js";
 
 type Ctx = Context<{ Bindings: Env; Variables: Variables }>;
 type Booking = typeof bookings.$inferSelect;
@@ -73,6 +74,9 @@ export interface Itinerary {
 // `fresh` skips the KV cache (used for downloads, so ticket numbers issued a
 // moment ago are included).
 export async function liveItinerary(c: Ctx, booking: Booking, opts: { fresh?: boolean; source?: string } = {}): Promise<Itinerary | null> {
+  if (isOfflineSupplier(booking.supplier)) {
+    return ["CONFIRMED", "TICKETED", "CANCELLED", "REFUNDED"].includes(booking.status) ? offlineItinerary(c, booking) : null;
+  }
   if (booking.supplier !== "TRIPJACK" || !booking.supplierBookingRef || !["CONFIRMED", "TICKETED", "CANCELLED", "REFUNDED"].includes(booking.status)) {
     return null;
   }
@@ -116,6 +120,25 @@ export async function liveItinerary(c: Ctx, booking: Booking, opts: { fresh?: bo
   }
 }
 
+// Poomas / manual fares: the one flight saved at booking, with the PNR and ticket
+// numbers staff entered (Admin → Issue ticket).
+async function offlineItinerary(c: Ctx, booking: Booking): Promise<Itinerary> {
+  const fd = (booking.flightData ?? {}) as Record<string, any>;
+  const pax = await c.get("db").select({ firstName: bookingPassengers.firstName, lastName: bookingPassengers.lastName, type: bookingPassengers.passengerType })
+    .from(bookingPassengers).where(eq(bookingPassengers.bookingId, booking.id));
+  return {
+    ...(booking.pnr ? { pnr: booking.pnr } : {}),
+    segments: [{
+      airline: String(fd.airline ?? ""), airlineName: String(fd.airlineName ?? fd.airline ?? ""), flightNumber: String(fd.flightNumber ?? ""),
+      from: { code: booking.origin }, to: { code: booking.destination },
+      departure: String(fd.departureTime ?? booking.departureDate.toISOString()), arrival: String(fd.arrivalTime ?? ""),
+      durationMin: Number(fd.offline?.fare?.duration) || undefined,
+      cabinBaggage: fd.baggage?.cabin, checkedBaggage: fd.baggage?.checked,
+    }],
+    travellers: pax.map((p, i) => ({ name: `${p.firstName} ${p.lastName}`, type: p.type, ticketNumber: booking.ticketNumbers[i] || undefined })),
+  };
+}
+
 export function parseBookingDetails(raw: any): Itinerary {
   const root = raw?.data ?? raw?.result ?? raw ?? {};
   const air = root.itemInfos?.AIR ?? root;
@@ -156,6 +179,7 @@ function firstValue(v: unknown): string | undefined {
 // ── Cancellation ─────────────────────────────────────────────────────────────
 
 export function cancellationBlocker(booking: Booking, amendments: Amendment[]): string | null {
+  if (booking.supplier === "POOMAS" || booking.supplier === "MANUAL") return "To cancel this booking, contact our team and we'll process it for you.";
   if (booking.supplier !== "TRIPJACK") return "Online cancellation is available for TripJack bookings only.";
   if (!["CONFIRMED", "TICKETED"].includes(booking.status)) return `This booking is ${booking.status.toLowerCase().replace("_", " ")}.`;
   if (!booking.supplierBookingRef) return "This booking has no airline reference yet.";
@@ -385,6 +409,8 @@ export function publicTrip(trip: NonNullable<Awaited<ReturnType<typeof loadTrip>
       refundStatus: a.refundStatus, refundedAt: a.refundedAt, createdAt: a.createdAt,
     })),
     itinerary,
-    eticketAvailable: ["CONFIRMED", "TICKETED"].includes(b.status),
+    // Poomas / manual fares: paid, waiting for staff to issue the ticket.
+    ticketing: isOfflineSupplier(b.supplier) && b.status === "CONFIRMED" ? "PENDING" as const : null,
+    eticketAvailable: isOfflineSupplier(b.supplier) ? b.status === "TICKETED" : ["CONFIRMED", "TICKETED"].includes(b.status),
   };
 }
