@@ -25,7 +25,9 @@ export default function ContactPage() {
                 <tr><th>WhatsApp</th><td><a href={BUSINESS.whatsappHref} target="_blank" rel="noopener">Chat on WhatsApp ({BUSINESS.phone})</a> — send &quot;Hi&quot; to start</td></tr>
                 <tr><th>Hours</th><td>{BUSINESS.hours}</td></tr>
                 <tr><th>Business</th><td>{BUSINESS.legalName} (trading as {BUSINESS.brand})</td></tr>
+                <tr><th>Proprietor</th><td>{BUSINESS.proprietor}</td></tr>
                 {BUSINESS.address.length > 0 && <tr><th>Address</th><td>{BUSINESS.address.map((l) => <span key={l} style={{ display: "block" }}>{l}</span>)}</td></tr>}
+                <tr><th>Trade licence</th><td>{BUSINESS.tradeLicence} — Malappuram Municipality</td></tr>
                 {BUSINESS.gstin && <tr><th>GSTIN</th><td>{BUSINESS.gstin}</td></tr>}
               </tbody>
             </table>

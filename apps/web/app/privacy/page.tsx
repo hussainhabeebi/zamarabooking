@@ -61,7 +61,7 @@ export default function PrivacyPage() {
         { id: "children", title: "Children", body: <p>Bookings must be made by adults. We collect a child&apos;s details only when an adult books travel for them.</p> },
         { id: "changes", title: "Changes to this policy", body: <p>We may update this policy. The date at the top shows the latest version; significant changes will be highlighted on the website.</p> },
         { id: "grievance", title: "Contact and grievance officer", body: <>
-          <p>For privacy questions, requests or complaints, contact our Grievance Officer at <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a> (subject: &quot;Privacy&quot;). We acknowledge complaints within 48 hours and resolve them within 30 days.</p>
+          <p>For privacy questions, requests or complaints, contact our Grievance Officer, {BUSINESS.proprietor}, at <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a> (subject: &quot;Privacy&quot;). We acknowledge complaints within 48 hours and resolve them within 30 days.</p>
           <ContactLines />
         </> },
       ]}

@@ -53,10 +53,11 @@ export function LegalPage({ title, intro, sections, current, updated = true }: {
 export function ContactLines() {
   return (
     <ul className={styles.contact}>
-      <li><b>Business:</b> {BUSINESS.legalName} (trading as {BUSINESS.brand})</li>
+      <li><b>Business:</b> {BUSINESS.legalName} (trading as {BUSINESS.brand}), a sole proprietorship of {BUSINESS.proprietor}</li>
       <li><b>Email:</b> <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a></li>
       <li><b>Phone / WhatsApp:</b> <a href={BUSINESS.phoneHref}>{BUSINESS.phone}</a></li>
       {BUSINESS.address.length > 0 && <li><b>Address:</b> {BUSINESS.address.join(", ")}</li>}
+      <li><b>Trade licence:</b> {BUSINESS.tradeLicence} (Malappuram Municipality)</li>
       <li><b>Hours:</b> {BUSINESS.hours}</li>
     </ul>
   );

@@ -4,7 +4,7 @@ import { BUSINESS } from "../lib/business";
 
 export const metadata: Metadata = {
   title: "About us | ZamraBooking",
-  description: "ZamraBooking is the online booking site of Zamra Tours & Travels — flights, hotels and travel insurance for India and the Gulf.",
+  description: "ZamraBooking is the online booking site of Zamra Travels, Malappuram — flights, hotels and travel insurance for India and the Gulf.",
 };
 
 export default function AboutPage() {
@@ -13,7 +13,7 @@ export default function AboutPage() {
       current="/about"
       title="About ZamraBooking"
       updated={false}
-      intro={<p><b>{BUSINESS.brand}</b> is the online booking site of <b>{BUSINESS.legalName}</b>, a travel agency serving travellers and families between India and the Gulf.</p>}
+      intro={<p><b>{BUSINESS.brand}</b> is the online booking site of <b>{BUSINESS.legalName}</b>, a travel agency in Malappuram, Kerala, serving travellers and families between India and the Gulf. Zamra Travels is a sole proprietorship of {BUSINESS.proprietor}, licensed by Malappuram Municipality (licence no. {BUSINESS.tradeLicence}).</p>}
       sections={[
         { id: "what", title: "What we do", body: <>
           <p>We help you book flights, hotels and travel insurance at fair prices, with real people to help before and after you travel.</p>
