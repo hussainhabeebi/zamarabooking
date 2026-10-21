@@ -7,16 +7,7 @@ import { apiCall, readCustomerToken } from "../lib/customer-api";
 import { CURRENCY_EVENT, isPrefCurrency, readPrefCurrency, savePrefCurrency, syncAccountCurrency, type PrefCurrency } from "../lib/currency-pref";
 import { CURRENCY_LIST } from "../lib/fx";
 
-function flightSearchUrl() {
-  // Match the existing popular-route search date rule without a dated link that expires.
-  const date = new Date();
-  date.setDate(date.getDate() + 14);
-  const departureDate = date.toISOString().split("T")[0];
-  return `/search?${new URLSearchParams({
-    origin: "CCJ", destination: "DXB", departureDate,
-    adults: "1", cabinClass: "ECONOMY", tripType: "ONEWAY",
-  }).toString()}`;
-}
+function flightSearchUrl() { return "/#flight-search"; }
 
 export default function SiteNav() {
   const pathname = usePathname();
