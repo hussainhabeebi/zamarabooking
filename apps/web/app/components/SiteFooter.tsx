@@ -29,10 +29,6 @@ const columns = [
       { label: "Agent login", href: `${PORTAL_URL}/login` },
     ],
   },
-  {
-    title: "Company & policies",
-    links: LEGAL_LINKS,
-  },
 ];
 
 const perks = ["Agent-only fares", "Commission on every booking", "Sub-agents & staff logins", "Wallet & credit limits"];
@@ -104,6 +100,10 @@ export default function SiteFooter() {
             ))}
           </nav>
         </div>
+
+        <nav className="footer-legal" aria-label="Company and policies">
+          {LEGAL_LINKS.map((link) => <a key={link.href} href={link.href}>{link.label}</a>)}
+        </nav>
 
         <div className="footer-bottom">
           <span>© {year} {BUSINESS.legalName}. All rights reserved.</span>
