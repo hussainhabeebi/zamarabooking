@@ -32,7 +32,9 @@ export default function HeroBanner({ banners }: { banners: unknown[] }) {
   const touchX = useRef<number | null>(null);
 
   useEffect(() => {
-    if (paused) return;
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (paused || !desktop.matches || reducedMotion.matches) return;
     const timer = window.setInterval(() => setIdx((i) => (i + 1) % SLIDES.length), 6000);
     return () => window.clearInterval(timer);
   }, [paused]);
@@ -57,6 +59,8 @@ export default function HeroBanner({ banners }: { banners: unknown[] }) {
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
+      <picture>
+      <source media="(max-width: 767px)" srcSet="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E" />
       <img
         key={slide.image}
         src={slide.image}
@@ -65,6 +69,7 @@ export default function HeroBanner({ banners }: { banners: unknown[] }) {
         loading={idx === 0 ? "eager" : "lazy"}
         fetchPriority={idx === 0 ? "high" : "auto"}
       />
+      </picture>
       <div className={`hero-shade hero-shade-${idx + 1}`} />
       <button className="hero-arrow hero-arrow-left" onClick={() => move(-1)} aria-label="Previous offer">‹</button>
       <div className="hero-inner hero-copy">
