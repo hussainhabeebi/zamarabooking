@@ -10,7 +10,7 @@ async function duffelOrder(apiKey:string,orderId:string){try{const r=await fetch
 
 const PREFILL_TTL_SECONDS=20*60;
 function validIntegrationKey(c:any){
- const expected=c.env.POOMAS_INTEGRATION_KEY,supplied=c.req.header("X-POOMAS-INTEGRATION-KEY");
+ const expected=c.env.ZAMRA_INTEGRATION_KEY,supplied=c.req.header("X-ZAMRA-INTEGRATION-KEY");
  return Boolean(expected&&supplied&&supplied===expected);
 }
 function cleanText(v:unknown,max=120){return String(v??"").trim().slice(0,max);}
@@ -73,7 +73,7 @@ integrationRoutes.get("/checkout-sessions/:token",async(c)=>{
 });
 
 integrationRoutes.get("/pnr/:pnr",async(c)=>{
- const expected=c.env.POOMAS_INTEGRATION_KEY,supplied=c.req.header("X-POOMAS-INTEGRATION-KEY");
+ const expected=c.env.ZAMRA_INTEGRATION_KEY,supplied=c.req.header("X-ZAMRA-INTEGRATION-KEY");
  if(!expected||!supplied||supplied!==expected)return c.json({error:"Unauthorized integration"},401);
  const pnr=c.req.param("pnr").trim().toUpperCase(),tenantId=c.get("tenantId"),db=c.get("db");
  const [booking]=await db.select().from(bookings).where(and(eq(bookings.tenantId,tenantId),eq(bookings.pnr,pnr))).limit(1);

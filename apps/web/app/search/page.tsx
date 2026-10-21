@@ -68,7 +68,7 @@ async function searchFlights(params: SearchParams, sessionId: string | null): Pr
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-tenant-slug": "poomas",
+        "x-tenant-slug": "zamra",
         ...(sessionId ? { "X-Session-ID": sessionId } : {}),
       },
       body: JSON.stringify({

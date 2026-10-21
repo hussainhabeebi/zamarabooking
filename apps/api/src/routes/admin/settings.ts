@@ -166,8 +166,8 @@ const whatsappSchema = z.object({
     baseUrl:    z.string().url().optional(),
   }).optional(),
   defaultCountryCode: z.string().default("91"),
-  eticketTemplate:    z.string().default("poomas_eticket_v1"),
-  bookingConfirmTemplate: z.string().default("poomas_booking_confirm_v1"),
+  eticketTemplate:    z.string().default("zamra_eticket_v1"),
+  bookingConfirmTemplate: z.string().default("zamra_booking_confirm_v1"),
   webhookSecret: z.string().optional(),
 });
 
@@ -179,8 +179,8 @@ settingsAdminRoutes.get("/whatsapp", async (c) => {
     provider: "LEADVYNE",
     leadvyne: {},
     defaultCountryCode: "91",
-    eticketTemplate:    "poomas_eticket_v1",
-    bookingConfirmTemplate: "poomas_booking_confirm_v1",
+    eticketTemplate:    "zamra_eticket_v1",
+    bookingConfirmTemplate: "zamra_booking_confirm_v1",
   });
 });
 

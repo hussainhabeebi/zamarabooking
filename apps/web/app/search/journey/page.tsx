@@ -90,7 +90,7 @@ function Journey() {
     const c = new AbortController();
     fetch(`${API}/api/search`, {
       method: "POST", signal: c.signal,
-      headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
       body: JSON.stringify({
         origin: first.origin, destination: tripType === "MULTICITY" ? legs[legs.length - 1].destination : first.destination,
         departureDate: first.departureDate, ...(tripType === "ROUNDTRIP" && legs[1] ? { returnDate: legs[1].departureDate } : {}),

@@ -189,7 +189,7 @@ function FareOptionSwitcher({ money, currentPrice, disabled }: { money: (n: numb
 
 function getToken(): string {
   try {
-    const match = document.cookie.match(/(?:^|;\s*)poomas_token=([^;]+)/);
+    const match = document.cookie.match(/(?:^|;\s*)zamra_token=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : "";
   } catch { return ""; }
 }
@@ -255,7 +255,7 @@ export default function BookPage() {
     // travellers server-side (no flight details in the link).
     const session = q.get("session");
     if (session && !q.get("fareId")) {
-      fetch(`${apiUrl}/api/integrations/checkout-sessions/${encodeURIComponent(session)}`, { headers: { "x-tenant-slug": "poomas" } })
+      fetch(`${apiUrl}/api/integrations/checkout-sessions/${encodeURIComponent(session)}`, { headers: { "x-tenant-slug": "zamra" } })
         .then(async (r) => { if (!r.ok) throw new Error(); return r.json() as Promise<HandoffSession>; })
         .then((h) => {
           q.set("fareId", h.fareId); q.set("supplier", h.supplier);
@@ -322,7 +322,7 @@ export default function BookPage() {
       const priceIds = (q.get("priceIds") ?? fareId).split(",").filter(Boolean);
       setReviewLoading(true);
       fetch(`${apiUrl}/api/book/review`, {
-        method: "POST", headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
         body: JSON.stringify({ priceIds, ...(q.get("sid") ? { searchId: q.get("sid") } : {}) }),
       })
         .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(d.error ?? "We couldn't confirm availability."), { code: d.errorCode }); return d as Review; })
@@ -353,7 +353,7 @@ export default function BookPage() {
   async function fetchSavedPassengers(t: string) {
     try {
       const res = await fetch(`${apiUrl}/api/profile/passengers`, {
-        headers: { "Authorization": `Bearer ${t}`, "x-tenant-slug": "poomas" },
+        headers: { "Authorization": `Bearer ${t}`, "x-tenant-slug": "zamra" },
       });
       if (res.ok) {
         const d = await res.json() as { passengers: SavedPassenger[] };
@@ -388,12 +388,12 @@ export default function BookPage() {
     try {
       const res = await fetch(`${apiUrl}/api/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
         body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword }),
       });
       const d = await res.json() as any;
       if (!res.ok) throw new Error(d.error ?? "Login failed");
-      document.cookie = `poomas_token=${d.token}; Path=/; SameSite=Lax; Secure`;
+      document.cookie = `zamra_token=${d.token}; Path=/; SameSite=Lax; Secure`;
       setToken(d.token);
       setShowLogin(false);
       await fetchSavedPassengers(d.token);
@@ -509,7 +509,7 @@ export default function BookPage() {
       const sid = new URLSearchParams(window.location.search).get("sid");
       const res = await fetch(`${apiUrl}/api/book/seat-map`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
         body: JSON.stringify({ reviewBookingId: review.bookingId, ...(sid ? { searchId: sid } : {}) }),
       });
       const d = await res.json().catch(() => ({}));
@@ -531,7 +531,7 @@ export default function BookPage() {
   async function startNomodPayment(bookingId: string, checkoutToken: string) {
     const res = await fetch(`${apiUrl}/api/payments/checkout`, {
       method:  "POST",
-      headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", "X-Checkout-Token": checkoutToken },
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", "X-Checkout-Token": checkoutToken },
       body:    JSON.stringify({ bookingId, gateway: "NOMOD", ...(payCurrency === "AED" && aedRate ? { currency: "AED" } : {}) }),
     }).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) as { paymentUrl?: string; error?: string } : {};
@@ -546,7 +546,7 @@ export default function BookPage() {
     if (!token || currency !== "INR") return null;
     try {
       const res = await fetch(`${apiUrl}/api/profile/wallet`, {
-        headers: { "x-tenant-slug": "poomas", Authorization: `Bearer ${token}` },
+        headers: { "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return null;
       const w = await res.json() as { balance?: number };
@@ -560,7 +560,7 @@ export default function BookPage() {
     try {
       const res = await fetch(`${apiUrl}/api/profile/wallet/pay`, {
         method:  "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ bookingId: pendingPayment.bookingId }),
       });
       const data = await res.json().catch(() => ({})) as { error?: string };
@@ -585,7 +585,7 @@ export default function BookPage() {
       if (!existing) {
         fetch(`${apiUrl}/api/profile/passengers`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "x-tenant-slug": "poomas" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "x-tenant-slug": "zamra" },
           body: JSON.stringify({
             firstName:      p.firstName.trim(),
             lastName:       p.lastName.trim(),
@@ -657,7 +657,7 @@ export default function BookPage() {
     try {
       const res = await fetch(`${apiUrl}/api/book`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(bookingPayload({ holdOnly: true })),
       });
       const d = await res.json().catch(() => ({}));
@@ -710,7 +710,7 @@ export default function BookPage() {
     try {
       const res = await fetch(`${apiUrl}/api/book`, {
         method:  "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(bookingPayload()),
       }).catch(() => {
         setBookingUncertain(true);
@@ -859,7 +859,7 @@ export default function BookPage() {
       {!token && !reviewing && (
         <div className="loginBanner">
           <SocialSignIn apiUrl={apiUrl} onSuccess={(result) => {
-            document.cookie = `poomas_token=${result.token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
+            document.cookie = `zamra_token=${result.token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
             setToken(result.token); setShowLogin(false);
             setEmail((previous) => previous || result.customer.email || "");
             void fetchSavedPassengers(result.token);

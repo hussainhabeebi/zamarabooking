@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
 
   // Fall back to cookie-based auth (works in both dev and production
   // when CF Access is not configured)
-  const token = request.cookies.get("poomas_admin_token")?.value;
+  const token = request.cookies.get("zamra_admin_token")?.value;
   if (!token) {
     return NextResponse.redirect(new URL(loginPath, request.url));
   }

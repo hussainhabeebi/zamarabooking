@@ -11,7 +11,7 @@ export default function AdminSetPasswordPage() {
   const [pass2, setPass2] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const headers = { "Content-Type": "application/json", "x-tenant-slug": "poomas" };
+  const headers = { "Content-Type": "application/json", "x-tenant-slug": "zamra" };
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("token") ?? "";

@@ -23,7 +23,7 @@ export default function PayHeldFarePage() {
     const b = q.get("b") ?? "", t = q.get("t") ?? "";
     if (!b || !t) { setError("This payment link is incomplete."); return; }
     setIds({ b, t });
-    fetch(`${API}/api/book/held/${encodeURIComponent(b)}`, { headers: { "x-tenant-slug": "poomas", "X-Checkout-Token": t } })
+    fetch(`${API}/api/book/held/${encodeURIComponent(b)}`, { headers: { "x-tenant-slug": "zamra", "X-Checkout-Token": t } })
       .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error ?? "This payment link is no longer valid."); return d.booking as Held; })
       .then(setHeld)
       .catch((e) => setError(e.message));
@@ -35,7 +35,7 @@ export default function PayHeldFarePage() {
     try {
       const res = await fetch(`${API}/api/payments/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", "X-Checkout-Token": ids.t },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", "X-Checkout-Token": ids.t },
         body: JSON.stringify({ bookingId: ids.b, gateway: "NOMOD" }),
       });
       const d = await res.json().catch(() => ({}));

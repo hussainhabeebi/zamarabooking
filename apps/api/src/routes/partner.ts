@@ -529,8 +529,8 @@ partnerRoutes.post("/webhooks/test", zValidator("json", webhookTestSchema), asyn
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-poomas-timestamp": timestamp,
-        "x-poomas-signature": `sha256=${signature}`,
+        "x-zamra-timestamp": timestamp,
+        "x-zamra-signature": `sha256=${signature}`,
       },
       body: payload,
       signal: AbortSignal.timeout(10_000),

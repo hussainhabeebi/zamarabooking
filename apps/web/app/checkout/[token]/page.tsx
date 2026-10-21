@@ -46,7 +46,7 @@ async function fetchCheckoutContext(token: string): Promise<BookingContext | nul
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
     const res = await fetch(`${apiUrl}/api/checkout/session/${token}`, {
-      headers: { "x-tenant-slug": "poomas" },
+      headers: { "x-tenant-slug": "zamra" },
       cache: "no-store",
     });
     if (!res.ok) return null;

@@ -147,7 +147,7 @@ export default function IntegrationsPage() {
             <input type="password" placeholder="Paste your serpapi.com API key"
               value={serp.apiKey} onChange={(e) => setSerp((s) => ({ ...s, apiKey: e.target.value }))}
               style={inputStyle} />
-            <p style={hint}>Also set as <code style={codeStyle}>SERP_API_KEY</code> secret on the poomas-api Worker.</p>
+            <p style={hint}>Also set as <code style={codeStyle}>SERP_API_KEY</code> secret on the zamra-api Worker.</p>
           </div>
           <div>
             <button type="submit" disabled={serp.saving} style={saveBtn(serp.saving)}>
@@ -175,7 +175,7 @@ export default function IntegrationsPage() {
               <input type="password" placeholder="duffel_test_... or duffel_live_..."
                 value={duffel.apiKey} onChange={(e) => setDuffel((s) => ({ ...s, apiKey: e.target.value }))}
                 style={inputStyle} />
-              <p style={hint}>Set as <code style={codeStyle}>DUFFEL_API_KEY</code> secret on poomas-api Worker.</p>
+              <p style={hint}>Set as <code style={codeStyle}>DUFFEL_API_KEY</code> secret on zamra-api Worker.</p>
             </div>
             <div>
               <Label>Environment</Label>
@@ -220,7 +220,7 @@ export default function IntegrationsPage() {
               <input type="password" placeholder={tj.configured ? "Configured — leave blank to keep existing key" : "Your TripJack API key"}
                 value={tj.apiKey} onChange={(e) => setTj((s) => ({ ...s, apiKey: e.target.value }))}
                 style={inputStyle} />
-              <p style={hint}>{tj.configured ? "An API key is saved for this tenant." : <>Set as <code style={codeStyle}>TRIPJACK_API_KEY</code> on poomas-api.</>}</p>
+              <p style={hint}>{tj.configured ? "An API key is saved for this tenant." : <>Set as <code style={codeStyle}>TRIPJACK_API_KEY</code> on zamra-api.</>}</p>
             </div>
             <div>
               <Label>Environment</Label>
@@ -279,7 +279,7 @@ export default function IntegrationsPage() {
       {/* ── Secrets cheatsheet ───────────────────────────────────── */}
       <section style={{ ...card, marginTop: 16, borderColor: "#854d0e", background: "#1c1100" }}>
         <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fbbf24", margin: "0 0 12px" }}>
-          Cloudflare poomas-api Worker Secrets
+          Cloudflare zamra-api Worker Secrets
         </h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {[

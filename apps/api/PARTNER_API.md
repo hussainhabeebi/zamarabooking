@@ -149,5 +149,5 @@ Content-Type: application/json
 {}
 ```
 
-The receiver must verify `X-Poomas-Timestamp` and
-`X-Poomas-Signature: sha256=<HMAC-SHA256(timestamp + "." + rawBody)>`.
+The receiver must verify `X-Zamra-Timestamp` and
+`X-Zamra-Signature: sha256=<HMAC-SHA256(timestamp + "." + rawBody)>`.

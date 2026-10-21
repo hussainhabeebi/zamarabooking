@@ -63,7 +63,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   }, [me, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function signOut() {
-    document.cookie = "poomas_admin_token=; Path=/; Max-Age=0; SameSite=Lax";
+    document.cookie = "zamra_admin_token=; Path=/; Max-Age=0; SameSite=Lax";
     router.push("/login");
   }
 

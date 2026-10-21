@@ -45,7 +45,7 @@ export function AiTripSearch({ onApply, onSearchNow }: { onApply: (f: AiTripFiel
   const [example, setExample] = useState(0);
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/ai/status`, { headers: { "x-tenant-slug": "poomas" } })
+    fetch(`${apiUrl}/api/ai/status`, { headers: { "x-tenant-slug": "zamra" } })
       .then((r) => r.json()).then((d) => setEnabled(Boolean(d?.tripSearch))).catch(() => setEnabled(false));
   }, [apiUrl]);
 
@@ -64,7 +64,7 @@ export function AiTripSearch({ onApply, onSearchNow }: { onApply: (f: AiTripFiel
       const timeZone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })();
       const res = await fetch(`${apiUrl}/api/ai/trip-search`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
         body: JSON.stringify({ text: text.trim(), ...(timeZone ? { timeZone } : {}) }),
       });
       const d = await res.json().catch(() => ({}));

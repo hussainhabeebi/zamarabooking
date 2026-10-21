@@ -1,6 +1,6 @@
 // Shared constants across all apps
 
-export const PLATFORM_SLUG = "poomas";
+export const PLATFORM_SLUG = "zamra";
 export const PLATFORM_DOMAIN = "zamrabooking.com";
 
 // India-GCC corridor — default popular routes

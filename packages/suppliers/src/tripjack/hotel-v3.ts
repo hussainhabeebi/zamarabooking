@@ -120,7 +120,7 @@ export class TripjackHotelV3Client {
       Accept: "application/json",
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(this.apiKey ? { apikey: this.apiKey } : {}),
-      ...(this.proxyKey ? { "X-Poomas-Gateway-Key": this.proxyKey } : {}),
+      ...(this.proxyKey ? { "X-Zamra-Gateway-Key": this.proxyKey } : {}),
     };
     const requestBody = body !== undefined ? JSON.stringify(body) : "";
     const startedAt = new Date();

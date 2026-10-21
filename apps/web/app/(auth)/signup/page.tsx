@@ -18,12 +18,12 @@ export default function SignupPage() {
     try {
       const res = await fetch(`${API}/api/auth/customer/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
         body: JSON.stringify({ name: name.trim(), email: email.trim(), password, ...(phone.trim() ? { phone: phone.trim() } : {}) }),
       });
       const data = await res.json().catch(() => ({})) as { token?: string; error?: string };
       if (!res.ok || !data.token) throw new Error(data.error ?? "Could not create your account. Please try again.");
-      document.cookie = `poomas_token=${data.token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
+      document.cookie = `zamra_token=${data.token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
       const next = new URLSearchParams(window.location.search).get("next");
       window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/wallet");
     } catch (err: any) {

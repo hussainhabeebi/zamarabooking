@@ -71,7 +71,7 @@ function queueDb(env: Env) {
   return createDb(env.DATABASE_URL);
 }
 
-// Matches max_retries = 3 on the poomas-bookings consumer (1 try + 3 retries).
+// Matches max_retries = 3 on the zamra-bookings consumer (1 try + 3 retries).
 const BOOKING_MAX_ATTEMPTS = 4;
 
 export async function handleBookingQueue(

@@ -18,7 +18,7 @@ export default function FareRulesButton({ fareId }: { fareId: string }) {
     if (!next || rules) return;
     try {
       const api = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
-      const res = await fetch(`${api}/api/search/fare-rules/${encodeURIComponent(fareId)}?supplier=TRIPJACK`, { headers: { "x-tenant-slug": "poomas" } });
+      const res = await fetch(`${api}/api/search/fare-rules/${encodeURIComponent(fareId)}?supplier=TRIPJACK`, { headers: { "x-tenant-slug": "zamra" } });
       const d = await res.json().catch(() => ({})) as { fareRules?: Rule[]; error?: string };
       setRules(d.fareRules ?? []);
       if (d.error) setError(d.error);

@@ -325,8 +325,8 @@ function WhatsAppSettings() {
     provider: "LEADVYNE" as "LEADVYNE" | "WABA_DIRECT",
     leadvyne: { apiKey: "", apiSecret: "", instanceId: "", baseUrl: "https://api.leadvyne.com" },
     defaultCountryCode: "91",
-    eticketTemplate: "poomas_eticket_v1",
-    bookingConfirmTemplate: "poomas_booking_confirm_v1",
+    eticketTemplate: "zamra_eticket_v1",
+    bookingConfirmTemplate: "zamra_booking_confirm_v1",
     webhookSecret: "",
   });
 

@@ -34,7 +34,7 @@ function transactionIcon(type: string) {
 }
 
 function readToken() {
-  const m = document.cookie.match(/(?:^|;\s*)poomas_token=([^;]+)/);
+  const m = document.cookie.match(/(?:^|;\s*)zamra_token=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : "";
 }
 
@@ -55,7 +55,7 @@ export default function WalletPage() {
   async function call<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${API}/api/profile/wallet${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas", Authorization: `Bearer ${token ?? readToken()}` },
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", Authorization: `Bearer ${token ?? readToken()}` },
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) { setToken(""); throw new Error("Please sign in again."); }

@@ -1,4 +1,4 @@
-name = "poomas-api"
+name = "zamra-api"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
@@ -32,29 +32,29 @@ preview_id = "8defdd47b8024c7288b4f82f90584f13"
 # ── R2 Buckets ───────────────────────────────────────────────────
 [[r2_buckets]]
 binding     = "DOCUMENTS_R2"
-bucket_name = "poomas-documents"
+bucket_name = "zamra-documents"
 
 [[r2_buckets]]
 binding     = "PUBLIC_ASSETS_R2"
-bucket_name = "poomas-public"
+bucket_name = "zamra-public"
 
 # ── Queues ───────────────────────────────────────────────────────
 [[queues.producers]]
 binding = "BOOKING_QUEUE"
-queue   = "poomas-bookings"
+queue   = "zamra-bookings"
 
 [[queues.producers]]
 binding = "NOTIFY_QUEUE"
-queue   = "poomas-notifications"
+queue   = "zamra-notifications"
 
 [[queues.consumers]]
-queue             = "poomas-bookings"
+queue             = "zamra-bookings"
 max_batch_size    = 10
 max_batch_timeout = 5
 max_retries       = 3
 
 [[queues.consumers]]
-queue             = "poomas-notifications"
+queue             = "zamra-notifications"
 max_batch_size    = 50
 max_batch_timeout = 2
 
@@ -80,7 +80,7 @@ crons = ["17 */4 * * *"]
 # ── Environment Variables (non-secret) ───────────────────────────
 [vars]
 ENVIRONMENT          = "production"
-PLATFORM_TENANT_SLUG = "poomas"
+PLATFORM_TENANT_SLUG = "zamra"
 
 # ── Secrets (set via `wrangler secret put <NAME>`) ────────────────
 # DATABASE_URL, JWT_SECRET, RIYA_API_KEY, RIYA_API_SECRET, RIYA_API_BASE_URL,

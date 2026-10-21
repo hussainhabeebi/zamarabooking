@@ -7,7 +7,7 @@ INSERT INTO "tenants" (
   "show_powered_by", "support_email", "allow_b2c", "allow_b2b", "allow_whatsapp",
   "is_setup_complete", "onboarding_step"
 ) VALUES (
-  'Zamra Travels', 'poomas', 'ACTIVE', 'ENTERPRISE', 'INDIA', 'INR', 'en',
+  'Zamra Travels', 'zamra', 'ACTIVE', 'ENTERPRISE', 'INDIA', 'INR', 'en',
   'Zamra Travels', 'Your Trusted Travel Partner', '#0D4B96', '#1E88D9', '#66B8E8',
   FALSE, 'support@zamrabooking.com', TRUE, TRUE, TRUE,
   TRUE, 5
@@ -16,28 +16,28 @@ INSERT INTO "tenants" (
 -- Super-admin user (no password — set via admin panel or update manually)
 INSERT INTO "users" ("tenant_id", "email", "name", "role", "is_active", "email_verified")
 SELECT id, 'admin@zamrabooking.com', 'ZamraBooking Admin', 'SUPER_ADMIN', TRUE, TRUE
-FROM "tenants" WHERE "slug" = 'poomas'
+FROM "tenants" WHERE "slug" = 'zamra'
 ON CONFLICT ("tenant_id", "email") DO NOTHING;
 
 -- Default supplier configs for platform tenant
 INSERT INTO "tenant_supplier_configs" ("tenant_id", "supplier", "is_enabled", "priority", "timeout_ms", "max_retries")
-SELECT id, 'RIYA',        TRUE, 1, 15000, 2 FROM "tenants" WHERE "slug" = 'poomas'
+SELECT id, 'RIYA',        TRUE, 1, 15000, 2 FROM "tenants" WHERE "slug" = 'zamra'
 ON CONFLICT ("tenant_id", "supplier") DO NOTHING;
 
 INSERT INTO "tenant_supplier_configs" ("tenant_id", "supplier", "is_enabled", "priority", "timeout_ms", "max_retries")
-SELECT id, 'TRIPJACK',    TRUE, 2, 15000, 2 FROM "tenants" WHERE "slug" = 'poomas'
+SELECT id, 'TRIPJACK',    TRUE, 2, 15000, 2 FROM "tenants" WHERE "slug" = 'zamra'
 ON CONFLICT ("tenant_id", "supplier") DO NOTHING;
 
 INSERT INTO "tenant_supplier_configs" ("tenant_id", "supplier", "is_enabled", "priority", "timeout_ms", "max_retries")
-SELECT id, 'GOOGLE_SERP', TRUE, 3, 10000, 1 FROM "tenants" WHERE "slug" = 'poomas'
+SELECT id, 'GOOGLE_SERP', TRUE, 3, 10000, 1 FROM "tenants" WHERE "slug" = 'zamra'
 ON CONFLICT ("tenant_id", "supplier") DO NOTHING;
 
 INSERT INTO "tenant_supplier_configs" ("tenant_id", "supplier", "is_enabled", "priority", "timeout_ms", "max_retries")
-SELECT id, 'DUFFEL',      FALSE, 4, 15000, 2 FROM "tenants" WHERE "slug" = 'poomas'
+SELECT id, 'DUFFEL',      FALSE, 4, 15000, 2 FROM "tenants" WHERE "slug" = 'zamra'
 ON CONFLICT ("tenant_id", "supplier") DO NOTHING;
 
 -- Default markup rule (₹250 flat, all routes)
 INSERT INTO "markup_rules" ("tenant_id", "name", "is_default", "markup_type", "markup_value", "is_active", "priority")
 SELECT id, 'Platform Default Markup', TRUE, 'FLAT', 250, TRUE, 0
-FROM "tenants" WHERE "slug" = 'poomas'
+FROM "tenants" WHERE "slug" = 'zamra'
 ON CONFLICT DO NOTHING;

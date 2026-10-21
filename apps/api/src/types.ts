@@ -33,7 +33,7 @@ export interface Env {
   PORTAL_URL?:            string;   // agency portal address for links in emails (default https://portal.zamrabooking.com)
   ADMIN_URL?:             string;   // admin panel address for staff password links (default https://admin.zamrabooking.com)
   DUFFEL_API_KEY:         string;
-  POOMAS_INTEGRATION_KEY: string;
+  ZAMRA_INTEGRATION_KEY: string;
   RAZORPAY_KEY_ID:        string;
   RAZORPAY_KEY_SECRET:    string;
   RAZORPAY_WEBHOOK_SECRET: string;

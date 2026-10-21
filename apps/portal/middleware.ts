@@ -16,7 +16,7 @@ export function middleware(request: NextRequest) {
   if (path === "/" ) return NextResponse.redirect(new URL("/dashboard", request.url));
   if (PUBLIC_PATHS.some((p) => path.startsWith(p))) return res;
 
-  const token = request.cookies.get("poomas_token")?.value;
+  const token = request.cookies.get("zamra_token")?.value;
   if (!token) {
     const login = new URL("/login", request.url);
     if (path !== "/dashboard") login.searchParams.set("next", path);

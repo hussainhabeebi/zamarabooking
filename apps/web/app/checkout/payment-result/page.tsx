@@ -34,7 +34,7 @@ function NomodPaymentResult() {
       attempts += 1;
       try {
         const res = await fetch(`${API}/api/payments/${encodeURIComponent(bookingId)}`, {
-          headers: { "x-tenant-slug": "poomas", "X-Checkout-Token": token },
+          headers: { "x-tenant-slug": "zamra", "X-Checkout-Token": token },
           cache: "no-store",
         });
         const data = await res.json() as { payment?: { status?: string }; tripToken?: string; booking?: { status?: string; pnr?: string | null; hasAccount?: boolean } };

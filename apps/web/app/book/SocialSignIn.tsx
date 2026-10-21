@@ -38,7 +38,7 @@ export default function SocialSignIn({ apiUrl, onSuccess }: { apiUrl: string; on
   const [error, setError] = useState("");
   const [available, setAvailable] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const headers = { "Content-Type": "application/json", "x-tenant-slug": "poomas" };
+  const headers = { "Content-Type": "application/json", "x-tenant-slug": "zamra" };
 
   async function complete(provider: "google" | "apple", challenge: Challenge, idToken: string, extra: object = {}) {
     setBusy(true); setError("");

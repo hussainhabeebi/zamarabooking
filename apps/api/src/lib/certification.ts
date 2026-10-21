@@ -107,7 +107,7 @@ export async function certificationSummary(db: Db, b: Booking) {
   const fareIdentifiers: string[] = Array.isArray(tj.fareIdentifiers) ? tj.fareIdentifiers : [];
   const nameProblems = pax.flatMap((p) => [passengerNameProblem(p.firstName, "First name"), passengerNameProblem(p.lastName, "Last name")]).filter(Boolean);
   return {
-    poomasBookingId: b.id,
+    zamraBookingId: b.id,
     tripjackBookingId: b.supplierBookingRef,
     pnr: b.pnr,
     ticketNumbers: b.ticketNumbers,

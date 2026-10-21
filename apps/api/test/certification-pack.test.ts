@@ -6,7 +6,7 @@ test("certification pack uses TripJack file names and keeps the last call per se
   const r2 = new Map<string, string>();
   const at = (m: number) => new Date(Date.UTC(2026, 9, 1, 10, m));
   const ex = (id: string, endpoint: string, m: number) => {
-    r2.set(`${id}-rq`, JSON.stringify({ method: "POST", url: `https://gw.example${endpoint}`, headers: { apikey: "KEY", "X-Poomas-Gateway-Key": "secret" }, body: { id } }));
+    r2.set(`${id}-rq`, JSON.stringify({ method: "POST", url: `https://gw.example${endpoint}`, headers: { apikey: "KEY", "X-Zamra-Gateway-Key": "secret" }, body: { id } }));
     r2.set(`${id}-rs.json`, JSON.stringify({ id, status: { success: true } }));
     return { id, endpoint, requestKey: `${id}-rq`, responseKey: `${id}-rs.json`, startedAt: at(m), url: `https://gw.example${endpoint}` };
   };

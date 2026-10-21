@@ -29,7 +29,7 @@ const SUPPLIER_LABELS: Record<string, { label: string; description: string; colo
   RIYA:        { label: "Riya Travel",         description: "Primary GDS — India & Gulf routes. Full booking lifecycle.", color: "#16a34a" },
   TRIPJACK:    { label: "Tripjack",             description: "Secondary supplier. Fallback for Riya failures.",            color: "#2563eb" },
   DUFFEL:      { label: "Duffel",              description: "Global NDC aggregator. Test key: duffel_test_... Live: duffel_live_...", color: "#7c3aed" },
-  GOOGLE_SERP: { label: "Google Flights SERP", description: "Indicative pricing only. Requires SERP_API_KEY secret on poomas-api Worker.", color: "#ea4335" },
+  GOOGLE_SERP: { label: "Google Flights SERP", description: "Indicative pricing only. Requires SERP_API_KEY secret on zamra-api Worker.", color: "#ea4335" },
 };
 
 export default async function SuppliersPage() {

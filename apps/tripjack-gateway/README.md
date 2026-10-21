@@ -5,7 +5,7 @@ the `main` branch as a Coolify Dockerfile application.
 
 ## Required Coolify variables
 
-- `POOMAS_GATEWAY_KEY` — independent random secret shared only with the ZamraBooking Worker
+- `ZAMRA_GATEWAY_KEY` — independent random secret shared only with the ZamraBooking Worker
 - `TRIPJACK_UPSTREAM` — `https://apitest.tripjack.com` for UAT (flights)
 
 ## Hotel API v3 hosts (optional — UAT defaults shown)

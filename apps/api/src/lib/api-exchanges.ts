@@ -37,7 +37,7 @@ export async function persistExchanges(
       try { parsedRequest = JSON.parse(x.requestBody); } catch {}
       const requestKey = `${base}-request.json`;
       // The apikey stays (TripJack certification needs it); our gateway secret never does.
-      const headers = Object.fromEntries(Object.entries(x.requestHeaders).filter(([k]) => k.toLowerCase() !== "x-poomas-gateway-key"));
+      const headers = Object.fromEntries(Object.entries(x.requestHeaders).filter(([k]) => k.toLowerCase() !== "x-zamra-gateway-key"));
       await env.DOCUMENTS_R2.put(requestKey, JSON.stringify({
         method: x.method, url: x.url, headers, body: parsedRequest, sentAt: x.startedAt,
       }, null, 2), { httpMetadata: { contentType: "application/json" } });

@@ -36,7 +36,7 @@ async function searchHotels(params: SearchParams): Promise<HotelSearchResult> {
   try {
     const res = await fetch(`${apiUrl}/api/hotels/search`, {
       method:  "POST",
-      headers: { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
       body: JSON.stringify({
         cityCode:    params.city ?? "",
         ...(params.cityName ? { cityName: params.cityName } : {}),

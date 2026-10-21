@@ -11,7 +11,7 @@ async function seed() {
     .insert(tenants)
     .values({
       name:           "Zamra Travels",
-      slug:           "poomas",
+      slug:           "zamra",
       status:         "ACTIVE",
       plan:           "ENTERPRISE",
       region:         "INDIA",

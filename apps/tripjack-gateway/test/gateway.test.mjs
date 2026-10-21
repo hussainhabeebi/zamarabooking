@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ROUTES, loadConfig, resolveRoute, secretsEqual, upstreamFor, upstreamUrl } from "../src/gateway.mjs";
 
 test("loads a secure UAT configuration", () => {
-  const config = loadConfig({ POOMAS_GATEWAY_KEY: "internal" });
+  const config = loadConfig({ ZAMRA_GATEWAY_KEY: "internal" });
   assert.equal(config.upstream.origin, "https://apitest.tripjack.com");
   assert.equal(config.port, 3000);
   assert.equal(config.tripjackApiKey, "");
@@ -12,7 +12,7 @@ test("loads a secure UAT configuration", () => {
 test("rejects missing secrets and insecure upstreams", () => {
   assert.throws(() => loadConfig({}), /Missing required/);
   assert.throws(() => loadConfig({
-    POOMAS_GATEWAY_KEY: "internal",
+    ZAMRA_GATEWAY_KEY: "internal",
     TRIPJACK_UPSTREAM: "http://apitest.tripjack.com",
   }), /must use HTTPS/);
 });
@@ -36,7 +36,7 @@ test("routes fare review through the TripJack gateway", () => {
 
 
 test("routes TripJack hotel v3 calls to the hotel hosts without changing flight routes", () => {
-  const config = loadConfig({ POOMAS_GATEWAY_KEY: "internal" });
+  const config = loadConfig({ ZAMRA_GATEWAY_KEY: "internal" });
   assert.equal(config.hmsUpstream.origin, "https://apitest-hms.tripjack.com");
   assert.equal(config.hotelBookerUpstream.origin, "https://apitest-hotel-booker.tripjack.com");
 
@@ -60,7 +60,7 @@ test("routes TripJack hotel v3 calls to the hotel hosts without changing flight 
 });
 
 test("rejects insecure hotel upstreams", () => {
-  assert.throws(() => loadConfig({ POOMAS_GATEWAY_KEY: "k", TRIPJACK_HMS_UPSTREAM: "http://apitest-hms.tripjack.com" }), /must use HTTPS/);
+  assert.throws(() => loadConfig({ ZAMRA_GATEWAY_KEY: "k", TRIPJACK_HMS_UPSTREAM: "http://apitest-hms.tripjack.com" }), /must use HTTPS/);
 });
 
 test("routes Flights v2 seat map, fare validation and hold endpoints", () => {

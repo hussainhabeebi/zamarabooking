@@ -19,7 +19,7 @@ type LogEntry = {
 
 function getToken(): string {
   try {
-    const m = document.cookie.match(/(?:^|;\s*)poomas_token=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)zamra_token=([^;]+)/);
     return m ? decodeURIComponent(m[1]) : "";
   } catch { return ""; }
 }

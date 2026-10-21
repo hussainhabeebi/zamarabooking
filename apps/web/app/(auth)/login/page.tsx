@@ -89,7 +89,7 @@ export default function LoginPage() {
 
         if (res.ok) {
           const { token } = (await res.json()) as { token: string };
-          document.cookie = `poomas_token=${token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
+          document.cookie = `zamra_token=${token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
           setStep("done");
           await botSay("Welcome back! ✈️ You're all set.", 300);
           await botSay(afterLoginPath() === "/account" ? "Opening your account…" : "Taking you back…", 400);
@@ -308,7 +308,7 @@ function DesktopLoginForm() {
       });
       if (res.ok) {
         const { token } = (await res.json()) as { token: string };
-        document.cookie = `poomas_token=${token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
+        document.cookie = `zamra_token=${token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
         window.location.assign(afterLoginPath());
       } else {
         const data = (await res.json()) as { error?: string };

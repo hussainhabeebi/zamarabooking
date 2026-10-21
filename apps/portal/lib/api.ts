@@ -1,21 +1,21 @@
 // Agency portal API client. Calls the ZamraBooking API directly with the agent's
-// login token (cookie "poomas_token", set at sign-in).
+// login token (cookie "zamra_token", set at sign-in).
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
-export const TENANT = "poomas";
+export const TENANT = "zamra";
 
 export function getToken(): string {
   if (typeof document === "undefined") return "";
-  const m = document.cookie.match(/(?:^|;\s*)poomas_token=([^;]+)/);
+  const m = document.cookie.match(/(?:^|;\s*)zamra_token=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : "";
 }
 
 export function setToken(token: string) {
-  document.cookie = `poomas_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax; Secure`;
+  document.cookie = `zamra_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax; Secure`;
 }
 
 export function signOut() {
-  document.cookie = "poomas_token=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+  document.cookie = "zamra_token=; Path=/; Max-Age=0; SameSite=Lax; Secure";
   window.location.assign("/login");
 }
 

@@ -23,7 +23,7 @@ export default function AdminLoginPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
         method:      "POST",
         credentials: "include",
-        headers:     { "Content-Type": "application/json", "x-tenant-slug": "poomas" },
+        headers:     { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
         body:        JSON.stringify({ email, password: pass }),
       });
 
@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
           setError("This login doesn't have admin access. Agencies sign in at the agent portal.");
           return;
         }
-        document.cookie = `poomas_admin_token=${token}; Path=/; SameSite=Lax; Secure`;
+        document.cookie = `zamra_admin_token=${token}; Path=/; SameSite=Lax; Secure`;
         router.push("/dashboard");
       } else {
         const data = await res.json().catch(() => ({})) as { error?: string; message?: string };

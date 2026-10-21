@@ -31,7 +31,7 @@ function storeLocally(code: PrefCurrency) {
 }
 
 function headers(token: string) {
-  return { "Content-Type": "application/json", "x-tenant-slug": "poomas", Authorization: `Bearer ${token}` };
+  return { "Content-Type": "application/json", "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` };
 }
 
 // The customer picked a currency: keep it everywhere (and on their account).

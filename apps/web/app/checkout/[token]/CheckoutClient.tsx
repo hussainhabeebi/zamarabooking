@@ -23,7 +23,7 @@ type Gateway = "RAZORPAY" | "NOMOD";
 type PaymentState = "idle" | "creating" | "paying" | "polling" | "success" | "failed";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
-const TENANT = "poomas";
+const TENANT = "zamra";
 
 export default function CheckoutClient({
   bookingId, token, totalAmount, currency, currencySymbol,
