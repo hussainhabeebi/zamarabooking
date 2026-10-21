@@ -1,10 +1,11 @@
+import "./homepage.css";
 import SearchWidget from "./components/SearchWidget";
 import HeroBanner from "./components/HeroBanner";
 import PopularRoutes from "./components/PopularRoutes";
 import type { ReactNode } from "react";
 
 const benefits = [
-  { icon: "⚡", symbol: "fare", title: "Live fare comparison", text: "Compare bookable fares from connected airline suppliers." },
+  { icon: "⚡", symbol: "fare", title: "Flight comparison", text: "Compare fares from connected flight suppliers." },
   { icon: "🧳", symbol: "baggage", title: "Baggage made clear", text: "See duration, stops and baggage before choosing." },
   { icon: "📷", symbol: "passport", title: "Scan your passport", text: "Scan your passport to prefill passenger details for review." },
   { icon: "💬", symbol: "updates", title: "WhatsApp updates", text: "Continue your booking and receive ticket updates in chat." },
@@ -27,32 +28,12 @@ const steps = [
   ["04", "Pay & fly", "Pay securely and receive your ticket."],
 ];
 
-const DEAL_ROUTES = [
-  { from: "COK", to: "DXB", label: "Kochi → Dubai",       price: "₹9,499", note: "From Oct 2026" },
-  { from: "CCJ", to: "DXB", label: "Kozhikode → Dubai",   price: "₹8,999", note: "From Oct 2026" },
-  { from: "DEL", to: "DXB", label: "Delhi → Dubai",       price: "₹10,299", note: "From Oct 2026" },
-  { from: "BOM", to: "DXB", label: "Mumbai → Dubai",      price: "₹11,499", note: "From Oct 2026" },
-  { from: "COK", to: "DOH", label: "Kochi → Doha",        price: "₹8,799", note: "From Oct 2026" },
-  { from: "BLR", to: "SIN", label: "Bangalore → Singapore", price: "₹13,999", note: "From Oct 2026" },
-];
-
-const AIRLINE_LOGOS = [
-  { code: "AI", name: "Air India",       icon: "🇮🇳" },
-  { code: "EK", name: "Emirates",        icon: "🇦🇪" },
-  { code: "QR", name: "Qatar Airways",   icon: "🇶🇦" },
-  { code: "EY", name: "Etihad",          icon: "🇦🇪" },
-  { code: "6E", name: "IndiGo",          icon: "✈" },
-  { code: "SG", name: "SpiceJet",        icon: "🌶" },
-  { code: "G8", name: "Go First",        icon: "✈" },
-  { code: "UK", name: "Vistara",         icon: "✈" },
-];
-
 export default function HomePage() {
   return (
     <main className="home-phase1">
       <HeroBanner banners={[]} />
       <section id="flight-search" className="home-shell search-overlap">
-        <div className="section-kicker">Live flight search</div>
+        <div className="section-kicker">LET’S FIND YOUR FLIGHT</div>
         <SearchWidget />
       </section>
 
@@ -62,7 +43,7 @@ export default function HomePage() {
         <div className="trust-item"><span className="trust-item-icon" aria-hidden="true">✓</span> E-ticket delivery</div>
         <div className="trust-item"><span className="trust-item-icon" aria-hidden="true">◉</span> WhatsApp support</div>
         <div className="trust-item"><span className="trust-item-icon" aria-hidden="true">↻</span> Clear cancellation rules</div>
-        <div className="trust-item"><span className="trust-item-icon" aria-hidden="true">✈</span> 50+ airlines</div>
+
       </div>
 
       {/* Manage booking strip */}
@@ -76,53 +57,24 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Deals section */}
-      <section className="home-shell deal-cards-section" style={{ paddingTop: 48 }}>
-        <div className="section-heading-row">
-          <div>
-            <div className="section-kicker">Today&apos;s deals</div>
-            <h2 className="home-title">Hot fares, live prices</h2>
-          </div>
-          <a href="#flight-search" className="text-link">Search all routes →</a>
-        </div>
-        <div className="deal-cards-grid">
-          {DEAL_ROUTES.map((r) => (
-            <a
-              key={`${r.from}-${r.to}`}
-              href={`/search?origin=${r.from}&destination=${r.to}&departureDate=${new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}&adults=1&cabinClass=ECONOMY&tripType=ONEWAY`}
-              className="deal-card"
-            >
-              <div className="deal-card-route">{r.label}</div>
-              <div className="deal-card-price">{r.price}</div>
-              <div className="deal-card-note">{r.note}</div>
-            </a>
-          ))}
+      <section className="home-shell deal-cards-section">
+        <div className="section-kicker">MORE WAYS TO GET AWAY</div>
+        <h2 className="home-title">Where will your next chapter begin?</h2>
+        <div className="zamra-offers">
+          <a href="#flight-search" className="zamra-offer"><span className="offer-number">01 / HOMECOMINGS</span><h3>Back to the people<br />who feel like home.</h3><p>Explore flights between India and the Gulf.</p><span className="offer-link">Plan your journey <span aria-hidden="true">↗</span></span></a>
+          <a href="/hotels" className="zamra-offer zamra-offer-light"><span className="offer-number">02 / NEW HORIZONS</span><h3>A change of scene.<br />A stay to remember.</h3><p>Find a place to settle in, wherever you land.</p><span className="offer-link">Explore hotels <span aria-hidden="true">↗</span></span></a>
         </div>
       </section>
 
       <section className="home-shell popular-routes-section">
         <div className="section-heading-row">
           <div>
-            <div className="section-kicker">Popular now</div>
-            <h2 className="home-title">Routes travellers are checking</h2>
+            <div className="section-kicker">DESTINATION INSPIRATION</div>
+            <h2 className="home-title">Familiar routes. Fresh possibilities.</h2>
           </div>
         </div>
         <PopularRoutes routes={[]} />
         <a href="#flight-search" className="text-link">Custom search →</a>
-      </section>
-
-      {/* Airline partners */}
-      <section className="home-shell airline-logos-section" style={{ paddingTop: 0 }}>
-        <div className="section-kicker">Our airline partners</div>
-        <h2 className="home-title">Flights from 50+ airlines</h2>
-        <div className="airline-logos-grid">
-          {AIRLINE_LOGOS.map((a) => (
-            <div key={a.code} className="airline-logo-chip">
-              <span className="airline-logo-icon">{a.icon}</span>
-              {a.name}
-            </div>
-          ))}
-        </div>
       </section>
 
       <section className="home-shell benefits-section">
@@ -154,22 +106,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="home-shell">
-        <div className="wa-cta">
-          <div>
-            <div className="section-kicker light">Need help choosing?</div>
-            <h2>Continue with our travel assistant</h2>
-            <p>Share your route on WhatsApp and move directly from flight selection to secure checkout.</p>
-          </div>
-          <a href="https://wa.me/" aria-label="Continue on WhatsApp">Continue on WhatsApp <span>→</span></a>
-        </div>
-      </section>
-
-      {/* Floating WhatsApp */}
-      <a href="https://wa.me/" className="wa-float" aria-label="Chat on WhatsApp">
-        <span className="wa-float-icon">💬</span>
-        <span className="wa-float-label">Need help?</span>
-      </a>
+      <section className="home-shell"><div className="wa-cta"><div><div className="section-kicker light">ALREADY PLANNING YOUR NEXT JOURNEY?</div><h2>Your next take-off starts here.</h2><p>Choose your route and dates. We’ll help you compare the options.</p></div><a href="#flight-search">Search flights <span aria-hidden="true">↗</span></a></div></section>
     </main>
   );
 }
