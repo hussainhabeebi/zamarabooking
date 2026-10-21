@@ -2663,3 +2663,31 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
   .footer-btn, .footer-btn svg, .footer-column a { transition: none; }
   .site-footer .footer-btn-primary:hover, .site-footer .footer-btn-primary:hover svg, .footer-column a:hover { transform: none; }
 }
+
+/* Mobile app shell: desktop rules and booking forms remain independent. */
+.mobile-tab-bar { display: none; }
+@media (max-width: 767px) {
+  body:has(.mobile-tab-bar) { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  body .site-header { position: sticky; top: 0; z-index: 40; background: #fff; min-height: 60px; }
+  body .mobile-tab-bar { position: fixed; inset: auto 0 0; z-index: 50; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid #dce5ef; box-shadow: 0 -4px 20px #14233a08; }
+  .mobile-tab-bar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 54px; min-width: 0; border-radius: 12px; color: #52627a; text-decoration: none; font-size: 10px; font-weight: 600; }
+  .mobile-tab-bar a[aria-current="page"] { color: #0D4B96; background: #edf4fe; }
+  .mobile-tab-bar a:active { background: #edf4fe; }
+  .home-phase1 { background: #f4f7fb; }
+  .home-phase1 .hero.hero-photo { min-height: 0; height: auto; margin: 0; padding: 24px 20px 18px; border-radius: 0; background: #edf4fe; }
+  .home-phase1 .hero-photo picture, .home-phase1 .hero-shade, .home-phase1 .hero-arrow, .home-phase1 .hero-dots, .home-phase1 .hero-cta { display: none; }
+  .home-phase1 .hero-copy { padding: 0; }
+  .home-phase1 .hero-badge { margin-bottom: 8px; background: #dceafb; color: #0D4B96; }
+  .home-phase1 .hero-copy .hero-title { font-size: 28px; line-height: 1.15; color: #14233a; text-shadow: none; }
+  .home-phase1 .hero-copy .hero-subtitle { margin: 10px 0 0; font-size: 13px; color: #52627a; text-shadow: none; }
+  .home-phase1 .search-overlap { margin-top: 0; padding-top: 16px; scroll-margin-top: 76px; }
+  .home-phase1 .search-overlap > .section-kicker { color: #0D4B96; text-shadow: none; }
+  .home-phase1 .search-overlap .search-widget { padding: 16px; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 4px 16px #14233a06; }
+  .home-phase1 .search-widget :is(input, select) { font-size: 16px; }
+  .home-phase1 .search-widget .search-btn { min-height: 54px; border-radius: 14px; }
+  .home-phase1 .deal-cards-grid { display: grid; grid-auto-flow: column; grid-auto-columns: 78%; grid-template-columns: none; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 12px; }
+  .home-phase1 .deal-card { scroll-snap-align: start; }
+  .home-phase1 :is(.benefits-section, .journey-section, .airline-logos-section) { content-visibility: auto; contain-intrinsic-size: auto 420px; }
+  .home-phase1 .wa-float { bottom: calc(86px + env(safe-area-inset-bottom)); }
+  .mobile-tab-bar a:focus-visible { outline: 2px solid #0D4B96; outline-offset: -3px; }
+}
