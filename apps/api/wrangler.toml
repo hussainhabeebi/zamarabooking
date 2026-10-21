@@ -61,7 +61,7 @@ max_batch_timeout = 2
 # ── Hyperdrive (Neon Postgres connection pooling at edge) ─────────
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id      = "4cd8c2e342f4419590460c43c1b25943"
+id      = "32010b9cdbcb4d788b90ed32bd23ae76"
 
 # ── Durable Objects (per-tenant rate limiter) ─────────────────────
 [[durable_objects.bindings]]
