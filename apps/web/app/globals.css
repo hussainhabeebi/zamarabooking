@@ -2629,7 +2629,11 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
 .footer-trust { display: flex; flex-wrap: wrap; gap: 8px; }
 .footer-trust span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); color: #dbe4f0; font-size: 12px; font-weight: 600; }
 .footer-trust svg { color: var(--color-accent); }
-.footer-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.footer-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.footer-contact { display: grid; gap: 4px; margin: 0 0 18px; font-style: normal; font-size: 13.5px; line-height: 1.5; }
+.footer-contact span:first-child { color: #fff; font-weight: 700; }
+.site-footer .footer-contact a { color: #dbe4f0; }
+.site-footer .footer-contact a:hover { color: #fff; }
 .footer-column h3 { margin: 4px 0 14px; color: #fff; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .footer-column ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
 .footer-column a { display: inline-block; transition: color .2s ease, transform .2s ease; }
@@ -2642,6 +2646,9 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
 .site-footer .footer-credits a { color: #dbe4f0; font-weight: 600; transition: color .2s ease; }
 .site-footer .footer-credits a:hover { color: var(--color-accent); }
 
+@media (max-width: 1100px) {
+  .footer-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 860px) {
   .footer-main { grid-template-columns: 1fr; gap: 32px; }
 }

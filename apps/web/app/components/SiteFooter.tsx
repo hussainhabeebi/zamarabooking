@@ -1,3 +1,6 @@
+import { BUSINESS } from "../lib/business";
+import { LEGAL_LINKS } from "./LegalPage";
+
 const PORTAL_URL = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/+$/, "");
 
 const columns = [
@@ -25,6 +28,10 @@ const columns = [
       { label: "Register your agency", href: `${PORTAL_URL}/register` },
       { label: "Agent login", href: `${PORTAL_URL}/login` },
     ],
+  },
+  {
+    title: "Company & policies",
+    links: LEGAL_LINKS,
   },
 ];
 
@@ -66,6 +73,12 @@ export default function SiteFooter() {
               <span>ZamraBooking</span>
             </a>
             <p>Book flights, hotels and travel insurance at the best prices — India, the Gulf and beyond.</p>
+            <address className="footer-contact">
+              <span>{BUSINESS.legalName}</span>
+              {BUSINESS.address.length > 0 && <span>{BUSINESS.address.join(", ")}</span>}
+              <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a>
+              <a href={BUSINESS.phoneHref}>{BUSINESS.phone}</a>
+            </address>
             <div className="footer-trust">
               <span>
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
@@ -93,7 +106,7 @@ export default function SiteFooter() {
         </div>
 
         <div className="footer-bottom">
-          <span>© {year} ZamraBooking. All rights reserved.</span>
+          <span>© {year} {BUSINESS.legalName}. All rights reserved.</span>
           <span className="footer-bottom-note">Fares are subject to availability until ticketed.</span>
           <span className="footer-credits">
             <span>Built by team <a href="https://aiingo.com" target="_blank" rel="noopener">aiingo.com</a></span>
