@@ -65,7 +65,7 @@ export default function SiteFooter() {
               <img src="/logo.png" alt="" height={32} />
               <span>ZamraBooking</span>
             </a>
-            <p>Book flights, hotels and travel insurance at the best prices — India, the Gulf and beyond.</p>
+            <p>Book flights, hotels and travel insurance with travel support — India, the Gulf and beyond.</p>
             <div className="footer-trust">
               <span>
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
@@ -73,7 +73,7 @@ export default function SiteFooter() {
               </span>
               <span>
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6l-8-3Z" /><path d="m9 12 2 2 4-4" /></svg>
-                Instant e-tickets
+                E-ticket access
               </span>
             </div>
           </div>

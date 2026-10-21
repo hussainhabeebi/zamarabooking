@@ -24,9 +24,9 @@
 .home-phase1.home-phase1 .manage-btn-primary { background:transparent; color:var(--blue); border:1px solid #c8d8e9; box-shadow:none; }
 .home-phase1.home-phase1 .deal-cards-section { padding-top:56px!important; padding-bottom:12px; }
 .zamra-offers { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-.zamra-offer { padding:32px; background:#123b66; color:white; border-radius:16px; text-decoration:none; position:relative; overflow:hidden; }
+.zamra-offer { padding:32px; background:#0d4b96; color:white; border-radius:16px; text-decoration:none; position:relative; overflow:hidden; }
 .zamra-offer::after { content:''; position:absolute; width:220px; height:220px; border:1px solid #ffffff20; border-radius:50%; right:-70px; top:-60px; pointer-events:none; }
-.zamra-offer-light { background:#edf4fa; color:#143c65; }
+.zamra-offer-light { background:#edf4fa; color:#0d4b96; }
 .offer-number { font-size:10px; letter-spacing:.16em; opacity:.8; }
 .zamra-offer h3 { font-size:29px; line-height:1.2; letter-spacing:-.025em; margin:22px 0 12px; }
 .zamra-offer p { font-size:13px; opacity:.8; margin-bottom:26px; }
@@ -36,7 +36,7 @@
 .destination-photo { position:relative; display:block; height:210px; overflow:hidden; background:#edf4fa; }
 .destination-photo img { width:100%; height:100%; object-fit:cover; transition:transform .3s; }
 .popular-route-card:hover .destination-photo img { transform:scale(1.04); }
-.destination-tag { position:absolute; left:16px; top:16px; padding:7px 10px; background:#ffffffed; color:#173b61; font-size:9px; letter-spacing:.1em; border-radius:5px; font-weight:750; }
+.destination-tag { position:absolute; left:16px; top:16px; padding:7px 10px; background:#ffffffed; color:#0d4b96; font-size:9px; letter-spacing:.1em; border-radius:5px; font-weight:750; }
 .home-phase1.home-phase1 .popular-route-title { padding:20px 20px 10px; font-size:17px; }
 .home-phase1.home-phase1 .popular-route-details { padding:0 20px; }
 .home-phase1.home-phase1 .popular-route-arrow { display:none; }
@@ -51,7 +51,7 @@
 .home-phase1.home-phase1 .journey-card { background:white; border:1px solid #e2eaf1; color:var(--ink); box-shadow:none; }
 .home-phase1.home-phase1 .journey-card p { color:var(--muted); }
 .home-phase1.home-phase1 .journey-card > span { color:var(--blue); background:#edf4fa; }
-.home-phase1.home-phase1 .wa-cta { background:#123b66; border-radius:18px; padding:36px; }
+.home-phase1.home-phase1 .wa-cta { background:#0d4b96; border-radius:18px; padding:36px; }
 .home-phase1.home-phase1 :is(a,button,input,select,summary):focus-visible { outline:3px solid #1676d2; outline-offset:4px; }
 .airport-dropdown [aria-selected="true"] { background:#e8f2ff; box-shadow:inset 3px 0 #0d4b96; }
 .airport-empty { color:#617589; font-size:13px; padding:14px!important; }
@@ -102,3 +102,19 @@
  .home-phase1.home-phase1 .search-widget .sw-grid:not(.sw-grid-multicity) { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.35fr); align-items:end; }
  .home-phase1.home-phase1 .sw-grid:not(.sw-grid-multicity) > .sw-extras-row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 }
+
+/* Official logo palette; pale blue surfaces preserve dark-text contrast. */
+body:has(.home-phase1) { --zamra-brand:#0d4b96; --zamra-sky:#64bae9; }
+body:has(.home-phase1) .site-nav .nav-link-active,
+body:has(.home-phase1) .site-nav .nav-link:hover { color:var(--zamra-brand); }
+body:has(.home-phase1) .site-footer { background:#0b2e58; }
+body:has(.home-phase1) .footer-agent-cta { background:linear-gradient(110deg,#0d4b96,#226caf); }
+.home-phase1.home-phase1 .hero-shade { background:linear-gradient(90deg,rgba(13,75,150,.95),rgba(13,75,150,.65) 45%,rgba(13,75,150,.05)); }
+.home-phase1.home-phase1 .hero-badge { color:#fff; }
+.home-phase1.home-phase1 .hero-cta { color:#0d4b96; }
+.home-phase1.home-phase1 .zamra-offer-light { background:#edf6fc; color:#0d4b96; }
+.home-phase1.home-phase1 .search-btn { background:#0d4b96; color:white; }
+.home-phase1.home-phase1 .search-btn:hover { background:#09396f; }
+.home-phase1.home-phase1 .section-kicker { color:#0d4b96; }
+.home-phase1.home-phase1 .wa-cta .section-kicker { color:#fff; }
+.home-phase1.home-phase1 .journey-card::after { color:#0d4b96; }

@@ -5,8 +5,12 @@ import SiteFooter from "./components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "ZamraBooking",
-  description: "Book flights at best prices — India, Gulf & beyond",
+  description: "Compare flights and plan your journey — India, the Gulf and beyond",
   manifest: "/manifest.json",
+  icons: {
+    icon: [{ url: "/favicon.ico", sizes: "any" }, { url: "/icon.png", type: "image/png", sizes: "512x512" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: { capable: true, statusBarStyle: "default", title: "ZamraBooking" },
 };
 
@@ -32,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="site-header">
           <a href="/" className="site-logo-link">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" height={34} className="site-logo" />
+            <img src="/logo.png" alt="Zamra Travels" height={34} className="site-logo" />
             <span className="site-brand-name">ZamraBooking</span>
           </a>
           <SiteNav />
