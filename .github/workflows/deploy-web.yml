@@ -1,0 +1,66 @@
+name: Public website checks and deployment
+
+on:
+  push:
+    branches: [main]
+    # A workflow-only safety PR must not deploy. Shared/backend changes require
+    # a separately reviewed release; do not broaden these paths casually.
+    paths:
+      - 'apps/web/**'
+      - 'packages/ui/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/ui/**'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zamra-web-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/web typecheck
+      - name: Build public website only
+        working-directory: apps/web
+        run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+        env:
+          NEXT_PUBLIC_API_URL: https://api.zamrabooking.com
+          NEXT_PUBLIC_PORTAL_URL: https://portal.zamrabooking.com
+      - name: Verify the single permitted deployment target
+        working-directory: apps/web
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
+          if (config.name !== 'zamra-web' || config.main !== '.open-next/worker.js') {
+            throw new Error('Unexpected public website Worker target');
+          }
+          const bindings = ['d1_databases', 'kv_namespaces', 'r2_buckets', 'queues', 'services', 'hyperdrive', 'durable_objects', 'migrations', 'routes', 'env'];
+          if (bindings.some(key => key in config)) {
+            throw new Error('Additional bindings/routes/environments require release review');
+          }
+          JS
+      - name: Deploy existing public website Worker only
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: apps/web
+        run: pnpm exec wrangler deploy --config wrangler.jsonc --name zamra-web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
