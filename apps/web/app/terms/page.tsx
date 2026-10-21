@@ -12,7 +12,7 @@ export default function TermsPage() {
     <LegalPage
       current="/terms"
       title="Terms & Conditions"
-      intro={<p>These terms apply when you use {BUSINESS.website.replace("https://", "")} (the &quot;website&quot;) to search for or book flights, hotels, travel insurance or other travel services. The website is operated by <b>{BUSINESS.legalName}</b> (&quot;{BUSINESS.brand}&quot;, &quot;we&quot;, &quot;us&quot;). By making a booking you agree to these terms, our <a href="/privacy">Privacy Policy</a> and our <a href="/refund-policy">Cancellation &amp; Refund Policy</a>.</p>}
+      intro={<p>These terms apply when you use {BUSINESS.website.replace("https://", "")} (the &quot;website&quot;) to search for or book flights, hotels, travel insurance or other travel services. The website is operated by <b>{BUSINESS.legalName}</b>, a sole proprietorship of {BUSINESS.proprietor}, {BUSINESS.address.join(", ")} (&quot;{BUSINESS.brand}&quot;, &quot;we&quot;, &quot;us&quot;). By making a booking you agree to these terms, our <a href="/privacy">Privacy Policy</a> and our <a href="/refund-policy">Cancellation &amp; Refund Policy</a>.</p>}
       sections={[
         { id: "role", title: "Our role", body: <>
           <p>{BUSINESS.brand} is a travel agent. We sell travel services that are provided by airlines, hotels, insurers and other suppliers (&quot;service providers&quot;). The service provider is responsible for delivering the service — operating the flight, providing the room or honouring the insurance policy — under its own conditions of carriage, booking rules and policy terms, which form part of your contract with it.</p>
@@ -71,7 +71,7 @@ export default function TermsPage() {
           <p>Nothing in these terms limits any right you have that cannot be limited under applicable law.</p>
         </> },
         { id: "ip", title: "Website content", body: <p>All content on the website — text, design, logos and software — belongs to {BUSINESS.legalName} or its licensors. You may use it only to search for and make personal bookings.</p> },
-        { id: "law", title: "Governing law and disputes", body: <p>These terms are governed by the laws of India. Please contact us first so we can try to resolve any complaint quickly. Any dispute that cannot be resolved amicably will be subject to the exclusive jurisdiction of the courts at the place of our registered office in India.</p> },
+        { id: "law", title: "Governing law and disputes", body: <p>These terms are governed by the laws of India. Please contact us first so we can try to resolve any complaint quickly. Any dispute that cannot be resolved amicably will be subject to the exclusive jurisdiction of the courts at {BUSINESS.jurisdiction}.</p> },
         { id: "changes-to-terms", title: "Changes to these terms", body: <p>We may update these terms from time to time. The version in force when you make a booking applies to that booking. The date at the top shows when they were last updated.</p> },
         { id: "contact", title: "Contact us", body: <ContactLines /> },
       ]}
