@@ -1,0 +1,103 @@
+/* Floating navigation and footer only. Booking forms and homepage sections keep their styles. */
+body .site-header.site-header.zamra-header {
+ position:sticky; top:14px; z-index:50; max-width:1320px; width:calc(100% - 48px); min-height:76px;
+ margin:14px auto 0; padding:12px 18px 12px 22px; gap:28px; border:1px solid #dceaf4;
+ border-radius:100px; background:#f4f9fd; box-shadow:0 8px 28px #0d4b960a;
+}
+.zamra-header .site-logo-link { flex-shrink:0; gap:9px; }
+.zamra-header .site-logo { height:38px; width:38px; object-fit:contain; }
+.zamra-header .site-brand-name { color:#0d4b96; font-size:17px; }
+body .zamra-header .site-nav { flex:1; min-width:0; gap:16px; justify-content:space-between; }
+body .zamra-header .site-nav-links { display:flex; align-items:center; gap:3px; padding:4px; margin-inline:auto; background:#fff; border:1px solid #e6eef5; border-radius:50px; }
+body .zamra-header .site-nav-links .nav-link { min-height:40px; padding:10px 17px; border-radius:40px; display:flex; align-items:center; justify-content:center; color:#53677d; font-size:12px; font-weight:600; white-space:nowrap; }
+body .zamra-header .site-nav-links .nav-link:hover { color:#0d4b96; background:#edf5fc; }
+body .zamra-header .site-nav-links [aria-current=page] { background:#0d4b96; color:#fff; }
+.header-actions { display:flex; align-items:center; gap:7px; }
+.header-icon,body .zamra-header .home-account-link { display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:10px; background:white; border:1px solid #e1ebf3; border-radius:50px; color:#0d4b96; text-decoration:none; }
+body .zamra-header .home-account-link { gap:6px; font-size:12px; }
+body .zamra-header .site-account-label { max-width:86px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+body .zamra-header .nav-currency { margin:0; }
+body .zamra-header .nav-currency select { min-height:44px; width:73px; border:1px solid #e1ebf3; border-radius:40px; padding:0 7px; color:#0d4b96; background:white; font-size:12px; }
+body .zamra-header .header-more { display:block; position:relative; }
+body .zamra-header .header-more summary { display:flex; gap:7px; align-items:center; justify-content:center; min-height:44px; padding:10px 13px; border:1px solid #e1ebf3; border-radius:30px; background:white; color:#0d4b96; font-size:12px; font-weight:600; cursor:pointer; list-style:none; }
+.header-more summary::-webkit-details-marker { display:none; }
+body .zamra-header .home-mobile-menu-icon { display:grid; gap:3px; width:14px; }
+body .zamra-header .home-mobile-menu-icon i { display:block; width:14px; height:1.5px; background:currentColor; border-radius:2px; }
+body .zamra-header .home-mobile-menu-panel { position:absolute; z-index:60; right:0; top:calc(100% + 12px); display:grid; width:245px; padding:12px; background:#fff; border:1px solid #dceaf4; border-radius:20px; box-shadow:0 14px 45px #0d4b9620; }
+body .zamra-header .home-mobile-menu-panel .nav-link { display:flex; align-items:center; min-height:44px; padding:10px 14px; border-radius:12px; color:#27425c; font-size:13px; }
+body .zamra-header .home-mobile-menu-panel .nav-link:hover { background:#edf5fc; }
+.header-menu-heading { padding:7px 14px 10px; font-size:10px; font-weight:700; letter-spacing:.1em; color:#57748e; text-transform:uppercase; }
+body .zamra-header .secondary-hotels,body .zamra-header .mobile-account-fallback { display:none; }
+.zamra-header :is(a,summary,select):focus-visible,.zamra-footer a:focus-visible { outline:3px solid #64bae9; outline-offset:3px; }
+body .site-footer.site-footer.zamra-footer { margin-top:64px; background:#071f36; color:#cfdeeb; border-top:1px solid #24415a; }
+body .zamra-footer .site-footer-inner { max-width:1320px; margin:auto; padding:24px 32px; }
+.footer-horizon { display:flex; align-items:center; gap:16px; color:#64bae9; margin:0 0 32px; }
+.footer-horizon span { height:1px; flex:1; background:linear-gradient(90deg,transparent,#294960); }
+.footer-horizon span:last-child { background:linear-gradient(90deg,#294960,transparent); }
+.footer-five-columns { display:grid; grid-template-columns:1.3fr .85fr 1fr 1.25fr 1.2fr; gap:28px; padding-bottom:32px; }
+body .zamra-footer .footer-logo-link { display:flex; align-items:center; gap:10px; font-size:19px; font-weight:750; color:#fff; text-decoration:none; }
+body .zamra-footer .footer-logo-link img { width:44px; height:44px; object-fit:contain; border-radius:11px; }
+.footer-logo-link small { display:block; margin-top:5px; font-size:10px; font-weight:400; letter-spacing:.03em; color:#b5ccdd; }
+body .zamra-footer .footer-brand p,.zamra-footer .footer-connect p { font-size:12px; line-height:1.8; color:#b5ccdd; margin:20px 0; max-width:250px; }
+body .zamra-footer .footer-social { display:inline-flex; width:44px; height:44px; border:1px solid #315775; background:#102f49; border-radius:50%; align-items:center; justify-content:center; color:#91d2f4; }
+body .zamra-footer .footer-column h2 { color:#91d2f4; font-size:13px; font-weight:650; margin:0 0 16px; }
+body .zamra-footer .footer-column ul { margin:0; padding:0; list-style:none; }
+body .zamra-footer .footer-column li { margin:0; }
+body .zamra-footer .footer-column a { display:inline-flex; align-items:center; min-height:34px; text-decoration:none; color:#cfdeeb; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+body .zamra-footer .footer-column a:hover,.zamra-footer .footer-legal a:hover { color:white; text-decoration:underline; text-underline-offset:4px; }
+body .zamra-footer .footer-contact { display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.8; color:#b5ccdd; font-style:normal; margin:0; }
+body .zamra-footer .footer-contact span:first-of-type { color:#fff; margin-top:5px; }
+body .zamra-footer .footer-connect p { margin:0 0 18px; }
+body .zamra-footer .footer-contact-cta { display:flex; width:100%; justify-content:space-between; gap:10px; border-radius:40px; background:#64bae9; color:#071f36; padding:12px 18px; font-weight:700; min-height:46px; }
+body .zamra-footer .footer-contact-cta:hover { color:#071f36; background:#91d2f4; }
+body .zamra-footer .footer-email-link { margin-top:10px; font-size:11px; gap:8px; }
+body .zamra-footer .footer-legal { display:flex; flex-wrap:wrap; gap:2px 22px; border-top:1px solid #294156; padding:18px 0; margin:0; }
+body .zamra-footer .footer-legal a { display:inline-flex; align-items:center; min-height:36px; color:#b5ccdd; text-decoration:none; font-size:11px; }
+body .zamra-footer .footer-bottom { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:18px 0 2px; border-top:1px solid #294156; color:#a5bed2; font-size:10px; }
+body .zamra-footer .footer-credits { display:flex; flex-wrap:wrap; gap:5px; }
+body .zamra-footer .footer-credits a { color:#c6deef; }
+@media(max-width:1199px) {
+ body .site-header.site-header.zamra-header { gap:14px; padding-inline:16px; }
+ body .zamra-header .site-nav { gap:12px; }
+ body .zamra-header .site-nav-links .nav-link { padding-inline:12px; }
+ body .zamra-header .site-account-label,.header-more-label { display:none; }
+ .header-actions { gap:5px; }
+ .footer-five-columns { grid-template-columns:1.2fr 1fr 1fr; gap:30px; }
+ .footer-connect { grid-column:2 / 4; max-width:360px; }
+}
+@media(max-width:1023px) {
+ body .zamra-header .site-brand-name { font-size:15px; }
+ body .zamra-header .site-nav-links .nav-link { padding-inline:10px; font-size:11px; }
+ body .zamra-header .header-support { display:none; }
+}
+@media(max-width:767px) {
+ body .site-header.site-header.zamra-header { top:8px; width:calc(100% - 20px); min-height:64px; margin-top:8px; padding:8px 10px 8px 14px; gap:8px; }
+ body .zamra-header .site-logo { width:30px; height:30px; }
+ body .zamra-header .site-brand-name { font-size:13px; }
+ body .zamra-header .site-logo-link { gap:6px; }
+ body .zamra-header .site-nav { flex:0 1 auto; justify-content:flex-end; margin-left:auto; }
+ body .zamra-header .site-nav-links,body .zamra-header .home-account-link,body .zamra-header .header-search { display:none; }
+ body .zamra-header .nav-currency select { width:66px; font-size:11px; }
+ body .zamra-header .header-more summary { min-width:44px; padding:10px; }
+ body .zamra-header .home-mobile-menu-panel .secondary-hotels { display:flex; }
+ body .zamra-header .home-mobile-menu-panel .secondary-wallet { display:none; }
+ body .zamra-header .home-mobile-menu-panel .mobile-account-fallback { display:flex; }
+ body .zamra-header .mobile-tab-bar { inset:auto 0 0; }
+ body .site-footer.site-footer.zamra-footer { margin-top:40px; }
+ body .zamra-footer .site-footer-inner { padding:22px 24px; }
+ .footer-five-columns { grid-template-columns:1fr 1fr; gap:30px 22px; }
+ .footer-brand,.footer-connect { grid-column:1 / -1; max-width:none; }
+ body .zamra-footer .footer-brand p { max-width:300px; margin:14px 0; }
+ .footer-five-columns > section[aria-labelledby=footer-contact-title] { grid-column:1 / -1; }
+ body .zamra-footer .footer-column a { min-height:44px; }
+ body .zamra-footer .footer-contact-cta { max-width:340px; }
+ body .zamra-footer .footer-legal { gap:0 18px; }
+ body .zamra-footer .footer-legal a { min-height:44px; }
+ body .zamra-footer .footer-bottom { flex-direction:column; line-height:1.8; }
+}
+@media(prefers-reduced-motion:reduce) { .zamra-header *, .zamra-footer * { scroll-behavior:auto; transition:none; } }
+/* Keep contact contrast and pill geometry above legacy shell selectors. */
+body .zamra-header .site-nav .home-account-link { border-radius:50px; background:white; color:#0d4b96; }
+body .zamra-footer .footer-column ul { display:block; }
+body .zamra-footer .footer-column .footer-contact-cta { color:#071f36; }
+body .zamra-footer .footer-column .footer-contact-cta:hover { color:#071f36; }

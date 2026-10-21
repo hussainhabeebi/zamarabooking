@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { apiCall, readCustomerToken } from "../lib/customer-api";
 import { CURRENCY_EVENT, isPrefCurrency, readPrefCurrency, savePrefCurrency, syncAccountCurrency, type PrefCurrency } from "../lib/currency-pref";
+import { BUSINESS } from "../lib/business";
 import { CURRENCY_LIST } from "../lib/fx";
 
 function flightSearchUrl() { return "/#flight-search"; }
@@ -88,14 +89,16 @@ export default function SiteNav() {
     { key: "wallet", label: "Wallet", href: "/wallet", icon: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18m-5 6h2" /></> },
   ];
 
-  function navigationItems() {
-    return navItems.map(({ key, label, href, icon }) => (
-      <a key={key} href={href} onClick={key === "flights" ? (event) => { event.currentTarget.href = flightSearchUrl(); } : undefined} className={navClass(key)} aria-current={active === key ? "page" : undefined}>
-        <svg className="site-nav-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icon}</svg>
-        <span>{label}</span>
-      </a>
-    ));
-  }
+  const portalUrl = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/+$/, "");
+  const primaryItems = [{ key: "home", label: "Home", href: "/" }, ...navItems.filter(({ key }) => ["flights", "hotels", "trips"].includes(key))];
+  function isActive(key: string) { return key === "home" ? pathname === "/" : active === key; }
+  const secondaryItems = [
+    ...navItems.filter(({ key }) => ["hotels", "insurance", "wallet"].includes(key)),
+    { key: "assistance", label: "Travel assistance", href: "/travel-check" },
+    { key: "agents", label: "Agent Portal", href: `${portalUrl}/login` },
+    { key: "register", label: "Register your agency", href: `${portalUrl}/register` },
+    { key: "contact", label: "Contact & support", href: "/contact" },
+  ];
 
   return (
     <nav className="site-nav" aria-label="Main navigation">
@@ -105,24 +108,28 @@ export default function SiteNav() {
         {navItems.filter(({ key }) => key === "trips" || key === "wallet").map(({ key, label, href, icon }) => <Link prefetch={false} key={key} href={href} aria-current={active === key ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">{icon}</svg><span>{label}</span></Link>)}
         <Link prefetch={false} href="/account" aria-current={pathname.startsWith("/account") ? "page" : undefined}>{accountIcon}<span>Account</span></Link>
       </div>}
-      <div className="site-nav-links">{navigationItems()}</div>
+      <div className="site-nav-links">
+        {primaryItems.map(({ key, label, href }) => <a key={key} href={href} className={navClass(key)} aria-current={isActive(key) ? "page" : undefined}>{label}</a>)}
+      </div>
+      <div className="header-actions">
+      <a href="/#flight-search" className="header-icon header-search" aria-label="Find flights"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6" /></svg></a>
       <label className="nav-currency" title="Prices are shown in this currency on every search">
         <span className="sr-only">Currency</span>
         <select value={currency} onChange={(e) => { if (isPrefCurrency(e.target.value)) changeCurrency(e.target.value); }} aria-label="Currency">
           {CURRENCY_LIST.map((c) => <option key={c.code} value={c.code}>{c.code === "INR" ? "₹ INR" : c.code === "USD" ? "$ USD" : c.code}</option>)}
         </select>
       </label>
-      <a href="/account" className="nav-link home-account-link"><span className="site-account-icon-wrap">{accountIcon}</span><span className="site-account-label" title={accountLabel}>{accountLabel}</span></a>
-      <details className="home-mobile-menu">
-        <summary aria-label="Navigation menu">
-          <span className="home-mobile-menu-icon" aria-hidden="true"><i /><i /><i /></span>
-          Menu
-        </summary>
-        <div className="home-mobile-menu-panel">
-          {navigationItems()}
-          <a href="/account" className="nav-link home-menu-account-link"><span className="site-account-icon-wrap">{accountIcon}</span><span className="site-account-label" title={accountLabel}>{accountLabel}</span></a>
+      <a href={BUSINESS.phoneHref} className="header-icon header-support" aria-label="Call Zamra support"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 14v-3a8 8 0 0 1 16 0v3M4 11H2v7h4v-7H4Zm16 0h2v7h-4v-7h2Zm0 7c0 3-4 3-7 3" /></svg></a>
+      <a href="/account" aria-label={accountLabel} className="nav-link home-account-link"><span className="site-account-icon-wrap">{accountIcon}</span><span className="site-account-label" title={accountLabel}>{accountLabel}</span></a>
+      <details className="home-mobile-menu header-more" onKeyDown={(event) => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
+        <summary aria-label="More navigation"><span className="header-more-label">More</span><span className="home-mobile-menu-icon" aria-hidden="true"><i /><i /><i /></span></summary>
+        <div className="home-mobile-menu-panel" onClick={(event) => { if ((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
+          <span className="header-menu-heading">Explore Zamra</span>
+          {secondaryItems.map(({ key, label, href }) => <a key={key} href={href} className={`nav-link secondary-${key}`} aria-current={active === key ? "page" : undefined}>{label}</a>)}
+          {!showMobileTabs && <a href="/account" className="nav-link mobile-account-fallback">{accountLabel}</a>}
         </div>
       </details>
+      </div>
     </nav>
   );
 }

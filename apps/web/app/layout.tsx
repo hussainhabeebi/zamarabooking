@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./site-shell.css";
 import SiteNav from "./components/SiteNav";
 import SiteFooter from "./components/SiteFooter";
 
@@ -33,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <header className="site-header">
+        <header className="site-header zamra-header">
           <a href="/" className="site-logo-link">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="Zamra Travels" height={34} className="site-logo" />
