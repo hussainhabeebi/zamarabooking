@@ -7,7 +7,10 @@ export default function HeroBanner({ banners: _banners }: { banners: unknown[] }
         <p>Flying home or heading somewhere new?<br className="hero-mobile-break" /> Find and compare flights with Zamra.</p>
       </div>
       <div className="zamra-aircraft-frame">
-        <img src="/hero/zamra-aircraft.webp" alt="Passenger aircraft above the clouds" width="1600" height="533" fetchPriority="high" />
+        <picture>
+          <source media="(max-width: 767px)" srcSet="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E" />
+          <img src="/hero/zamra-aircraft.webp" alt="Passenger aircraft above the clouds" width="1600" height="533" fetchPriority="high" />
+        </picture>
       </div>
     </section>
   );

@@ -151,3 +151,16 @@ body:has(.home-phase1) .footer-agent-cta { background:linear-gradient(110deg,#0d
  .home-phase1.home-phase1 .home-title { font-size:27px; }
  .home-phase1.home-phase1 .home-shell { padding-block:28px; }
 }
+
+/* Carry the app-style mobile shell into the redesigned homepage. */
+@media (max-width:767px) {
+ .zamra-hero { width:calc(100% - 32px); padding-top:20px; }
+ .zamra-hero-copy { margin-bottom:0; }
+ .zamra-hero-copy h1 { font-size:30px; margin:12px 0; }
+ .zamra-hero-copy > p:last-child { font-size:13px; }
+ .zamra-aircraft-frame { display:none; }
+ .home-phase1.home-phase1 .search-overlap { padding-top:16px; }
+ .home-phase1.home-phase1 .zamra-offers,
+ .home-phase1.home-phase1 .popular-route-grid { display:grid; grid-auto-flow:column; grid-auto-columns:82%; grid-template-columns:none; overflow-x:auto; scroll-snap-type:x proximity; padding-bottom:12px; gap:16px; }
+ .zamra-offer,.home-phase1.home-phase1 .popular-route-card { scroll-snap-align:start; }
+}

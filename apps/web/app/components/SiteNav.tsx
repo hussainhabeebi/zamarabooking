@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { apiCall, readCustomerToken } from "../lib/customer-api";
 import { CURRENCY_EVENT, isPrefCurrency, readPrefCurrency, savePrefCurrency, syncAccountCurrency, type PrefCurrency } from "../lib/currency-pref";
@@ -53,6 +54,8 @@ export default function SiteNav() {
     return () => { cancelled = true; window.removeEventListener("zamrabooking:profile-updated", loadAccountName); };
   }, [pathname]);
 
+  // Keep existing fixed payment and journey actions unobstructed.
+  const showMobileTabs = !["/book", "/checkout", "/search/journey", "/hotels/book", "/insurance/booking", "/pay"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const accountLabel = accountName || "Account";
   const active = pathname === "/search" || pathname.startsWith("/search/") || pathname === "/book" || pathname.startsWith("/book/") || pathname === "/checkout" || pathname.startsWith("/checkout/")
     ? "flights"
@@ -96,6 +99,12 @@ export default function SiteNav() {
 
   return (
     <nav className="site-nav" aria-label="Main navigation">
+      {showMobileTabs && <div className="mobile-tab-bar" role="group" aria-label="Quick navigation">
+        <Link prefetch={false} href="/" aria-current={pathname === "/" ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-6v-7H9v7H3Z" /></svg><span>Home</span></Link>
+        <Link prefetch={false} href="/#flight-search" aria-current={active === "flights" ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6" /></svg><span>Search</span></Link>
+        {navItems.filter(({ key }) => key === "trips" || key === "wallet").map(({ key, label, href, icon }) => <Link prefetch={false} key={key} href={href} aria-current={active === key ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">{icon}</svg><span>{label}</span></Link>)}
+        <Link prefetch={false} href="/account" aria-current={pathname.startsWith("/account") ? "page" : undefined}>{accountIcon}<span>Account</span></Link>
+      </div>}
       <div className="site-nav-links">{navigationItems()}</div>
       <label className="nav-currency" title="Prices are shown in this currency on every search">
         <span className="sr-only">Currency</span>
