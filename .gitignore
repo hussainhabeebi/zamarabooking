@@ -12,3 +12,4 @@ coverage/
 .nyc_output/
 prisma/generated/
 *.tsbuildinfo
+.open-next/
