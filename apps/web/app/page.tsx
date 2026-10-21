@@ -53,37 +53,37 @@ export default function HomePage() {
           <p>Find your booking, view trip details and access your travel documents.</p>
         </div>
         <div className="manage-strip-actions">
-          <a href="/trips/find" className="manage-btn manage-btn-primary">📋 Manage Booking</a>
+          <a href="/trips/find" className="manage-btn manage-btn-primary">Manage booking</a>
         </div>
       </div>
-
-      <section className="home-shell deal-cards-section">
-        <div className="section-kicker">MORE WAYS TO GET AWAY</div>
-        <h2 className="home-title">Where will your next chapter begin?</h2>
-        <div className="zamra-offers">
-          <a href="#flight-search" className="zamra-offer"><span className="offer-number">01 / HOMECOMINGS</span><h3>Back to the people<br />who feel like home.</h3><p>Explore flights between India and the Gulf.</p><span className="offer-link">Plan your journey <span aria-hidden="true">↗</span></span></a>
-          <a href="/hotels" className="zamra-offer zamra-offer-light"><span className="offer-number">02 / NEW HORIZONS</span><h3>A change of scene.<br />A stay to remember.</h3><p>Find a place to settle in, wherever you land.</p><span className="offer-link">Explore hotels <span aria-hidden="true">↗</span></span></a>
-        </div>
-      </section>
 
       <section className="home-shell popular-routes-section">
         <div className="section-heading-row">
           <div>
-            <div className="section-kicker">DESTINATION INSPIRATION</div>
-            <h2 className="home-title">Familiar routes. Fresh possibilities.</h2>
+            <div className="section-kicker">FIND YOUR NEXT DESTINATION</div>
+            <h2 className="home-title">Between Kerala and the Gulf.</h2>
           </div>
         </div>
         <PopularRoutes routes={[]} />
-        <a href="#flight-search" className="text-link">Custom search →</a>
+        <a href="#flight-search" className="text-link">Choose another route →</a>
+      </section>
+
+      <section className="home-shell deal-cards-section">
+        <div className="section-kicker">PLAN WITH ZAMRA</div>
+        <h2 className="home-title">A little more for your journey.</h2>
+        <div className="zamra-offers">
+          <a href="#flight-search" className="zamra-offer"><span className="offer-number">01 / HOMECOMINGS</span><h3>Time to fly home?</h3><p>Explore flights between India and the Gulf.</p><span className="offer-link">Plan your journey <span aria-hidden="true">↗</span></span></a>
+          <a href="/hotels" className="zamra-offer zamra-offer-light"><span className="offer-number">02 / NEW HORIZONS</span><h3>Find your next stay.</h3><p>Find a place to settle in, wherever you land.</p><span className="offer-link">Explore hotels <span aria-hidden="true">↗</span></span></a>
+        </div>
       </section>
 
       <section className="home-shell benefits-section">
         <div className="section-kicker">Built for easier booking</div>
-        <h2 className="home-title">Less form-filling. More confidence.</h2>
+        <h2 className="home-title">The details that make travel easier.</h2>
         <div className="benefit-grid">
           {benefits.map((item) => (
             <article className="benefit-card" key={item.title}>
-              <span className="benefit-icon">{item.icon}</span>
+
               <span className="benefit-icon-desktop"><BenefitSymbol symbol={item.symbol} /></span>
               <h3>{item.title}</h3>
               <p>{item.text}</p>

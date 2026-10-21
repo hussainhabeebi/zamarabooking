@@ -1,13 +1,14 @@
 export default function HeroBanner({ banners: _banners }: { banners: unknown[] }) {
-  return <section className="hero hero-photo">
-    <img src="/hero/airplane-wing-clouds.webp" alt="" className="hero-photo-img" fetchPriority="high" />
-    <div className="hero-shade" />
-    <div className="hero-inner hero-copy">
-      <div className="hero-badge">ZAMRA TRAVELS · INDIA & THE GULF</div>
-      <h1 className="hero-title">A little closer.<br />To your next journey.</h1>
-      <p className="hero-subtitle">From homecomings to new horizons. Find your flight, compare your options and travel with confidence.</p>
-      <a className="hero-cta" href="#flight-search">Find your flight <span aria-hidden="true">↗</span></a>
-    </div>
-    <div className="hero-caption">YOUR WORLD, WITHIN REACH <span>India · Gulf · Beyond</span></div>
-  </section>;
+  return (
+    <section className="zamra-hero" aria-labelledby="home-heading">
+      <div className="zamra-hero-copy">
+        <p className="section-kicker">ZAMRA TRAVELS · KERALA & THE GULF</p>
+        <h1 id="home-heading">Your next journey.<br /><span>Made simple.</span></h1>
+        <p>Flying home or heading somewhere new?<br className="hero-mobile-break" /> Find and compare flights with Zamra.</p>
+      </div>
+      <div className="zamra-aircraft-frame">
+        <img src="/hero/zamra-aircraft.webp" alt="Passenger aircraft above the clouds" width="1600" height="533" fetchPriority="high" />
+      </div>
+    </section>
+  );
 }

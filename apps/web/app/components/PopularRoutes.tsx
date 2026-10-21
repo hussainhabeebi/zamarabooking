@@ -9,14 +9,15 @@ interface Route {
 const DEFAULT_ROUTES: Route[] = [
   { origin: "COK", destination: "DXB", label: "Kochi → Dubai" },
   { origin: "CCJ", destination: "AUH", label: "Kozhikode → Abu Dhabi" },
+  { origin: "COK", destination: "DOH", label: "Kochi → Doha" },
   { origin: "DXB", destination: "COK", label: "Dubai → Kochi" },
-  { origin: "DXB", destination: "MAA", label: "Dubai → Chennai" },
-  { origin: "DXB", destination: "DEL", label: "Dubai → Delhi" },
-  { origin: "DXB", destination: "HYD", label: "Dubai → Hyderabad" },
+  { origin: "AUH", destination: "CCJ", label: "Abu Dhabi → Kozhikode" },
+  { origin: "DOH", destination: "COK", label: "Doha → Kochi" },
 ];
 
 const CITY_IMAGES: Record<string, { name: string; src: string }> = {
   COK: { name: "Kochi", src: "/routes/kochi.jpg" },
+  DOH: { name: "Doha", src: "/routes/doha.jpg" },
   DXB: { name: "Dubai", src: "/routes/dubai.jpg" },
   CCJ: { name: "Kozhikode", src: "/routes/kozhikode.jpg" },
   AUH: { name: "Abu Dhabi", src: "/routes/abu-dhabi.jpg" },

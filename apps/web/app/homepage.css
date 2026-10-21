@@ -1,16 +1,6 @@
 /* Homepage presentation stays scoped; shared booking pages retain their layout. */
 .home-phase1.home-phase1 { --ink:#122c48; --muted:#617589; --blue:#0d4b96; background:#fff; color:var(--ink); }
 .home-phase1.home-phase1 .home-shell { max-width:1240px; width:calc(100% - 80px); margin-inline:auto; padding-block:48px; }
-.home-phase1.home-phase1 .hero-photo { min-height:400px; height:420px; margin:20px 24px 0; border-radius:24px; overflow:hidden; position:relative; }
-.home-phase1.home-phase1 .hero-photo-img { width:100%; height:100%; object-fit:cover; object-position:center 55%; }
-.home-phase1.home-phase1 .hero-shade { position:absolute; inset:0; background:linear-gradient(90deg,rgba(7,34,65,.93),rgba(7,34,65,.67) 45%,rgba(7,34,65,.03)); }
-.home-phase1.home-phase1 .hero-copy { position:relative; max-width:1240px; width:calc(100% - 112px); padding:54px 0; margin:auto; text-align:left; }
-.home-phase1.home-phase1 .hero-badge { background:none; border:0; padding:0; color:#c9e5fb; font-size:11px; letter-spacing:.17em; font-weight:700; }
-.home-phase1.home-phase1 .hero-title { font-size:clamp(36px,4.2vw,60px); max-width:700px; line-height:1.08; letter-spacing:-.045em; margin:18px 0; color:white; }
-.home-phase1.home-phase1 .hero-subtitle { max-width:460px; font-size:15px; line-height:1.7; color:#e0ecf6; margin:0 0 22px; }
-.home-phase1.home-phase1 .hero-cta { display:inline-flex; gap:28px; align-items:center; padding:12px 18px; background:#fff; color:#0d4b96; border-radius:8px; font-size:13px; text-decoration:none; font-weight:700; }
-.home-phase1.home-phase1 .hero-caption { position:absolute; right:40px; bottom:36px; color:white; font-size:10px; letter-spacing:.15em; text-align:right; }
-.home-phase1.home-phase1 .hero-caption span { display:block; font-size:16px; letter-spacing:0; margin-top:8px; }
 .home-phase1.home-phase1 .search-overlap { margin-top:0; padding-top:28px; padding-bottom:26px; }
 .home-phase1.home-phase1 .search-overlap > .section-kicker { color:var(--muted); text-shadow:none; font-size:10px; letter-spacing:.16em; margin:0 0 12px; }
 .home-phase1.home-phase1 .search-widget { margin:0; border:1px solid #e0e8ef; border-radius:18px; box-shadow:0 12px 40px #1736530b; padding:24px; }
@@ -57,10 +47,6 @@
 .airport-empty { color:#617589; font-size:13px; padding:14px!important; }
 @media(max-width:1023px) {
  .home-phase1.home-phase1 .home-shell,.home-phase1.home-phase1 .manage-strip { width:calc(100% - 40px); }
- .home-phase1.home-phase1 .hero-photo { margin:12px 16px 0; height:340px; min-height:340px; border-radius:18px; }
- .home-phase1.home-phase1 .hero-copy { width:calc(100% - 56px); padding:34px 0; }
- .home-phase1.home-phase1 .hero-title { font-size:42px; }
- .home-phase1.home-phase1 .hero-caption { display:none; }
  .home-phase1.home-phase1 .popular-route-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .home-phase1.home-phase1 .home-shell { padding-block:32px; }
  .home-phase1.home-phase1 .search-overlap { padding-top:20px; }
@@ -68,12 +54,6 @@
 }
 @media(max-width:600px) {
  .home-phase1.home-phase1 .home-shell,.home-phase1.home-phase1 .manage-strip { width:calc(100% - 32px); }
- .home-phase1.home-phase1 .hero-photo { height:285px; min-height:285px; margin:8px 12px 0; border-radius:14px; }
- .home-phase1.home-phase1 .hero-copy { width:calc(100% - 36px); padding:26px 0; }
- .home-phase1.home-phase1 .hero-badge { font-size:8px; letter-spacing:.12em; }
- .home-phase1.home-phase1 .hero-title { font-size:35px; margin:14px 0; }
- .home-phase1.home-phase1 .hero-subtitle { font-size:12px; max-width:300px; line-height:1.6; margin-bottom:16px; }
- .home-phase1.home-phase1 .hero-cta { font-size:11px; padding:10px 14px; }
  .home-phase1.home-phase1 .search-widget { padding:16px; border-radius:14px; }
  .home-phase1.home-phase1 .trust-bar { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding-bottom:24px; }
  .home-phase1.home-phase1 .trust-item:last-child { grid-column:auto; justify-self:start; }
@@ -109,12 +89,65 @@ body:has(.home-phase1) .site-nav .nav-link-active,
 body:has(.home-phase1) .site-nav .nav-link:hover { color:var(--zamra-brand); }
 body:has(.home-phase1) .site-footer { background:#0b2e58; }
 body:has(.home-phase1) .footer-agent-cta { background:linear-gradient(110deg,#0d4b96,#226caf); }
-.home-phase1.home-phase1 .hero-shade { background:linear-gradient(90deg,rgba(13,75,150,.95),rgba(13,75,150,.65) 45%,rgba(13,75,150,.05)); }
-.home-phase1.home-phase1 .hero-badge { color:#fff; }
-.home-phase1.home-phase1 .hero-cta { color:#0d4b96; }
 .home-phase1.home-phase1 .zamra-offer-light { background:#edf6fc; color:#0d4b96; }
 .home-phase1.home-phase1 .search-btn { background:#0d4b96; color:white; }
 .home-phase1.home-phase1 .search-btn:hover { background:#09396f; }
 .home-phase1.home-phase1 .section-kicker { color:#0d4b96; }
 .home-phase1.home-phase1 .wa-cta .section-kicker { color:#fff; }
 .home-phase1.home-phase1 .journey-card::after { color:#0d4b96; }
+
+/* Latest approved Flylit-inspired direction: centred copy, aircraft capsule,
+   search below the image and arched destination photography. */
+.zamra-hero { max-width:1160px; width:calc(100% - 80px); margin:0 auto; padding:40px 0 0; }
+.zamra-hero-copy { text-align:center; margin:0 auto 28px; }
+.zamra-hero-copy h1 { margin:18px 0 16px; color:#142b45; font-size:clamp(36px,4.5vw,60px); line-height:1.1; letter-spacing:-.045em; font-weight:750; }
+.zamra-hero-copy h1 span { color:#0d4b96; }
+.zamra-hero-copy > p:last-child { color:#51667b; font-size:15px; line-height:1.7; margin:0; }
+.hero-mobile-break { display:none; }
+.zamra-aircraft-frame { width:100%; border-radius:220px; overflow:hidden; background:#e8f5fc; border:6px solid white; box-shadow:0 0 0 1px #e4edf3; }
+.zamra-aircraft-frame img { display:block; width:100%; height:300px; object-fit:cover; object-position:center 58%; }
+.home-phase1.home-phase1 .search-overlap { padding-top:26px; }
+.home-phase1.home-phase1 .search-overlap > .section-kicker { text-align:center; margin-bottom:14px; }
+.home-phase1.home-phase1 .search-widget { border-radius:24px; background:#fff; box-shadow:0 8px 28px #17365308; }
+.home-phase1.home-phase1 .home-title { text-align:center; }
+.home-phase1.home-phase1 .section-kicker { text-align:center; }
+.home-phase1.home-phase1 .section-heading-row { justify-content:center; }
+.home-phase1.home-phase1 .popular-route-grid { gap:26px; }
+.home-phase1.home-phase1 .popular-route-card { padding:18px 18px 24px; border:1px solid #edf1f5; border-radius:170px 170px 24px 24px; align-items:stretch; background:#fff; box-shadow:0 8px 28px #17365305; }
+.home-phase1.home-phase1 .destination-photo { height:250px; border-radius:160px; }
+.home-phase1.home-phase1 .destination-tag { top:auto; bottom:16px; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:9px; }
+.home-phase1.home-phase1 .popular-route-title { text-align:center; padding:22px 0 12px; }
+.home-phase1.home-phase1 .popular-route-details { justify-content:center; }
+.home-phase1.home-phase1 .popular-route-view { display:inline-flex; min-height:44px; align-items:center; padding:0 18px; border-radius:24px; background:#eef5fc; }
+.home-phase1.home-phase1 .popular-routes-section > .text-link { display:block; width:fit-content; margin:26px auto 0; }
+.home-phase1.home-phase1 .zamra-offer { background:#edf5fc; color:#0d4b96; border:1px solid #dae8f5; }
+.home-phase1.home-phase1 .zamra-offer h3 { font-size:27px; }
+.home-phase1.home-phase1 .offer-number { opacity:1; }
+.home-phase1.home-phase1 .zamra-offer p { opacity:1; color:#51667b; }
+.home-phase1.home-phase1 .deal-cards-section { padding-top:16px!important; padding-bottom:36px; }
+.home-phase1.home-phase1 .wa-cta > a { color:#0d4b96; background:#fff; }
+.home-phase1.home-phase1 .wa-cta .section-kicker { text-align:left; }
+@media(max-width:1023px) {
+ .zamra-hero { width:calc(100% - 48px); padding-top:32px; }
+ .zamra-aircraft-frame img { height:260px; }
+ .home-phase1.home-phase1 .destination-photo { height:245px; }
+}
+@media(max-width:600px) {
+ .zamra-hero { width:calc(100% - 32px); padding-top:28px; }
+ .zamra-hero-copy { margin-bottom:22px; }
+ .zamra-hero-copy h1 { font-size:36px; margin:14px 0; }
+ .zamra-hero-copy > p:last-child { font-size:13px; line-height:1.65; }
+ .hero-mobile-break { display:block; }
+ .zamra-aircraft-frame { border-radius:110px; border-width:3px; }
+ .zamra-aircraft-frame img { height:155px; object-fit:cover; }
+ .home-phase1.home-phase1 .search-overlap { padding-top:22px; }
+ .home-phase1.home-phase1 .popular-route-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+ .home-phase1.home-phase1 .popular-route-card { border-radius:100px 100px 18px 18px; padding:9px 9px 14px; }
+ .home-phase1.home-phase1 .destination-photo { height:165px; border-radius:90px; }
+ .home-phase1.home-phase1 .destination-tag { font-size:7px; padding:5px 7px; bottom:10px; }
+ .home-phase1.home-phase1 .popular-route-title { font-size:13px; line-height:1.5; padding:14px 0 7px; }
+ .home-phase1.home-phase1 .popular-route-details { padding:0; }
+ .home-phase1.home-phase1 .popular-route-view { font-size:11px; padding:0 10px; }
+ .home-phase1.home-phase1 .home-title { font-size:27px; }
+ .home-phase1.home-phase1 .home-shell { padding-block:28px; }
+}
