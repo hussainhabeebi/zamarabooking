@@ -49,6 +49,7 @@
  .home-phase1.home-phase1 .home-shell,.home-phase1.home-phase1 .manage-strip { width:calc(100% - 40px); }
  .home-phase1.home-phase1 .popular-route-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .home-phase1.home-phase1 .home-shell { padding-block:32px; }
+ .home-phase1.home-phase1 .search-overlap { padding-top:20px; }
  .home-phase1.home-phase1 .search-widget { padding:20px; }
 }
 @media(max-width:600px) {
@@ -95,20 +96,19 @@ body:has(.home-phase1) .footer-agent-cta { background:linear-gradient(110deg,#0d
 .home-phase1.home-phase1 .wa-cta .section-kicker { color:#fff; }
 .home-phase1.home-phase1 .journey-card::after { color:#0d4b96; }
 
-/* Client-approved sunset hero with a white search card. */
-.zamra-sunset-hero { position:relative; isolation:isolate; max-width:1320px; width:calc(100% - 48px); min-height:540px; margin:14px auto 0; border-radius:32px; background:#18476b; }
-.sunset-hero-image { position:absolute; inset:0; overflow:hidden; border-radius:inherit; z-index:-2; }
-.sunset-hero-image img { display:block; width:100%; height:100%; object-fit:cover; object-position:center; }
-.sunset-hero-shade { position:absolute; inset:0; border-radius:inherit; z-index:-1; background:linear-gradient(90deg,rgba(5,27,49,.86) 0%,rgba(5,27,49,.6) 38%,rgba(5,27,49,.06) 78%),linear-gradient(0deg,rgba(5,27,49,.2),transparent 55%); }
-.sunset-hero-copy { padding:58px 64px 140px; max-width:730px; color:#fff; }
-.sunset-hero-eyebrow { display:inline-block; margin:0 0 20px; padding:9px 12px; border:1px solid #ffffff50; border-radius:30px; background:#ffffff12; color:#fff; font-size:10px; line-height:1.4; font-weight:650; letter-spacing:.12em; }
-.sunset-hero-copy h1 { margin:0 0 22px; color:#fff; font-size:clamp(40px,4.4vw,64px); line-height:1.07; font-weight:750; letter-spacing:-.045em; }
-.sunset-hero-copy > p:not(.sunset-hero-eyebrow) { margin:0 0 26px; color:#f0f6fc; font-size:15px; line-height:1.8; }
-.sunset-hero-cta { display:inline-flex; align-items:center; justify-content:space-between; gap:28px; min-height:48px; padding:12px 20px; border-radius:12px; background:white; color:#0d4b96; text-decoration:none; font-size:13px; font-weight:700; }
-.sunset-hero-cta:hover { background:#edf6fc; }
-.home-phase1.home-phase1 .search-overlap { position:relative; z-index:2; margin-top:-104px; padding-top:0; padding-bottom:28px; scroll-margin-top:96px; }
-.home-phase1.home-phase1 .search-overlap > .section-kicker { color:#fff; text-align:left; margin:0 0 12px 4px; text-shadow:0 1px 6px #122c4880; }
-.home-phase1.home-phase1 .search-widget { border-radius:24px; background:#fff; box-shadow:0 16px 40px #0d4b9610; border:1px solid #dceaf4; }
+/* Latest approved Flylit-inspired direction: centred copy, aircraft capsule,
+   search below the image and arched destination photography. */
+.zamra-hero { max-width:1160px; width:calc(100% - 80px); margin:0 auto; padding:40px 0 0; }
+.zamra-hero-copy { text-align:center; margin:0 auto 28px; }
+.zamra-hero-copy h1 { margin:18px 0 16px; color:#142b45; font-size:clamp(36px,4.5vw,60px); line-height:1.1; letter-spacing:-.045em; font-weight:750; }
+.zamra-hero-copy h1 span { color:#0d4b96; }
+.zamra-hero-copy > p:last-child { color:#51667b; font-size:15px; line-height:1.7; margin:0; }
+.hero-mobile-break { display:none; }
+.zamra-aircraft-frame { width:100%; border-radius:220px; overflow:hidden; background:#e8f5fc; border:6px solid white; box-shadow:0 0 0 1px #e4edf3; }
+.zamra-aircraft-frame img { display:block; width:100%; height:300px; object-fit:cover; object-position:center 58%; }
+.home-phase1.home-phase1 .search-overlap { padding-top:26px; }
+.home-phase1.home-phase1 .search-overlap > .section-kicker { text-align:center; margin-bottom:14px; }
+.home-phase1.home-phase1 .search-widget { border-radius:24px; background:#fff; box-shadow:0 8px 28px #17365308; }
 .home-phase1.home-phase1 .home-title { text-align:center; }
 .home-phase1.home-phase1 .section-kicker { text-align:center; }
 .home-phase1.home-phase1 .section-heading-row { justify-content:center; }
@@ -128,9 +128,19 @@ body:has(.home-phase1) .footer-agent-cta { background:linear-gradient(110deg,#0d
 .home-phase1.home-phase1 .wa-cta > a { color:#0d4b96; background:#fff; }
 .home-phase1.home-phase1 .wa-cta .section-kicker { text-align:left; }
 @media(max-width:1023px) {
+ .zamra-hero { width:calc(100% - 48px); padding-top:32px; }
+ .zamra-aircraft-frame img { height:260px; }
  .home-phase1.home-phase1 .destination-photo { height:245px; }
 }
 @media(max-width:600px) {
+ .zamra-hero { width:calc(100% - 32px); padding-top:28px; }
+ .zamra-hero-copy { margin-bottom:22px; }
+ .zamra-hero-copy h1 { font-size:36px; margin:14px 0; }
+ .zamra-hero-copy > p:last-child { font-size:13px; line-height:1.65; }
+ .hero-mobile-break { display:block; }
+ .zamra-aircraft-frame { border-radius:110px; border-width:3px; }
+ .zamra-aircraft-frame img { height:155px; object-fit:cover; }
+ .home-phase1.home-phase1 .search-overlap { padding-top:22px; }
  .home-phase1.home-phase1 .popular-route-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
  .home-phase1.home-phase1 .popular-route-card { border-radius:100px 100px 18px 18px; padding:9px 9px 14px; }
  .home-phase1.home-phase1 .destination-photo { height:165px; border-radius:90px; }
@@ -144,31 +154,27 @@ body:has(.home-phase1) .footer-agent-cta { background:linear-gradient(110deg,#0d
 
 /* Carry the app-style mobile shell into the redesigned homepage. */
 @media (max-width:767px) {
+ .zamra-hero { width:calc(100% - 32px); padding-top:20px; }
+ .zamra-hero-copy { margin-bottom:0; }
+ .zamra-hero-copy h1 { font-size:30px; margin:12px 0; }
+ .zamra-hero-copy > p:last-child { font-size:13px; }
+ .zamra-aircraft-frame { display:none; }
+ .home-phase1.home-phase1 .search-overlap { padding-top:16px; }
  .home-phase1.home-phase1 .zamra-offers,
  .home-phase1.home-phase1 .popular-route-grid { display:grid; grid-auto-flow:column; grid-auto-columns:82%; grid-template-columns:none; overflow-x:auto; scroll-snap-type:x proximity; padding-bottom:12px; gap:16px; }
  .zamra-offer,.home-phase1.home-phase1 .popular-route-card { scroll-snap-align:start; }
 }
 
-/* Airy content surfaces keep the hero as the only photographic dark area. */
-.home-phase1.home-phase1 .wa-cta { background:#edf6fc; border:1px solid #dceaf4; color:#122c48; }
-.home-phase1.home-phase1 .wa-cta :is(h2,p) { color:#122c48; }
-.home-phase1.home-phase1 .wa-cta .section-kicker { color:#0d4b96; }
-.home-phase1.home-phase1 .wa-cta > a { color:#fff; background:#0d4b96; }
-@media(max-width:1023px) {
- .zamra-sunset-hero { width:calc(100% - 32px); min-height:480px; border-radius:28px; }
- .sunset-hero-copy { padding:48px 40px 136px; max-width:660px; }
- .home-phase1.home-phase1 .search-overlap { margin-top:-96px; }
+/* Full aircraft framing: preserve the original photo and all wing/engine detail. */
+.zamra-hero { max-width:1320px; width:calc(100% - 48px); }
+.zamra-aircraft-frame { display:block; height:550px; border-radius:999px; padding:12px; background:#e8f5fc; }
+.zamra-aircraft-frame picture { display:block; width:100%; height:100%; }
+.zamra-aircraft-frame img { display:block; width:100%; height:100%; object-fit:contain; object-position:center; }
+@media(min-width:768px) and (max-width:1199px) {
+ .zamra-aircraft-frame { height:400px; }
 }
 @media(max-width:767px) {
- .zamra-sunset-hero { width:calc(100% - 24px); min-height:320px; margin-top:12px; border-radius:24px; }
- .sunset-hero-image img { object-position:68% center; }
- .sunset-hero-shade { background:linear-gradient(90deg,rgba(5,27,49,.84),rgba(5,27,49,.25)); }
- .sunset-hero-copy { padding:26px 24px 58px; }
- .sunset-hero-eyebrow { font-size:8px; letter-spacing:.09em; padding:7px 9px; margin-bottom:16px; }
- .sunset-hero-copy h1 { font-size:clamp(30px,7.8vw,42px); margin-bottom:14px; }
- .sunset-hero-copy > p:not(.sunset-hero-eyebrow) { font-size:12px; margin-bottom:0; line-height:1.7; max-width:285px; }
- .sunset-desktop-break,.sunset-hero-cta { display:none; }
- .home-phase1.home-phase1 .search-overlap { margin-top:-26px; padding-top:0; scroll-margin-top:76px; }
- .home-phase1.home-phase1 .search-overlap > .section-kicker { background:#fff; color:#0d4b96; border:1px solid #dceaf4; border-bottom:0; border-radius:14px 14px 0 0; width:fit-content; margin:0 0 -1px 16px; padding:10px 14px; text-shadow:none; font-size:8px; }
- .home-phase1.home-phase1 .search-widget { border-radius:20px; box-shadow:0 8px 24px #0d4b960a; }
+ .zamra-hero { width:calc(100% - 24px); }
+ .zamra-aircraft-frame { display:block; height:250px; padding:8px; border-width:3px; }
+ .home-phase1.home-phase1 .search-overlap { padding-top:24px; }
 }
