@@ -1,0 +1,12 @@
+{
+  "name": "@zamrabooking/akbar-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test test/*.test.mjs",
+    "start": "node src/server.mjs"
+  },
+  "engines": { "node": ">=22.0.0" }
+}

@@ -99,6 +99,10 @@ The current hardening validation results are recorded in PR #13. Supplier/API/Ad
 2. Confirm OrderID values/type, net vs gross Amount, Options, RT pairing and pending SmartPricer/GetSPricer schemas. Confirm segment/party aggregation, currency rounding and TUI lifespan.
 3. Confirm JWT/session revocation and business token-expiry/whitelist failure codes. Never classify arbitrary codes as expired credentials.
 4. Confirm local datetime timezone/offsets, baggage per passenger/segment, FlightInfo request/response and fare-rule mapping; multicity and RS remain disabled.
-5. Written UAT activation, exact two upstream URLs, approved test routes, account permissions and verified static egress whitelist are required. An approved UAT-only transport/gateway and secure shared session owner are still absent.
+5. Written UAT activation, exact two upstream URLs, approved test routes, account permissions and verified static egress whitelist are required. An isolated mock-only gateway is now prepared in `apps/akbar-gateway`; approved real UAT transport and verified deployment/session ownership remain absent.
 
 Hardening validation: 55 supplier tests (including 30 Akbar subtests) and 16 API/integration tests passed; supplier/API/Admin TypeScript checks passed. Riya and TripJack source directories are byte-for-byte unchanged from the original PR head. No public routing, gateway, database, deployment workflow or secret configuration changes are part of this hardening commit.
+
+## Gateway preparation follow-up
+
+`apps/akbar-gateway` now compiles/reuses this adapter, with HMAC-authenticated Worker request preparation, replay protection, immutable principal-to-UAT-account mapping, bounded requests, rate/concurrency limits, safe logs, account-scoped session ownership and local security tests. It is mock-only; startup cannot enable real API networking or accept provider credentials. See its README for single-owner/restart limitations, outbound-IP/TLS verification, exact endpoint allowlist and future approval gates. No Hostinger/Cloudflare service, DNS, secrets, queues, schedules, migrations or existing TripJack gateway were modified.

@@ -44,3 +44,4 @@ export { AkbarSessionCache } from "./akbar/session.js";
 export type { AkbarScope } from "./akbar/session.js";
 export { AkbarOfferStore } from "./akbar/offers.js";
 export type { AkbarAvailability, AkbarMockContract, AkbarAdapterOptions } from "./akbar/adapter.js";
+export { signedAkbarGatewayRequest } from "./akbar/gateway-auth.js";
