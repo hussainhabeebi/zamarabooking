@@ -16,6 +16,7 @@ import { FOREIGN_CURRENCIES, getFx, type ForeignCurrency } from "./fx.js";
 
 export interface AkbarSettings {
   enabled:     boolean;
+  priority?:   number; // Prepared only; Akbar is not registered with live search.
   environment: "UAT" | "PRODUCTION";
   baseUrl:     string;
   username:    string;
@@ -45,7 +46,7 @@ export interface ManualSettings {
   lastSync?: SheetSyncResult;
 }
 
-export const DEFAULT_AKBAR: AkbarSettings = { enabled: false, environment: "UAT", baseUrl: "", username: "", password: "", agencyCode: "", apiKey: "" };
+export const DEFAULT_AKBAR: AkbarSettings = { enabled: false, priority: 100, environment: "UAT", baseUrl: "", username: "", password: "", agencyCode: "", apiKey: "" };
 export const DEFAULT_POOMAS: PoomasSettings = { enabled: false, apiKey: "", baseUrl: "https://api.flypoomas.com" };
 export const DEFAULT_MANUAL: ManualSettings = { enabled: false, sheetUrl: "", autoSync: true };
 

@@ -35,3 +35,8 @@ export {
   type TripsafeConfirmRequest, type TripsafeAmendmentResult, type TripsafeBookingDetails, type TripsafeTripInput,
 } from "./tripjack/insurance.js";
 export { parseTripjackSeatMap, seatTotal, type SeatOption, type SegmentSeatMap } from "./tripjack/seat-map.js";
+
+// Mock-only integration; never constructed by the production router.
+export { AkbarAdapter, akbarSearchBody, normalizeAkbarItinerary } from "./akbar/adapter.js";
+export { AkbarClient, AkbarError, AKBAR_PATHS, akbarSecretsFromEnv } from "./akbar/client.js";
+export type { AkbarSecrets, AkbarMockTransport, AkbarOperation } from "./akbar/client.js";

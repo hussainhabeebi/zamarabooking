@@ -29,7 +29,7 @@ flightSourcesAdminRoutes.get("/", async (c) => {
     getAkbarSettings(c.env, tenantId), getPoomasSettings(c.env, tenantId), getManualSettings(c.env, tenantId),
   ]);
   return c.json({
-    akbar: { ...akbar, password: mask(akbar.password), apiKey: mask(akbar.apiKey), connected: false },
+    akbar: { ...akbar, enabled: false, password: mask(akbar.password), apiKey: mask(akbar.apiKey), connected: false, searchStatus: "DISABLED", bookingEnabled: false, ticketingEnabled: false, paymentEnabled: false, health: "NOT_VERIFIED", mode: "MOCK_ONLY" },
     poomas: { ...poomas, apiKey: mask(poomas.apiKey) },
     manual,
     sheetColumns: SHEET_COLUMNS,
@@ -40,7 +40,8 @@ flightSourcesAdminRoutes.get("/", async (c) => {
 const keep = (next: string | undefined, saved: string) => (next && !next.includes("•") ? next.trim() : saved);
 
 flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
-  enabled:     z.boolean(),
+  enabled:     z.literal(false),
+  priority:    z.number().int().min(1).max(1000).optional(),
   environment: z.enum(["UAT", "PRODUCTION"]),
   baseUrl:     z.string().trim().url().or(z.literal("")),
   username:    z.string().trim().max(200),
