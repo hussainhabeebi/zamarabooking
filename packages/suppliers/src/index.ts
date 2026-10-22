@@ -40,3 +40,7 @@ export { parseTripjackSeatMap, seatTotal, type SeatOption, type SegmentSeatMap }
 export { AkbarAdapter, akbarSearchBody, normalizeAkbarItinerary } from "./akbar/adapter.js";
 export { AkbarClient, AkbarError, AKBAR_PATHS, akbarSecretsFromEnv } from "./akbar/client.js";
 export type { AkbarSecrets, AkbarMockTransport, AkbarOperation } from "./akbar/client.js";
+export { AkbarSessionCache } from "./akbar/session.js";
+export type { AkbarScope } from "./akbar/session.js";
+export { AkbarOfferStore } from "./akbar/offers.js";
+export type { AkbarAvailability, AkbarMockContract, AkbarAdapterOptions } from "./akbar/adapter.js";
