@@ -1,7 +1,7 @@
 export default function HeroBanner({ banners: _banners }: { banners: unknown[] }) {
   return (
     <section className="zamra-hero client-sunset-hero" aria-labelledby="home-heading">
-      <img className="client-hero-photo" src="/hero/airplane-wing-clouds.webp" alt="Airplane wing above sunset clouds" width="1920" height="768" fetchPriority="high" />
+      <img className="client-hero-photo" src="/hero/zamra-client-aircraft.webp" alt="Passenger aircraft above golden clouds" width="2048" height="682" fetchPriority="high" />
       <div className="zamra-hero-copy">
         <p className="section-kicker">ZAMRA TRAVELS · KERALA &amp; THE GULF</p>
         <h1 id="home-heading">Your Next Journey<br />Starts Here</h1>
