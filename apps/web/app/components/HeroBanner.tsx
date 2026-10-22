@@ -2,7 +2,6 @@ export default function HeroBanner({ banners: _banners }: { banners: unknown[] }
   return (
     <section className="zamra-sunset-hero" aria-labelledby="home-heading">
       <picture className="sunset-hero-image">
-        <source media="(max-width: 767px)" srcSet="/hero/airplane-wing-clouds-mobile.webp" />
         <img src="/hero/airplane-wing-clouds.webp" alt="Airplane wing above sunset clouds" width="1920" height="768" fetchPriority="high" />
       </picture>
       <div className="sunset-hero-shade" aria-hidden="true" />
