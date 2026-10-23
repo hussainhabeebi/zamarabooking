@@ -53,12 +53,12 @@ export default function AccountPage() {
           <img className="account-entry-logo" src="/logo.png" alt="" width="60" height="60" />
           <p className="account-entry-eyebrow">WELCOME TO ZAMRABOOKING</p>
           <h1 id="account-entry-title">Your ZamraBooking account</h1>
-          <p className="account-entry-intro">Manage your bookings, saved travellers, wallet and travel details in one place.</p>
+          <p className="account-entry-intro">Manage your bookings, saved travellers and travel details in one place.</p>
           <div className="account-entry-actions"><a href="/login?next=/account" className="account-entry-primary">Sign in</a><a href="/signup?next=/account" className="account-entry-secondary">Create account</a></div>
           <div className="account-entry-benefits" aria-label="Your account can help you">
             <span>Manage your trips</span>
             <span>Save traveller details</span>
-            <span>Access your wallet</span>
+            <span>Keep your profile up to date</span>
           </div>
         </section>
       </main>
@@ -74,7 +74,6 @@ export default function AccountPage() {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 14 }}>
         <a href="/trips" style={tile}>✈️ <strong>My Trips</strong><small>Bookings, e-tickets, cancellations</small></a>
-        <a href="/wallet" style={tile}>👛 <strong>Wallet</strong><small>Balance, bonus & coupons</small></a>
         <a href="/trips/find" style={tile}>🔎 <strong>Find a booking</strong><small>Guest booking by PNR</small></a>
       </div>
 

@@ -8,8 +8,8 @@ const quickLinks = [
 ];
 const services = [
   ["Flight booking", "/#flight-search"], ["Hotels", "/hotels"],
-  ["Travel assistance", "/travel-check"], ["Travel insurance", "/insurance"],
-  ["Wallet", "/wallet"], ["My account", "/account"], ["Register your agency", `${PORTAL_URL}/register`],
+  ["Travel assistance", "/travel-check"],
+  ["My account", "/account"], ["Register your agency", `${PORTAL_URL}/register`],
 ];
 
 export default function SiteFooter() {

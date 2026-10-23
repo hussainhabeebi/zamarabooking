@@ -25,7 +25,7 @@ export default function SignupPage() {
       if (!res.ok || !data.token) throw new Error(data.error ?? "Could not create your account. Please try again.");
       document.cookie = `zamra_token=${data.token}; Path=/; SameSite=Lax; Secure; Max-Age=86400`;
       const next = new URLSearchParams(window.location.search).get("next");
-      window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/wallet");
+      window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/account");
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -37,7 +37,7 @@ export default function SignupPage() {
       <section style={{ width: "100%", maxWidth: 420, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "28px 22px", boxShadow: "0 18px 45px rgba(15,23,42,.08)" }}>
         <h1 style={{ margin: "0 0 6px", fontSize: 24, fontWeight: 800, color: "#0f172a" }}>Create your account</h1>
         <p style={{ margin: "0 0 20px", color: "#64748b", fontSize: 14 }}>
-          Earn <strong style={{ color: "#0D4B96" }}>₹50 wallet bonus</strong> on every confirmed booking and pay with your wallet next time.
+          Manage your bookings and save traveller details for your next journey.
         </p>
         {error && <div style={{ background: "#FEE2E2", color: "#991B1B", padding: "10px 12px", borderRadius: 8, fontSize: 13, marginBottom: 14 }}>{error}</div>}
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
