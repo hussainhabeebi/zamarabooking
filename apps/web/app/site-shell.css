@@ -82,7 +82,7 @@ body .zamra-footer .footer-credits a { color:#c6deef; }
  body .zamra-header .home-mobile-menu-panel .secondary-hotels { display:flex; }
  body .zamra-header .home-mobile-menu-panel .secondary-wallet { display:none; }
  body .zamra-header .home-mobile-menu-panel .mobile-account-fallback { display:flex; }
- body .zamra-header .mobile-tab-bar { inset:auto 0 0; }
+ body .zamra-header .mobile-tab-bar { inset:auto 0 0; grid-template-columns:repeat(4,minmax(0,1fr)); }
  body .site-footer.site-footer.zamra-footer { margin-top:40px; }
  body .zamra-footer .site-footer-inner { padding:22px 24px; }
  .footer-five-columns { grid-template-columns:1fr 1fr; gap:30px 22px; }

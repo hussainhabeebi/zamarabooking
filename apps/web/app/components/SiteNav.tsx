@@ -83,16 +83,14 @@ export default function SiteNav() {
   const navItems = [
     { key: "flights", label: "Flights", href: flightSearchUrl(), icon: <><path d="m3 21 8-8-6-2-2 2-2-1 3-4 9 1 6-6a2 2 0 0 1 3 3l-6 6 1 9-4 3-1-2 2-2-2-6-8 8Z" /></> },
     { key: "hotels", label: "Hotels", href: "/hotels", icon: <><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M9 21v-5h6v5M8 7h1m6 0h1M8 11h1m6 0h1" /></> },
-    { key: "insurance", label: "Insurance", href: "/insurance", icon: <><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6l-8-3Z" /><path d="m9 12 2 2 4-4" /></> },
     { key: "trips", label: "My Trips", href: "/trips", icon: <><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18m-10 0v2h2v-2" /></> },
-    { key: "wallet", label: "Wallet", href: "/wallet", icon: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18m-5 6h2" /></> },
   ];
 
   const portalUrl = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/+$/, "");
   const primaryItems = [{ key: "home", label: "Home", href: "/" }, ...navItems.filter(({ key }) => ["flights", "hotels", "trips"].includes(key))];
   function isActive(key: string) { return key === "home" ? pathname === "/" : active === key; }
   const secondaryItems = [
-    ...navItems.filter(({ key }) => ["hotels", "insurance", "wallet"].includes(key)),
+    ...navItems.filter(({ key }) => key === "hotels"),
     { key: "assistance", label: "Travel assistance", href: "/travel-check" },
     { key: "agents", label: "Agent Portal", href: `${portalUrl}/login` },
     { key: "register", label: "Register your agency", href: `${portalUrl}/register` },
@@ -104,7 +102,7 @@ export default function SiteNav() {
       {showMobileTabs && <div className="mobile-tab-bar" role="group" aria-label="Quick navigation">
         <Link prefetch={false} href="/" aria-current={pathname === "/" ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-6v-7H9v7H3Z" /></svg><span>Home</span></Link>
         <Link prefetch={false} href="/#flight-search" aria-current={active === "flights" ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6" /></svg><span>Search</span></Link>
-        {navItems.filter(({ key }) => key === "trips" || key === "wallet").map(({ key, label, href, icon }) => <Link prefetch={false} key={key} href={href} aria-current={active === key ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">{icon}</svg><span>{label}</span></Link>)}
+        {navItems.filter(({ key }) => key === "trips").map(({ key, label, href, icon }) => <Link prefetch={false} key={key} href={href} aria-current={active === key ? "page" : undefined}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">{icon}</svg><span>{label}</span></Link>)}
         <Link prefetch={false} href="/account" aria-current={pathname.startsWith("/account") ? "page" : undefined}>{accountIcon}<span>Account</span></Link>
       </div>}
       <div className="site-nav-links">
