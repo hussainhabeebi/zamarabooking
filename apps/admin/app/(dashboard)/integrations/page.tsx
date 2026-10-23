@@ -1,4 +1,5 @@
 "use client";
+import { AkbarSupplierCard } from "../../../components/AkbarSupplierCard";
 import { useEffect, useState } from "react";
 import { API, apiHeaders } from "@/lib/api";
 import { HotelCitySync } from "./HotelCitySync";
@@ -123,6 +124,8 @@ export default function IntegrationsPage() {
       <p style={{ color: "#64748b", fontSize: 14, marginBottom: 28 }}>
         Configure external API suppliers: TripJack (insurance + cabs), Duffel (flights), and Google Flights SERP.
       </p>
+
+      <AkbarSupplierCard />
 
       {/* ── SERP ──────────────────────────────────────────────────── */}
       <Section color="#ea4335" title="Google Flights SERP" badge="serpapi.com · indicative only">
