@@ -1,0 +1,68 @@
+# REVIEW TEMPLATE ONLY. No live rollback command is executable here.
+name: Approved Akbar Admin API rollback
+on:
+  workflow_dispatch:
+    inputs:
+      worker:
+        type: choice
+        options: [zamra-admin, zamra-api]
+        required: true
+      authorization:
+        description: Type RESTORE_RECORDED_AKBAR_BASELINE
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: zamra-production-platform
+  cancel-in-progress: false
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      AUTHORIZATION: ${{ inputs.authorization }}
+      OWNER_CHECKS: ${{ vars.AKBAR_ADMIN_API_PREFLIGHT_VERIFIED }}
+    steps:
+      - name: Verify protected approval remains available
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$AUTHORIZATION" = RESTORE_RECORDED_AKBAR_BASELINE
+          test "$OWNER_CHECKS" = true
+          gh api "repos/$REPO/branches/main" > "$RUNNER_TEMP/main.json"
+          gh api "repos/$REPO/environments/production-admin-api" > "$RUNNER_TEMP/environment.json"
+          node <<'JS'
+          const fs=require('fs');
+          const b=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/main.json'));
+          const e=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/environment.json'));
+          const r=e.protection_rules?.find(x=>x.type==='required_reviewers');
+          if (!b.protected || !r?.reviewers?.length || r.prevent_self_review!==true || e.can_admins_bypass!==false || e.deployment_branch_policy?.protected_branches!==true) throw Error('Rollback protections not verified');
+          JS
+  rollback:
+    needs: governance
+    environment: production-admin-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WORKER: ${{ inputs.worker }}
+    steps:
+      - name: Select only the recorded baseline
+        run: |
+          set -euo pipefail
+          case "$WORKER" in
+            zamra-admin) version=e4870e28-6fab-4958-8456-900e9dbd54eb ;;
+            zamra-api) version=59904189-01bf-44b6-bbb0-33eb8cc77fc2 ;;
+            *) exit 1 ;;
+          esac
+          echo "Proposed restoration: $WORKER version $version at 100%"
+      - name: Production operations stay locked until reviewed live preflight exists
+        run: |
+          echo 'STOP: Verify baseline retrievability, resource/secret compatibility and token permissions.'
+          echo 'No rollback command is executable in this preparation template.'
+          exit 1
+# Future reviewed rollback: exact recorded version at 100%, no upload/build,
+# no force, no migrations, no secrets or trigger commands. Restore Admin first
+# if promoted; API-only failure requires API-only restoration. Abort competing run.

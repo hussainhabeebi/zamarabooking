@@ -1,0 +1,112 @@
+# REVIEW TEMPLATE ONLY. Kept outside .github/workflows intentionally.
+# Do not install/dispatch until owner checks in akbar-production-approval.md pass.
+name: Approved Akbar Admin API release
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        type: choice
+        options: [upload-api, promote-api, upload-admin, promote-admin]
+        required: true
+      release_sha:
+        description: Full immutable approved main commit SHA
+        required: true
+      candidate_version:
+        description: Full inspected version UUID; required for promotion
+        required: false
+      api_release_version:
+        description: Verified new API UUID; required before Admin steps
+        required: false
+      authorization:
+        description: Type PUBLISH_DISABLED_AKBAR_ADMIN
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: zamra-production-platform
+  cancel-in-progress: false
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      AUTHORIZATION: ${{ inputs.authorization }}
+      APPROVED_SHA: ${{ vars.AKBAR_ADMIN_API_APPROVED_SHA }}
+      OWNER_CHECKS: ${{ vars.AKBAR_ADMIN_API_PREFLIGHT_VERIFIED }}
+    steps:
+      - name: Fail closed on missing owner evidence and protections
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$AUTHORIZATION" = PUBLISH_DISABLED_AKBAR_ADMIN
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$APPROVED_SHA" = "$RELEASE_SHA"
+          test "$OWNER_CHECKS" = true
+          gh api "repos/$REPO/branches/main" > "$RUNNER_TEMP/main.json"
+          gh api "repos/$REPO/environments/production-admin-api" > "$RUNNER_TEMP/environment.json"
+          node <<'JS'
+          const fs = require('fs');
+          const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/main.json'));
+          const e = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/environment.json'));
+          const r = e.protection_rules?.find(x=>x.type==='required_reviewers');
+          if (!b.protected || b.commit.sha!==process.env.RELEASE_SHA || !r?.reviewers?.length || r.prevent_self_review!==true || e.can_admins_bypass!==false || e.deployment_branch_policy?.protected_branches!==true) throw Error('Release protections not verified');
+          JS
+  release:
+    needs: governance
+    environment: production-admin-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PHASE: ${{ inputs.phase }}
+      CANDIDATE: ${{ inputs.candidate_version }}
+      API_RELEASE_VERSION: ${{ inputs.api_release_version }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      NEXT_PUBLIC_API_URL: https://api.zamrabooking.com
+      API_BASE_URL: https://api.zamrabooking.com
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Verify immutable target and phase
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          case "$PHASE" in upload-api|promote-api|upload-admin|promote-admin) ;; *) exit 1;; esac
+          if [[ "$PHASE" == promote-* ]]; then [[ "$CANDIDATE" =~ ^[0-9a-f-]{36}$ ]]; fi
+          if [[ "$PHASE" == *-admin ]]; then [[ "$API_RELEASE_VERSION" =~ ^[0-9a-f-]{36}$ ]]; fi
+          # Owner must verify candidate settings and API health BEFORE approving
+          # a promotion/Admin dispatch. See companion runbook; no automatic promotion.
+      - name: Fresh production Admin build only for upload-admin
+        if: inputs.phase == 'upload-admin'
+        working-directory: apps/admin
+        run: |
+          set -euo pipefail
+          rm -rf .next .open-next
+          pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+          if grep -R -l '127\.0\.0\.1:9' .open-next/assets >/dev/null; then
+            echo 'Validation URL found; refusing upload'; exit 1
+          fi
+          grep -R -l 'https://api.zamrabooking.com' .open-next/assets >/dev/null
+      - name: Production operations stay locked until reviewed live preflight exists
+        run: |
+          echo 'STOP: This template deliberately has no executable Cloudflare upload or promotion step.'
+          echo 'Add reviewed token-permission, live-version/settings comparison and rollback checks before installation.'
+          exit 1
+# Future reviewed production steps MUST use versions upload --keep-vars and
+# explicit version promotion, never wrangler deploy or triggers deploy.
+# Promotion must be a SEPARATE manual dispatch after candidate inspection.
+# This template is intentionally incomplete/locked; see companion owner gates.
