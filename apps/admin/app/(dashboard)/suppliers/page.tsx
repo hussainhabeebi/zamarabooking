@@ -1,3 +1,4 @@
+import { AkbarSupplierCard } from "../../../components/AkbarSupplierCard";
 import { serverAuthHeaders } from "../../../lib/server";
 const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const SERVER_TOKEN = process.env.ADMIN_SERVICE_TOKEN ?? "";
@@ -42,6 +43,7 @@ export default async function SuppliersPage() {
         Platform-level supplier configuration. Tenant-specific overrides are set per-tenant.
       </p>
 
+      <AkbarSupplierCard />
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {suppliers.map((s) => {
           const meta = SUPPLIER_LABELS[s.supplier] ?? { label: s.supplier, description: "", color: "#6366f1" };
