@@ -10,7 +10,12 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { Env, Variables } from "../../types.js";
 
+import { akbarAdminRoutes } from "./akbar.js";
+import { akbarAdminStatus } from "../../lib/akbar-admin.js";
+
 export const integrationsAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+integrationsAdminRoutes.route("/akbar", akbarAdminRoutes);
 
 const KV_TTL = 60 * 60 * 24 * 365;  // 1 year
 
@@ -191,5 +196,5 @@ integrationsAdminRoutes.get("/", async (c) => {
       return { supplier: s, configured: !!saved?.apiKey, enabled: saved?.enabled ?? false };
     }),
   );
-  return c.json(results);
+  return c.json([...results, await akbarAdminStatus(c.env, tenantId)]);
 });

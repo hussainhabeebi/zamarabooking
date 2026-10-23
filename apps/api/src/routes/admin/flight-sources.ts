@@ -11,11 +11,14 @@ import { manualFares } from "@zamrabooking/db/schema";
 import { PoomasAdapter } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
 import {
-  getAkbarSettings, getManualSettings, getPoomasSettings, saveAkbarSettings, saveManualSettings, savePoomasSettings,
+  getManualSettings, getPoomasSettings, saveManualSettings, savePoomasSettings,
   SHEET_COLUMNS, sheetCsvUrl, syncManualFaresSheet, validateManualFare,
 } from "../../lib/flight-sources.js";
 
+import { akbarAdminStatus, saveAkbarPriority } from "../../lib/akbar-admin.js";
+
 export const flightSourcesAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
 
 const mask = (v: string) => (!v ? "" : v.length > 8 ? `${v.slice(0, 4)}${"•".repeat(Math.min(v.length - 8, 12))}${v.slice(-4)}` : "•".repeat(v.length));
 
@@ -25,11 +28,11 @@ const fullAdminOnly = (role: string | undefined) => {
 
 flightSourcesAdminRoutes.get("/", async (c) => {
   const tenantId = c.get("tenantId");
-  const [akbar, poomas, manual] = await Promise.all([
-    getAkbarSettings(c.env, tenantId), getPoomasSettings(c.env, tenantId), getManualSettings(c.env, tenantId),
+  const [poomas, manual] = await Promise.all([
+    getPoomasSettings(c.env, tenantId), getManualSettings(c.env, tenantId),
   ]);
   return c.json({
-    akbar: { ...akbar, enabled: false, password: mask(akbar.password), apiKey: mask(akbar.apiKey), connected: false, searchStatus: "DISABLED", bookingEnabled: false, ticketingEnabled: false, paymentEnabled: false, health: "NOT_VERIFIED", mode: "MOCK_ONLY" },
+    akbar: await akbarAdminStatus(c.env, tenantId),
     poomas: { ...poomas, apiKey: mask(poomas.apiKey) },
     manual,
     sheetColumns: SHEET_COLUMNS,
@@ -39,22 +42,13 @@ flightSourcesAdminRoutes.get("/", async (c) => {
 // Secrets left blank (or still masked) keep their saved value.
 const keep = (next: string | undefined, saved: string) => (next && !next.includes("•") ? next.trim() : saved);
 
+// Legacy path supports priority only; credentials/activation must not enter KV via Admin.
 flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
-  enabled:     z.literal(false),
-  priority:    z.number().int().min(1).max(1000).optional(),
-  environment: z.enum(["UAT", "PRODUCTION"]),
-  baseUrl:     z.string().trim().url().or(z.literal("")),
-  username:    z.string().trim().max(200),
-  password:    z.string().max(500).optional(),
-  agencyCode:  z.string().trim().max(100),
-  apiKey:      z.string().max(500).optional(),
-})), async (c) => {
+  enabled: z.literal(false).optional(), environment: z.literal("UAT").optional(),
+  priority: z.number().int().min(1).max(1000),
+}).strict()), async (c) => {
   fullAdminOnly(c.get("userRole"));
-  const body = c.req.valid("json");
-  const saved = await getAkbarSettings(c.env, c.get("tenantId"));
-  await saveAkbarSettings(c.env, c.get("tenantId"), {
-    ...body, password: keep(body.password, saved.password), apiKey: keep(body.apiKey, saved.apiKey),
-  });
+  await saveAkbarPriority(c.env, c.get("tenantId"), c.req.valid("json").priority);
   return c.json({ ok: true });
 });
 

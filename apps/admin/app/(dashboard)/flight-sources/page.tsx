@@ -1,10 +1,10 @@
 "use client";
+import { AkbarSupplierCard } from "../../../components/AkbarSupplierCard";
 import { useEffect, useState } from "react";
 import { API, apiHeaders } from "@/lib/api";
 
 type SyncResult = { at: string; ok: boolean; imported: number; skipped: number; errors: string[] };
 type Sources = {
-  akbar:  { priority?: number; enabled: boolean; environment: "UAT" | "PRODUCTION"; baseUrl: string; username: string; password: string; agencyCode: string; apiKey: string; connected: boolean };
   poomas: { enabled: boolean; apiKey: string; baseUrl: string };
   manual: { enabled: boolean; sheetUrl: string; autoSync: boolean; lastSync?: SyncResult };
   sheetColumns: string[];
@@ -24,7 +24,6 @@ export default function FlightSourcesPage() {
   const [error, setError] = useState("");
   const [msg, setMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [busy, setBusy] = useState("");
-  const [akbarSecrets, setAkbarSecrets] = useState({ password: "", apiKey: "" });
   const [poomasKey, setPoomasKey] = useState("");
   const [test, setTest] = useState({ origin: "COK", destination: "DXB", departureDate: tomorrow() });
 
@@ -40,7 +39,7 @@ export default function FlightSourcesPage() {
 
   if (error) return <div style={errBox}>{error}</div>;
   if (!data) return <p style={{ color: "#64748b" }}>Loading…</p>;
-  const { akbar, poomas, manual } = data;
+  const { poomas, manual } = data;
   const set = <K extends keyof Sources>(k: K, patch: Partial<Sources[K]>) => setData({ ...data, [k]: { ...(data[k] as object), ...patch } });
 
   return (
@@ -52,34 +51,7 @@ export default function FlightSourcesPage() {
         Admin → Bookings until staff issue the ticket and enter the PNR, which emails the e-ticket to the customer.
       </p>
 
-      {/* ── Akbar Travels ── */}
-      <Section color="#f59e0b" title="Akbar Travels API" badge="mock-only · not connected">
-        <p style={hint}>
-          Akbar is prepared for offline mock testing. Search, booking, ticketing and payments remain disabled until sandbox access, static IP whitelisting and connectivity are separately verified. Production credentials are not used by the mock adapter.
-        </p>
-        <form onSubmit={(e) => { e.preventDefault(); run("akbar", async () => {
-          await call("/akbar", "PUT", { ...akbar, enabled: false, password: akbarSecrets.password, apiKey: akbarSecrets.apiKey });
-          setAkbarSecrets({ password: "", apiKey: "" }); await load(); return "Saved.";
-        }); }} style={formGrid}>
-          <p style={hint}>Search: Disabled · Booking: Disabled · Ticketing/payment: Disabled · Health: Not verified</p>
-          <Field label="Supplier priority (prepared only)"><input type="number" min={1} max={1000} value={akbar.priority ?? 100} onChange={(e) => set("akbar", { priority: Number(e.target.value) })} style={input} /></Field>
-          <Field label="Environment">
-            <select value={akbar.environment} onChange={(e) => set("akbar", { environment: e.target.value as "UAT" | "PRODUCTION" })} style={input}>
-              <option value="UAT">UAT / test</option><option value="PRODUCTION">Production</option>
-            </select>
-          </Field>
-          <Field label="API base URL"><input value={akbar.baseUrl} onChange={(e) => set("akbar", { baseUrl: e.target.value })} placeholder="https://… (from Akbar)" style={input} /></Field>
-          <Field label="Agency / client code"><input value={akbar.agencyCode} onChange={(e) => set("akbar", { agencyCode: e.target.value })} style={input} /></Field>
-          <Field label="Username"><input value={akbar.username} onChange={(e) => set("akbar", { username: e.target.value })} autoComplete="off" style={input} /></Field>
-          <Field label={`Password${akbar.password ? ` (saved ${akbar.password})` : ""}`}>
-            <input type="password" value={akbarSecrets.password} onChange={(e) => setAkbarSecrets((s) => ({ ...s, password: e.target.value }))} placeholder={akbar.password ? "Leave blank to keep" : ""} autoComplete="new-password" style={input} />
-          </Field>
-          <Field label={`API key / token${akbar.apiKey ? ` (saved ${akbar.apiKey})` : ""}`}>
-            <input type="password" value={akbarSecrets.apiKey} onChange={(e) => setAkbarSecrets((s) => ({ ...s, apiKey: e.target.value }))} placeholder={akbar.apiKey ? "Leave blank to keep" : "If Akbar issues one"} autoComplete="off" style={input} />
-          </Field>
-          <Actions busy={busy === "akbar"} msg={msg.akbar} />
-        </form>
-      </Section>
+      <AkbarSupplierCard />
 
       {/* ── Poomas ── */}
       <Section color="#E31E24" title="Poomas API" badge={poomas.enabled ? "live in search" : "off"}>
