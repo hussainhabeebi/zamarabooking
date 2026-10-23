@@ -1,0 +1,65 @@
+name: Admin API release checks (no production access)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-api-checks-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Node 22 Admin API validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+      API_BASE_URL: http://127.0.0.1:9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: TypeScript checks
+        run: |
+          pnpm --filter @zamrabooking/admin typecheck
+          pnpm --filter @zamrabooking/api typecheck
+          pnpm --filter @zamrabooking/suppliers exec tsc --noEmit
+      - name: Supplier regression tests (local fixtures)
+        run: node --test packages/suppliers/test/*.test.cjs
+      - name: Admin API regression tests (local mocks)
+        run: pnpm --filter @zamrabooking/db exec node --import tsx --test ../../apps/api/test/akbar-config.test.ts ../../apps/api/test/flight-sources.test.ts ../../apps/api/test/itinerary.test.ts
+      - name: Admin production build
+        run: pnpm --filter @zamrabooking/admin build
+      - name: Admin Cloudflare build (no upload)
+        working-directory: apps/admin
+        run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+      - name: Document production gate
+        run: |
+          echo 'Validation only: this workflow has no Cloudflare credentials or deployment commands.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Production release is blocked pending verified configuration, rollback and owner approval. See docs/akbar-admin-release-plan.md.' >> "$GITHUB_STEP_SUMMARY"
+
+  production-gate:
+    name: Production release locked pending owner verification
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail closed without production access
+        run: |
+          echo 'Production is intentionally not armed. Verify Cloudflare baseline, rollback, external integrations and explicit approval before reviewing a promotion-only follow-up workflow.'
+          exit 1

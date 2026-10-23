@@ -38,6 +38,10 @@ suppliersAdminRoutes.get("/", async (c) => {
 suppliersAdminRoutes.patch("/:supplier", async (c) => {
   requireRole("TENANT_ADMIN", "SUPER_ADMIN")(c.get("userRole"));
 
+  // Akbar is metadata/KV-only and cannot enter the live database supplier router.
+  if (c.req.param("supplier").toUpperCase() === "AKBAR")
+    return c.json({ error: "Akbar is disabled. Manage test priority in Integrations." }, 409);
+
   const body = await c.req.json() as {
     isEnabled?: boolean;
     priority?:  number;

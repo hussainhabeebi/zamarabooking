@@ -16,6 +16,7 @@ import { FOREIGN_CURRENCIES, getFx, type ForeignCurrency } from "./fx.js";
 
 export interface AkbarSettings {
   enabled:     boolean;
+  priority?:   number; // Metadata only; Akbar remains disabled.
   environment: "UAT" | "PRODUCTION";
   baseUrl:     string;
   username:    string;

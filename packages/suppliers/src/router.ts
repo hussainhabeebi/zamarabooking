@@ -18,6 +18,7 @@ export interface SupplierConfig {
 // Tenant DB credentials always win; these fill the gap when a supplier is
 // enabled but the tenant hasn't supplied their own API keys yet.
 export interface PlatformCredentials {
+  AKBAR?: never; // No production credentials or network adapter in this phase.
   RIYA?:        { apiKey?: string; secretKey?: string; baseUrl?: string };
   TRIPJACK?:    { apiKey?: string; baseUrl?: string; omsBaseUrl?: string; proxyKey?: string };
   GOOGLE_SERP?: { apiKey?: string; baseUrl?: string };
@@ -63,6 +64,7 @@ function diagnosticFromError(err: unknown, durationMs: number): SupplierDiagnost
 // Creates an adapter instance from config.
 // Tenant DB credentials take priority; platform secrets fill any missing fields.
 function buildAdapter(config: SupplierConfig, platform: PlatformCredentials = {}): SupplierAdapter {
+  if (config.name === "AKBAR") throw new Error("Akbar live search is disabled; mock adapter is not registered");
   const platformFallback = (platform[config.name] ?? {}) as SupplierCredentials;
   const creds: SupplierCredentials = { ...platformFallback, ...(config.credentials ?? {}) };
   switch (config.name) {
