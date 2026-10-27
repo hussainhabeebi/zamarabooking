@@ -366,3 +366,13 @@ test("Akbar calls go through the gateway when one is set", async () => {
   assert.deepEqual(direct, [undefined]);
   await assert.rejects(new AkbarClient({ ...akbarCreds, gatewayUrl: "https://gw.test" }, fetchImpl).signature(), /AKBAR_GATEWAY_KEY/);
 });
+
+test("Akbar client calls the global fetch unbound (Workers reject this-bound fetch)", async () => {
+  const realFetch = globalThis.fetch;
+  let receiver: unknown = "unset";
+  globalThis.fetch = function (this: unknown) { receiver = this; return Promise.resolve(json({ Token: "jwt" })); } as unknown as typeof fetch;
+  try {
+    await new AkbarClient(akbarCreds).signature();
+    assert.equal(receiver, undefined);
+  } finally { globalThis.fetch = realFetch; }
+});
