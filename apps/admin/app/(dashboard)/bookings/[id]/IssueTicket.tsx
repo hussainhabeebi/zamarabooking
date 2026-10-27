@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { API, apiHeaders } from "../../../../lib/api";
 
-const SOURCE: Record<string, string> = { POOMAS: "Poomas", MANUAL: "manual fare" };
+const SOURCE: Record<string, string> = { POOMAS: "Poomas", AKBAR: "Akbar Travels", MANUAL: "manual fare" };
+const ISSUE_ON: Record<string, string> = { POOMAS: "Book it on Poomas", AKBAR: "Book it on the Akbar Travels portal" };
+const REF_LABEL: Record<string, string> = { POOMAS: "Poomas booking ID", AKBAR: "Akbar Transaction ID" };
 
 // Poomas / manual fare bookings: staff issue the ticket outside Zamra, then enter
 // the PNR here. The API saves it, builds the e-ticket and emails the customer.
@@ -39,14 +41,14 @@ export function IssueTicket({ booking, passengers, onDone }: {
         {issued ? "Ticket issued" : "Paid — waiting for staff to issue the ticket"}
       </div>
       <p style={{ color: "#cbd5e1", fontSize: 13, margin: "0 0 12px", lineHeight: 1.5 }}>
-        This is a {SOURCE[booking.supplier] ?? booking.supplier} booking. {booking.supplier === "POOMAS" ? "Book it on Poomas" : "Issue it with the airline / consolidator"}, then enter the airline PNR
+        This is a {SOURCE[booking.supplier] ?? booking.supplier} booking. {ISSUE_ON[booking.supplier] ?? "Issue it with the airline / consolidator"}, then enter the airline PNR
         {issued ? " to correct it." : " and ticket numbers. Saving sends the e-ticket to the customer."}
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
         <label style={lbl}>Airline PNR *
           <input required value={pnr} onChange={(e) => setPnr(e.target.value.toUpperCase())} maxLength={8} placeholder="e.g. X7KQ2P" style={input} />
         </label>
-        <label style={lbl}>{booking.supplier === "POOMAS" ? "Poomas booking ID" : "Supplier reference"} (optional)
+        <label style={lbl}>{REF_LABEL[booking.supplier] ?? "Supplier reference"} (optional)
           <input value={ref} onChange={(e) => setRef(e.target.value)} maxLength={100} style={input} />
         </label>
         {passengers.map((p, i) => (

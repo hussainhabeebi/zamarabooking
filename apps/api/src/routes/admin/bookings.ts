@@ -244,7 +244,7 @@ bookingsAdminRoutes.post("/:id/issue-ticket", zValidator("json", z.object({
   supplierRef:   z.string().trim().max(100).optional(),
 })), async (c) => {
   const b = await loadBooking(c, c.req.param("id"));
-  if (!isOfflineSupplier(b.supplier)) throw new HTTPException(400, { message: "Only Poomas and manual fare bookings are ticketed here." });
+  if (!isOfflineSupplier(b.supplier)) throw new HTTPException(400, { message: "Only Poomas, Akbar and manual fare bookings are ticketed here." });
   if (b.status !== "CONFIRMED" && b.status !== "TICKETED") {
     throw new HTTPException(400, { message: b.status === "PAYMENT_PENDING" ? "The customer hasn't paid for this booking yet." : `This booking is ${b.status}.` });
   }

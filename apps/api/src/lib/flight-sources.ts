@@ -1,5 +1,6 @@
 // Zamra's flight sources besides TripJack, all set up in Admin → Flight Sources:
-//   • Akbar Travels API — settings only until Akbar's API documentation arrives.
+//   • Akbar Travels API (Benzy B2B) — live search; booked offline (staff ticket on Akbar)
+//     until the CreateItinerary booking flow is built.
 //   • Poomas Partner API — live search; booked offline (staff ticket on Poomas).
 //   • Manual fares — Admin table + Google Sheet sync; booked offline.
 // "Offline" fares are paid on Zamra like any fare; the booking then waits in
@@ -8,20 +9,25 @@
 import { and, eq, gte, sql } from "drizzle-orm";
 import { manualFares, tenants } from "@zamrabooking/db/schema";
 import type { Db } from "@zamrabooking/db";
-import type { NormalizedFare, SearchParams } from "@zamrabooking/suppliers";
+import { AKBAR_TOKEN_TTL_SECONDS, AkbarClient, type AkbarToken, type NormalizedFare, type SearchParams } from "@zamrabooking/suppliers";
 import type { Env } from "../types.js";
 import { FOREIGN_CURRENCIES, getFx, type ForeignCurrency } from "./fx.js";
 
 // ── Settings (TENANT_CACHE_KV, like the other Admin integrations) ────────────
 
+// Field names follow Akbar's Signature request (MerchantID, ApiKey, ClientID, …).
 export interface AkbarSettings {
   enabled:     boolean;
   environment: "UAT" | "PRODUCTION";
-  baseUrl:     string;
-  username:    string;
-  password:    string;
-  agencyCode:  string;
+  utilsUrl:    string;
+  flightsUrl:  string;
+  merchantId:  string;
   apiKey:      string;
+  clientId:    string;
+  password:    string;
+  agentCode:   string;
+  browserKey:  string;
+  key:         string;
 }
 
 export interface PoomasSettings {
@@ -45,7 +51,11 @@ export interface ManualSettings {
   lastSync?: SheetSyncResult;
 }
 
-export const DEFAULT_AKBAR: AkbarSettings = { enabled: false, environment: "UAT", baseUrl: "", username: "", password: "", agencyCode: "", apiKey: "" };
+export const AKBAR_TEST_URLS = { utilsUrl: "https://b2bapiutils.benzyinfotech.com", flightsUrl: "https://b2bapiflights.benzyinfotech.com" };
+export const DEFAULT_AKBAR: AkbarSettings = {
+  enabled: false, environment: "UAT", ...AKBAR_TEST_URLS,
+  merchantId: "", apiKey: "", clientId: "", password: "", agentCode: "", browserKey: "", key: "",
+};
 export const DEFAULT_POOMAS: PoomasSettings = { enabled: false, apiKey: "", baseUrl: "https://api.flypoomas.com" };
 export const DEFAULT_MANUAL: ManualSettings = { enabled: false, sheetUrl: "", autoSync: true };
 
@@ -61,29 +71,49 @@ async function saveSettings(env: Env, tenantId: string, source: SourceKey, value
   await env.TENANT_CACHE_KV.put(settingsKey(tenantId, source), JSON.stringify(value));
 }
 
-export const getAkbarSettings  = (env: Env, tenantId: string) => loadSettings(env, tenantId, "akbar", DEFAULT_AKBAR);
+// Settings saved before the Benzy fields existed (baseUrl, username, agencyCode) are dropped.
+export const getAkbarSettings = async (env: Env, tenantId: string): Promise<AkbarSettings> => {
+  const s = await loadSettings(env, tenantId, "akbar", DEFAULT_AKBAR);
+  return Object.fromEntries(Object.keys(DEFAULT_AKBAR).map((k) => [k, s[k as keyof AkbarSettings]])) as unknown as AkbarSettings;
+};
 export const getPoomasSettings = (env: Env, tenantId: string) => loadSettings(env, tenantId, "poomas", DEFAULT_POOMAS);
 export const getManualSettings = (env: Env, tenantId: string) => loadSettings(env, tenantId, "manual", DEFAULT_MANUAL);
-export const saveAkbarSettings  = (env: Env, tenantId: string, s: AkbarSettings) => saveSettings(env, tenantId, "akbar", s);
+export const saveAkbarSettings = async (env: Env, tenantId: string, s: AkbarSettings) => {
+  await saveSettings(env, tenantId, "akbar", s);
+  await env.TENANT_CACHE_KV.delete(akbarTokenKey(tenantId));   // new credentials → new token
+};
+
+// Akbar's Signature token lasts 48 hours, so one token serves every call until then.
+const akbarTokenKey = (tenantId: string) => `akbar_token:${tenantId}`;
+
+export async function getAkbarToken(env: Env, tenantId: string, client: AkbarClient, fresh = false): Promise<AkbarToken> {
+  if (!fresh) {
+    const cached = await env.TENANT_CACHE_KV.get(akbarTokenKey(tenantId), "json").catch(() => null) as AkbarToken | null;
+    if (cached?.token) return cached;
+  }
+  const token = await client.signature();
+  await env.TENANT_CACHE_KV.put(akbarTokenKey(tenantId), JSON.stringify(token), { expirationTtl: AKBAR_TOKEN_TTL_SECONDS });
+  return token;
+}
 export const savePoomasSettings = (env: Env, tenantId: string, s: PoomasSettings) => saveSettings(env, tenantId, "poomas", s);
 export const saveManualSettings = (env: Env, tenantId: string, s: ManualSettings) => saveSettings(env, tenantId, "manual", s);
 
 // ── Offline suppliers ────────────────────────────────────────────────────────
 
-export const OFFLINE_SUPPLIERS = ["POOMAS", "MANUAL"] as const;
+export const OFFLINE_SUPPLIERS = ["POOMAS", "AKBAR", "MANUAL"] as const;
 export type OfflineSupplier = (typeof OFFLINE_SUPPLIERS)[number];
 export const isOfflineSupplier = (s: string | null | undefined): s is OfflineSupplier =>
   (OFFLINE_SUPPLIERS as readonly string[]).includes(s ?? "");
 
 export interface Pax { adults: number; children: number; infants: number }
 
-// Poomas fares are remembered at search time so a booking is charged the
+// Poomas and Akbar fares are remembered at search time so a booking is charged the
 // searched price, never a price sent by the browser.
 const OFFLINE_FARE_TTL = 30 * 60;
 const offlineFareKey = (tenantId: string, fareId: string) => `offline_fare:${tenantId}:${fareId}`;
 
 export async function rememberOfflineFares(env: Env, tenantId: string, fares: NormalizedFare[], pax: Pax) {
-  await Promise.all(fares.filter((f) => f.supplier === "POOMAS").map((f) =>
+  await Promise.all(fares.filter((f) => f.supplier === "POOMAS" || f.supplier === "AKBAR").map((f) =>
     env.FARE_CACHE_KV.put(offlineFareKey(tenantId, f.id), JSON.stringify({ fare: f, pax }), { expirationTtl: OFFLINE_FARE_TTL })));
 }
 
@@ -92,7 +122,7 @@ export async function quoteOfflineFare(env: Env, db: Db, tenantId: string, suppl
   if (supplier === "MANUAL") return quoteManualFare(env, db, tenantId, fareId, pax);
   const stored = await env.FARE_CACHE_KV.get(offlineFareKey(tenantId, fareId), "json").catch(() => null) as { fare: NormalizedFare; pax: Pax } | null;
   if (!stored) return null;
-  // The Poomas price covers the party that was searched.
+  // The Poomas / Akbar price covers the party that was searched.
   const same = stored.pax.adults === pax.adults && stored.pax.children === pax.children && stored.pax.infants === pax.infants;
   return same ? stored.fare : null;
 }

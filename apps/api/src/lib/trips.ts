@@ -179,7 +179,7 @@ function firstValue(v: unknown): string | undefined {
 // ── Cancellation ─────────────────────────────────────────────────────────────
 
 export function cancellationBlocker(booking: Booking, amendments: Amendment[]): string | null {
-  if (booking.supplier === "POOMAS" || booking.supplier === "MANUAL") return "To cancel this booking, contact our team and we'll process it for you.";
+  if (isOfflineSupplier(booking.supplier)) return "To cancel this booking, contact our team and we'll process it for you.";
   if (booking.supplier !== "TRIPJACK") return "Online cancellation is available for TripJack bookings only.";
   if (!["CONFIRMED", "TICKETED"].includes(booking.status)) return `This booking is ${booking.status.toLowerCase().replace("_", " ")}.`;
   if (!booking.supplierBookingRef) return "This booking has no airline reference yet.";

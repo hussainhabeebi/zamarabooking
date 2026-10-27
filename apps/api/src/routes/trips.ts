@@ -27,6 +27,7 @@ import { signToken, verifyToken } from "./checkout.js";
 import { resendStalledBooking } from "../lib/booking-recovery.js";
 import { storeETicket } from "../lib/eticket.js";
 import { processPaidBooking } from "../queue-consumer.js";
+import { isOfflineSupplier } from "../lib/flight-sources.js";
 import {
   QUOTE_TTL, buildQuote, cancellationBlocker, liveItinerary, loadTrip, logCancellationCall, originalRefundMethod,
   parseCancellationCharges, publicTrip, syncCancellation, tripjackClientFor, type CancellationQuote,
@@ -235,7 +236,7 @@ async function eticketResponse(c: any, booking: typeof bookings.$inferSelect) {
   if (!["CONFIRMED", "TICKETED"].includes(booking.status)) {
     throw new HTTPException(400, { message: "The e-ticket is available once the booking is confirmed" });
   }
-  if ((booking.supplier === "POOMAS" || booking.supplier === "MANUAL") && booking.status !== "TICKETED") {
+  if (isOfflineSupplier(booking.supplier) && booking.status !== "TICKETED") {
     throw new HTTPException(409, { message: "Our team is issuing your ticket. The e-ticket will be emailed to you as soon as it's ready." });
   }
   const key = `etickets/${booking.id}.html`;

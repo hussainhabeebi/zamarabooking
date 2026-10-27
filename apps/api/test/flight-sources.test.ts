@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizePoomasOffer, PoomasAdapter } from "@zamrabooking/suppliers";
 import {
-  isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
+  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, cancelBody,
+} from "@zamrabooking/suppliers";
+import {
+  DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
 } from "../src/lib/flight-sources.js";
 
 function memoryKv(init: Record<string, string> = {}) {
@@ -155,4 +157,189 @@ test("only Poomas and manual fares are ticketed offline", () => {
   assert.equal(isOfflineSupplier("MANUAL"), true);
   assert.equal(isOfflineSupplier("TRIPJACK"), false);
   assert.equal(isOfflineSupplier(null), false);
+});
+
+// ── Akbar Travels (Benzy B2B) ────────────────────────────────────────────────
+
+const akbarCreds = {
+  utilsUrl: "https://utils.test/", flightsUrl: "https://flights.test", merchantId: "300", apiKey: "k", clientId: "bitest",
+  password: "p", agentCode: "", browserKey: "bk", key: "",
+};
+
+test("Akbar Signature sends the doc's fields and reads the token", async () => {
+  const calls: { url: string; body: any; auth?: string }[] = [];
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push({ url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
+    return json({ Token: "jwt", ClientID: "search-client" });
+  }) as unknown as typeof fetch;
+  const t = await new AkbarClient(akbarCreds, fetchImpl).signature();
+  assert.deepEqual(t, { token: "jwt", clientId: "search-client" });
+  assert.equal(calls[0].url, "https://utils.test/Utils/Signature");
+  assert.deepEqual(calls[0].body, { MerchantID: "300", ApiKey: "k", ClientID: "bitest", Password: "p", AgentCode: "", BrowserKey: "bk" });
+  assert.equal(calls[0].auth, undefined);
+  assert.equal(signatureBody({ ...akbarCreds, key: "ef20" }).Key, "ef20");
+});
+
+test("Akbar Signature without a token is an error", async () => {
+  const fetchImpl = (async () => json({ Code: "401", Msg: ["Invalid"] })) as unknown as typeof fetch;
+  await assert.rejects(new AkbarClient(akbarCreds, fetchImpl).signature(), /no token/);
+});
+
+test("Akbar ExpressSearch body", () => {
+  const body = expressSearchBody({
+    origin: "bom", destination: "del", departureDate: "2026-12-01", returnDate: "2026-12-05",
+    adults: 2, children: 1, infants: 1, cabinClass: "BUSINESS", tripType: "ROUNDTRIP", currency: "INR",
+  }, "cid");
+  assert.equal(body.Cabin, "B");
+  assert.equal(body.FareType, "RT");
+  assert.equal(body.ClientID, "cid");
+  assert.deepEqual([body.ADT, body.CHD, body.INF], [2, 1, 1]);
+  assert.deepEqual(body.Trips, [{ From: "BOM", To: "DEL", OnwardDate: "2026-12-01", ReturnDate: "2026-12-05", TUI: "" }]);
+});
+
+test("Akbar search polls GetExpSearch with the TUI until Completed", async () => {
+  const calls: { url: string; body: any; auth: string }[] = [];
+  const replies = [{ TUI: "t1", Completed: false }, { TUI: "t1", Completed: "False" }, { TUI: "t1", Completed: true, Trips: [] }];
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push({ url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
+    return json(replies.shift());
+  }) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(
+    { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" },
+    { token: "jwt", clientId: "cid" }, { sleep: async () => {} },
+  );
+  assert.equal(r.completed, true);
+  assert.equal(r.polls, 2);
+  assert.equal(calls[0].url, "https://flights.test/flights/ExpressSearch");
+  assert.equal(calls[1].url, "https://flights.test/flights/GetExpSearch");
+  assert.deepEqual(calls[1].body, { ClientID: "cid", TUI: "t1" });
+  assert.ok(calls.every((c) => c.auth === "Bearer jwt"));
+});
+
+test("Akbar StartPay body", () => {
+  assert.deepEqual(startPayBody({ transactionId: 230003316, netAmount: 2903.68, tui: "t" }, "cid", "bk"), {
+    TransactionID: 230003316, PaymentAmount: 0, NetAmount: 2903.68, BrowserKey: "bk", ClientID: "cid", TUI: "t",
+    Hold: false, Promo: null, PaymentType: "", BankCode: "",
+  });
+});
+
+test("Akbar RetrieveBooking and Cancel bodies", () => {
+  assert.deepEqual(retrieveBookingBody(200001224, "cid"), { TUI: "", ClientID: "cid", ReferenceNumber: "200001224", ReferenceType: "T", ServiceType: "FLT" });
+  assert.deepEqual(cancelBody({ transactionId: 123412, remarks: "Test", trips: [{ crsPnr: "T9DGF24", pax: [{ id: 5024, ticket: "734553687" }] }] }, "cid"), {
+    ClientID: "cid", ClientIP: "", Remarks: "Test", TUI: "", TransactionID: 123412,
+    Trips: [{ CRSPNR: "T9DGF24", Pax: [{ ID: 5024, Ticket: "734553687" }] }],
+  });
+});
+
+test("Akbar waits for the itinerary status after StartPay", async () => {
+  const calls: any[] = [];
+  const replies = [{ CurrentStatus: "InProgress" }, { CurrentStatus: "" }, { CurrentStatus: "Success" }];
+  const fetchImpl = (async (url: string, init: RequestInit) => { calls.push({ url, body: JSON.parse(String(init.body)) }); return json(replies.shift()); }) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).waitForItinerary(230003656, "t", { token: "jwt", clientId: "cid" }, { sleep: async () => {} });
+  assert.equal(r.status, "Success");
+  assert.equal(r.polls, 3);
+  assert.equal(calls[0].url, "https://flights.test/Payment/GetItineraryStatus");
+  assert.deepEqual(calls[0].body, { TUI: "t", TransactionID: 230003656 });
+});
+
+test("Akbar seat layout body", () => {
+  assert.deepEqual(seatLayoutBody({ tui: "t", orderId: 1 }, "cid"), { ClientID: "cid", Source: "LV", Trips: [{ TUI: "t", Index: "", OrderID: 1 }] });
+});
+
+test("Akbar pricing, fare rule, flight info and SSR bodies", () => {
+  const trip = { amount: 20709, index: "1G|1", orderId: 1, tui: "t" };
+  assert.deepEqual(smartPricerBody([trip], "cid", "ON"), {
+    ClientID: "cid", Trips: [{ Amount: 20709, Index: "1G|1", OrderID: 1, TUI: "t" }], Mode: "SY", Options: "A", Source: "SF", TripType: "ON",
+  });
+  assert.deepEqual(fareRuleBody([trip], "cid"), { ClientID: "cid", Source: "SF", Trips: [{ Amount: 20709, Index: "1G|1", OrderID: 1, TUI: "t" }] });
+  assert.equal(flightInfoBody([trip], "cid", "RT").Trips[0].ChannelCode, null);
+  assert.deepEqual(ssrBody({ tui: "t", orderId: 1 }, "cid", true), {
+    ClientID: "cid", PaidSSR: true, Source: "LV", Trips: [{ TUI: "t", Amount: 0, OrderID: 1, Index: "" }],
+  });
+});
+
+test("Akbar token is cached and new credentials drop it", async () => {
+  const kv = { ...memoryKv(), async delete(k: string) { kv.store.delete(k); } };
+  const env = { TENANT_CACHE_KV: kv } as any;
+  let signatures = 0;
+  const fetchImpl = (async () => { signatures++; return json({ Token: `jwt${signatures}` }); }) as unknown as typeof fetch;
+  const client = new AkbarClient(akbarCreds, fetchImpl);
+  assert.equal((await getAkbarToken(env, "t1", client)).token, "jwt1");
+  assert.equal((await getAkbarToken(env, "t1", client)).token, "jwt1");
+  assert.equal((await getAkbarToken(env, "t1", client, true)).token, "jwt2");
+  await saveAkbarSettings(env, "t1", { ...DEFAULT_AKBAR, ...akbarCreds });
+  assert.equal((await getAkbarToken(env, "t1", client)).token, "jwt3");
+});
+
+test("old Akbar settings fields are dropped", async () => {
+  const env = { TENANT_CACHE_KV: memoryKv({ "admin_settings:t1:integration:akbar": JSON.stringify({ enabled: true, username: "u", baseUrl: "x", clientId: "c" }) }) } as any;
+  const s = await getAkbarSettings(env, "t1");
+  assert.equal(s.clientId, "c");
+  assert.equal(s.utilsUrl, DEFAULT_AKBAR.utilsUrl);
+  assert.ok(!("username" in s) && !("baseUrl" in s));
+});
+
+// ── Akbar in customer search ─────────────────────────────────────────────────
+
+const akbarJourney = {
+  Index: "6E|1", Provider: "6E", VAC: "6E", FlightNo: "6E 2101", From: "BOM", To: "DEL",
+  DepartureTime: "2026-12-01T06:00:00", ArrivalTime: "2026-12-01T08:10:00", Duration: "02h 10m ", Stops: 0, Seats: 7,
+  AirlineName: "IndiGo|IndiGo|IndiGo", NetFare: 4890.5, GrossFare: 5100, Refundable: "Y", Cabin: "E", RBD: "R",
+  FCType: "SAVER", Inclusions: { Baggage: "15 Kg", Cabin: "7 Kg" }, Connections: [], OrderID: 1,
+};
+
+test("Akbar journey becomes a Zamra fare at Akbar's net fare", () => {
+  const fares = normalizeAkbarSearch({ TUI: "tui1", Completed: true, Trips: [{ Journey: [
+    akbarJourney,
+    { ...akbarJourney, Index: "6E|2", NetFare: 0 },             // no price → dropped
+    { ...akbarJourney, Index: "6E|3", ReturnIdentifier: 2 },     // special-return half → dropped
+  ] }] }, "ECONOMY");
+  assert.equal(fares.length, 1);
+  const f = fares[0];
+  assert.equal(f.id, "AK|tui1|6E|1");
+  assert.equal(f.supplier, "AKBAR");
+  assert.equal(f.airline, "6E");
+  assert.equal(f.airlineName, "IndiGo");
+  assert.equal(f.flightNumber, "2101");
+  assert.equal(f.duration, 130);
+  assert.equal(f.totalFare, 4890.5);
+  assert.equal(f.isRefundable, true);
+  assert.deepEqual(f.baggage, { cabin: "7 Kg", checked: "15 Kg" });
+  assert.equal(f.seatsLeft, 7);
+  assert.equal(f.fareIdentifier, "SAVER");
+});
+
+test("Akbar duration formats", () => {
+  assert.equal(akbarDurationMinutes("2h 5m"), 125);
+  assert.equal(akbarDurationMinutes("14h"), 840);
+  assert.equal(akbarDurationMinutes(95), 95);
+  assert.equal(akbarDurationMinutes("95"), 95);
+  assert.equal(normalizeAkbarSearch({ TUI: "t", Trips: [{ Journey: [{ ...akbarJourney, Duration: "" }] }] }, "ECONOMY")[0].duration, 130);
+});
+
+test("Akbar adapter searches one-way with the shared token, renewing it once on 401", async () => {
+  const realFetch = globalThis.fetch;
+  const tokens: boolean[] = [];
+  let searches = 0;
+  globalThis.fetch = (async (url: string) => {
+    if (url.endsWith("/flights/ExpressSearch") && ++searches === 1) return json({ error: "expired" }, 401);
+    return json({ TUI: "t", Completed: true, Trips: [{ Journey: [akbarJourney] }] });
+  }) as unknown as typeof fetch;
+  try {
+    const adapter = new AkbarAdapter({ ...akbarCreds, getToken: async (fresh?: boolean) => { tokens.push(!!fresh); return { token: "jwt", clientId: "cid" }; } });
+    const base = { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, currency: "INR" as const };
+    assert.equal((await adapter.search({ ...base, tripType: "ONEWAY" })).length, 1);
+    assert.deepEqual(tokens, [false, true]);
+    assert.deepEqual(await adapter.search({ ...base, tripType: "ROUNDTRIP", returnDate: "2026-12-05" }), []);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("Akbar fares are offline and booked at the searched price", async () => {
+  assert.equal(isOfflineSupplier("AKBAR"), true);
+  const env = { FARE_CACHE_KV: memoryKv() } as any;
+  const [fare] = normalizeAkbarSearch({ TUI: "t", Trips: [{ Journey: [akbarJourney] }] }, "ECONOMY");
+  const pax = { adults: 1, children: 0, infants: 0 };
+  await rememberOfflineFares(env, "t1", [fare], pax);
+  assert.equal((await quoteOfflineFare(env, null as any, "t1", "AKBAR", fare.id, pax))?.totalFare, 4890.5);
+  assert.equal(await quoteOfflineFare(env, null as any, "t1", "AKBAR", fare.id, { ...pax, adults: 2 }), null);
 });

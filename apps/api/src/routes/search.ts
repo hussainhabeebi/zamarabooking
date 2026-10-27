@@ -10,7 +10,8 @@ import { collectExchanges, persistExchanges, persistInBackground } from "../lib/
 import { recordFareObservation, sendFareAlerts } from "../lib/fare-insights.js";
 import { optionalAgentId } from "../lib/agent-markup.js";
 import { agentPricing, rulesFor } from "../lib/agent-program.js";
-import { getPoomasSettings, rememberOfflineFares, searchManualFares } from "../lib/flight-sources.js";
+import { AkbarClient } from "@zamrabooking/suppliers";
+import { getAkbarSettings, getAkbarToken, getPoomasSettings, rememberOfflineFares, searchManualFares } from "../lib/flight-sources.js";
 
 const searchSchema = z.object({
   origin:        z.string().length(3).toUpperCase(),
@@ -181,6 +182,16 @@ export async function resolveFlightSuppliers(env: Env, tenant: Variables["tenant
     });
   }
 
+  // Akbar Travels (Admin → Flight Sources). The 48-hour Signature token is shared via KV.
+  const akbar = await getAkbarSettings(env, tenantId).catch(() => null);
+  if (akbar?.enabled && akbar.flightsUrl && akbar.clientId && akbar.password && akbar.apiKey) {
+    const akbarClient = new AkbarClient(akbar);
+    supplierConfigs.push({
+      name: "AKBAR", isEnabled: true, priority: 40, maxRetries: 0, timeoutMs: TRIPJACK_SEARCH_TIMEOUT_MS,
+      credentials: { ...akbar, getToken: (fresh?: boolean) => getAkbarToken(env, tenantId, akbarClient, fresh) },
+    });
+  }
+
   // TripJack international searches regularly take 15–25s and the gateway allows
   // 45s, so never cut TripJack off earlier than this, whatever the DB row says.
   for (const config of supplierConfigs) {
@@ -190,7 +201,7 @@ export async function resolveFlightSuppliers(env: Env, tenant: Variables["tenant
   return { platformCredentials, supplierConfigs };
 }
 
-type LoggableSupplier = "TRIPJACK" | "RIYA" | "DUFFEL" | "GOOGLE_SERP" | "POOMAS";
+type LoggableSupplier = "TRIPJACK" | "RIYA" | "DUFFEL" | "GOOGLE_SERP" | "POOMAS" | "AKBAR";
 
 // Writes failed / empty flight searches to supplier_api_logs so they show up in
 // Admin → Supplier Logs. Successful searches are not logged to keep volume low.
@@ -386,10 +397,10 @@ async function runSearch(
   if (manualFares.length) {
     result.fares = [...result.fares, ...manualFares].sort((a, b) => a.totalFare - b.totalFare);
   }
-  // Remember Poomas prices so a booking is charged what was shown.
-  if (result.fares.some((f) => f.supplier === "POOMAS")) {
+  // Remember Poomas / Akbar prices so a booking is charged what was shown.
+  if (result.fares.some((f) => f.supplier === "POOMAS" || f.supplier === "AKBAR")) {
     c.executionCtx.waitUntil(rememberOfflineFares(c.env, tenantId, result.fares, params)
-      .catch((err) => console.error("[search] could not remember Poomas fares", err)));
+      .catch((err) => console.error("[search] could not remember Poomas / Akbar fares", err)));
   }
 
   // Markup is optional for availability. If DB/schema/rule loading fails, return the

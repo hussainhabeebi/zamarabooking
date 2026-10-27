@@ -4,6 +4,7 @@ import { TripjackAdapter } from "./tripjack/adapter.js";
 import { SerpAdapter }   from "./serp/adapter.js";
 import { DuffelAdapter } from "./duffel/adapter.js";
 import { PoomasAdapter } from "./poomas/adapter.js";
+import { AkbarAdapter }  from "./akbar/adapter.js";
 
 export interface SupplierConfig {
   name:        SupplierName;
@@ -23,6 +24,7 @@ export interface PlatformCredentials {
   GOOGLE_SERP?: { apiKey?: string; baseUrl?: string };
   DUFFEL?:      { apiKey?: string };
   POOMAS?:      { apiKey?: string; baseUrl?: string };
+  AKBAR?:       Record<string, unknown>;
 }
 
 export interface SearchResult {
@@ -71,6 +73,7 @@ function buildAdapter(config: SupplierConfig, platform: PlatformCredentials = {}
     case "GOOGLE_SERP": return new SerpAdapter(creds);
     case "DUFFEL":      return new DuffelAdapter(creds);
     case "POOMAS":      return new PoomasAdapter(creds);
+    case "AKBAR":       return new AkbarAdapter(creds);
   }
 }
 

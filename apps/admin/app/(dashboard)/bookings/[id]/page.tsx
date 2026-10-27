@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 import { API, apiHeaders } from "../../../../lib/api";
 import { IssueTicket } from "./IssueTicket";
 
-// Poomas / manual fares: paid on Zamra, ticketed by staff (no airline API call).
-const OFFLINE = ["POOMAS", "MANUAL"];
+// Poomas / Akbar / manual fares: paid on Zamra, ticketed by staff (no airline API call).
+const OFFLINE = ["POOMAS", "AKBAR", "MANUAL"];
 
 type Tab = "overview" | "errors" | "passengers" | "payments" | "logs" | "support";
 const TABS: [Tab, string][] = [["overview", "Overview"], ["errors", "Booking error log"], ["passengers", "Passengers"], ["payments", "Payments & refunds"], ["logs", "API logs"], ["support", "Support"]];
