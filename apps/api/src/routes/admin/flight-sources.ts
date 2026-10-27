@@ -11,6 +11,7 @@ import { manualFares } from "@zamrabooking/db/schema";
 import { AkbarError, normalizeAkbarSearch, PoomasAdapter, searchTui } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
 import { logSupplierCall } from "../../lib/supplier-logger.js";
+import { collectExchanges, persistExchanges, persistInBackground } from "../../lib/api-exchanges.js";
 import {
   akbarClient, getAkbarSettings, getAkbarToken, getManualSettings, getPoomasSettings, saveAkbarSettings, saveManualSettings, savePoomasSettings,
   SHEET_COLUMNS, sheetCsvUrl, syncManualFaresSheet, validateManualFare,
@@ -75,20 +76,31 @@ const akbarFailure = (err: unknown) => err instanceof AkbarError
   ? { error: err.message, httpStatus: err.statusCode, response: err.responseSnippet }
   : { error: err instanceof Error ? err.message : String(err) };
 
+// Akbar's raw calls from these Admin buttons go to API Logs → request / response files.
+function recordedAkbarClient(c: any, s: Awaited<ReturnType<typeof getAkbarSettings>>) {
+  const collector = collectExchanges();
+  const client = akbarClient(c.env, { ...s, recorder: collector.recorder } as typeof s);
+  const save = () => persistInBackground(c, persistExchanges(c.env, c.get("db"), c.get("tenantId"), collector.exchanges, { requestId: `admin-akbar-${crypto.randomUUID()}` }));
+  return { client, save };
+}
+
 // Asks Akbar for a fresh Signature token with the saved credentials.
 flightSourcesAdminRoutes.post("/akbar/token", async (c) => {
   fullAdminOnly(c.get("userRole"));
   const tenantId = c.get("tenantId");
   const s = await getAkbarSettings(c.env, tenantId);
+  const { client: tokenClient, save } = recordedAkbarClient(c, s);
   const started = Date.now();
   try {
-    const t = await getAkbarToken(c.env, tenantId, akbarClient(c.env, s), true);
+    const t = await getAkbarToken(c.env, tenantId, tokenClient, true);
     await logSupplierCall(c.get("db"), { tenantId, supplier: "AKBAR", endpoint: "/Utils/Signature", level: "INFO", durationMs: Date.now() - started });
     return c.json({ ok: true, clientId: t.clientId, durationMs: Date.now() - started });
   } catch (err) {
     const f = akbarFailure(err);
     await logSupplierCall(c.get("db"), { tenantId, supplier: "AKBAR", endpoint: "/Utils/Signature", level: "ERROR", httpStatus: f.httpStatus, errorMessage: f.error, responseSnippet: f.response, durationMs: Date.now() - started });
     return c.json({ ok: false, ...f, durationMs: Date.now() - started });
+  } finally {
+    save();
   }
 });
 
@@ -118,7 +130,7 @@ flightSourcesAdminRoutes.post("/akbar/test", zValidator("json", z.object({
   const tenantId = c.get("tenantId");
   const p = c.req.valid("json");
   const s = await getAkbarSettings(c.env, tenantId);
-  const client = akbarClient(c.env, s);
+  const { client, save } = recordedAkbarClient(c, s);
   const started = Date.now();
   const params = { ...p, adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: "INR" as const };
   try {
@@ -152,6 +164,8 @@ flightSourcesAdminRoutes.post("/akbar/test", zValidator("json", z.object({
       httpStatus: f.httpStatus, errorMessage: f.error, responseSnippet: f.response, requestSummary: p, durationMs: Date.now() - started,
     });
     return c.json({ ok: false, ...f, durationMs: Date.now() - started });
+  } finally {
+    save();   // the token and search calls, retry included
   }
 });
 

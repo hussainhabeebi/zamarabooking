@@ -1,0 +1,175 @@
+"use client";
+// Akbar Travels (Benzy B2B) API settings, shown in Admin → Integrations. Saved through
+// /api/admin/flight-sources/akbar; live status of every source is on Admin → Suppliers.
+import { useEffect, useState } from "react";
+import { API, apiHeaders } from "@/lib/api";
+
+type Akbar = {
+  enabled: boolean; environment: "UAT" | "PRODUCTION"; utilsUrl: string; flightsUrl: string;
+  merchantId: string; apiKey: string; clientId: string; password: string; agentCode: string; browserKey: string; key: string;
+  gatewayUrl: string; gatewayKeySet: boolean;
+};
+
+async function call(path: string, method: string, body?: unknown) {
+  const res = await fetch(`${API}/api/admin/flight-sources${path}`, { method, headers: apiHeaders(), ...(body ? { body: JSON.stringify(body) } : {}) });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok && !("ok" in d)) throw new Error(d.error ?? d.message ?? `HTTP ${res.status}`);
+  return d;
+}
+
+const inAWeek = () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+
+export function AkbarIntegration() {
+  const [akbar, setAkbar] = useState<Akbar | null>(null);
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [busy, setBusy] = useState("");
+  const [akbarSecrets, setAkbarSecrets] = useState({ password: "", apiKey: "", key: "" });
+  const [akbarRaw, setAkbarRaw] = useState("");
+  const [test, setTest] = useState({ origin: "COK", destination: "DXB", departureDate: inAWeek() });
+
+  const load = () => call("", "GET").then((d) => setAkbar(d.akbar)).catch((e) => setError(e.message));
+  useEffect(() => { load(); }, []);
+
+  async function run(key: string, fn: () => Promise<string>) {
+    setBusy(key); setMsg((m) => ({ ...m, [key]: { ok: true, text: "" } }));
+    try { const text = await fn(); setMsg((m) => ({ ...m, [key]: { ok: true, text } })); }
+    catch (e: any) { setMsg((m) => ({ ...m, [key]: { ok: false, text: e.message } })); }
+    finally { setBusy(""); }
+  }
+
+  if (error) return <div style={errBox}>Akbar Travels: {error}</div>;
+  if (!akbar) return <p style={{ color: "#64748b" }}>Loading Akbar Travels…</p>;
+  const set = (_k: "akbar", patch: Partial<Akbar>) => setAkbar({ ...akbar, ...patch });
+
+  return (
+      <Section id="akbar" color="#f59e0b" title="Akbar Travels API" badge={akbar.enabled ? "live in search" : "off"}>
+      <p style={hint}>
+        Akbar's B2B API (by Benzy Infotech). Enter the Signature credentials Akbar sent you; the token they return lasts 48 hours and is reused
+        for every call. Akbar only answers calls from a <b style={{ color: "#cbd5e1" }}>whitelisted IP</b>. The price shown is Akbar's net fare;
+        your markup is added on top. One-way fares only. After payment, book the same flight on the Akbar portal and enter the PNR on the
+        booking. Run the test search before switching it on.
+      </p>
+      <form onSubmit={(e) => { e.preventDefault(); run("akbar", async () => {
+        const { gatewayKeySet: _k, ...fields } = akbar;
+        await call("/akbar", "PUT", { ...fields, ...akbarSecrets });
+        setAkbarSecrets({ password: "", apiKey: "", key: "" }); await load(); return "Saved.";
+      }); }} style={formGrid}>
+        <Toggle label="Show Akbar fares in search" checked={akbar.enabled} onChange={(v) => set("akbar", { enabled: v })} />
+        <Field label="Environment">
+          <select value={akbar.environment} onChange={(e) => set("akbar", { environment: e.target.value as "UAT" | "PRODUCTION" })} style={input}>
+            <option value="UAT">Test</option><option value="PRODUCTION">Live</option>
+          </select>
+        </Field>
+        <Field label="Utils URL (Signature)"><input value={akbar.utilsUrl} onChange={(e) => set("akbar", { utilsUrl: e.target.value })} placeholder="https://b2bapiutils.benzyinfotech.com" style={input} /></Field>
+        <Field label="Flights URL"><input value={akbar.flightsUrl} onChange={(e) => set("akbar", { flightsUrl: e.target.value })} placeholder="https://b2bapiflights.benzyinfotech.com" style={input} /></Field>
+        <Field label="Gateway URL (fixed IP, Coolify)" wide>
+          <input value={akbar.gatewayUrl} onChange={(e) => set("akbar", { gatewayUrl: e.target.value })} placeholder="https://akbar-proxy.zamrabooking.com — blank calls Akbar directly" style={input} />
+        </Field>
+        <Field label="MerchantID"><input value={akbar.merchantId} onChange={(e) => set("akbar", { merchantId: e.target.value })} style={input} /></Field>
+        <Field label="ClientID"><input value={akbar.clientId} onChange={(e) => set("akbar", { clientId: e.target.value })} autoComplete="off" style={input} /></Field>
+        <Field label="AgentCode"><input value={akbar.agentCode} onChange={(e) => set("akbar", { agentCode: e.target.value })} placeholder="Blank if Akbar gave none" style={input} /></Field>
+        <Field label="BrowserKey"><input value={akbar.browserKey} onChange={(e) => set("akbar", { browserKey: e.target.value })} autoComplete="off" style={input} /></Field>
+        <Field label={`ApiKey${akbar.apiKey ? ` (saved ${akbar.apiKey})` : ""}`}>
+          <input type="password" value={akbarSecrets.apiKey} onChange={(e) => setAkbarSecrets((s) => ({ ...s, apiKey: e.target.value }))} placeholder={akbar.apiKey ? "Leave blank to keep" : ""} autoComplete="off" style={input} />
+        </Field>
+        <Field label={`Password${akbar.password ? ` (saved ${akbar.password})` : ""}`}>
+          <input type="password" value={akbarSecrets.password} onChange={(e) => setAkbarSecrets((s) => ({ ...s, password: e.target.value }))} placeholder={akbar.password ? "Leave blank to keep" : ""} autoComplete="new-password" style={input} />
+        </Field>
+        <Field label={`Key${akbar.key ? ` (saved ${akbar.key})` : ""}`}>
+          <input type="password" value={akbarSecrets.key} onChange={(e) => setAkbarSecrets((s) => ({ ...s, key: e.target.value }))} placeholder={akbar.key ? "Leave blank to keep" : "Only if Akbar sent one"} autoComplete="off" style={input} />
+        </Field>
+        <Actions busy={busy === "akbar"} msg={msg.akbar}>
+          <button type="button" disabled={!!busy || !akbar.gatewayUrl} onClick={() => run("akbarToken", async () => {
+            const r = await call("/akbar/egress-ip", "POST", { gatewayUrl: akbar.gatewayUrl });
+            if (!r.ok) throw new Error(r.error);
+            return `Send Akbar this IP to whitelist: ${r.ip}`;
+          })} style={btnGhost}>Show IP to whitelist</button>
+          <button type="button" disabled={!!busy} onClick={() => run("akbarToken", async () => {
+            const r = await call("/akbar/token", "POST");
+            if (!r.ok) throw new Error(`${r.error}${r.response ? ` — ${r.response}` : ""}`);
+            return `Token received in ${(r.durationMs / 1000).toFixed(1)}s.`;
+          })} style={btnGhost}>{busy === "akbarToken" ? "Checking…" : "Get token"}</button>
+        </Actions>
+      </form>
+      {msg.akbarToken?.text && <Msg {...msg.akbarToken} />}
+      {akbar.gatewayUrl && !akbar.gatewayKeySet && (
+        <Msg ok={false} text="The AKBAR_GATEWAY_KEY secret is missing on the Cloudflare Worker — calls through the gateway will fail until it is added." />
+      )}
+      <div style={{ ...subCard, marginTop: 14 }}>
+        <SubTitle>Test search (1 adult, one-way; Indigo is enabled on test)</SubTitle>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+          <input value={test.origin} onChange={(e) => setTest({ ...test, origin: e.target.value.toUpperCase() })} maxLength={3} style={{ ...input, width: 80 }} aria-label="From" />
+          <input value={test.destination} onChange={(e) => setTest({ ...test, destination: e.target.value.toUpperCase() })} maxLength={3} style={{ ...input, width: 80 }} aria-label="To" />
+          <input type="date" value={test.departureDate} onChange={(e) => setTest({ ...test, departureDate: e.target.value })} style={{ ...input, width: 170 }} aria-label="Date" />
+          <button type="button" disabled={!!busy} onClick={() => run("akbarTest", async () => {
+            setAkbarRaw("");
+            const r = await call("/akbar/test", "POST", test);
+            if (!r.ok) { setAkbarRaw(r.response ?? ""); throw new Error(r.error); }
+            setAkbarRaw(r.response);
+            const when = `${(r.durationMs / 1000).toFixed(1)}s${r.completed ? "" : ", results still incomplete"}`;
+            if (!r.fares) return `Akbar answered (${when}) but Zamra read no fares from it — check the response below.`;
+            const ch = r.cheapest;
+            return `${r.fares} fares (${when}). Cheapest: ${ch.airline} ${ch.flight}, ${ch.departure.slice(11, 16)} → ${ch.arrival.slice(11, 16)}, ₹${Number(ch.price).toLocaleString("en-IN")}. Compare with Akbar's portal.`;
+          })} style={btnGhost}>{busy === "akbarTest" ? "Searching…" : "Run test search"}</button>
+        </div>
+        {msg.akbarTest?.text && <Msg {...msg.akbarTest} />}
+        {akbarRaw && <pre style={{ ...code, display: "block", marginTop: 10, maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{akbarRaw}</pre>}
+      </div>
+    </Section>
+  );
+}
+
+function Section({ id, color, title, badge, children }: { id?: string; color: string; title: string; badge: string; children: React.ReactNode }) {
+  return (
+    <section id={id} style={{ ...card, marginTop: 16, scrollMarginTop: 80 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", margin: 0 }}>{title}</h2>
+        <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: `${color}22`, color, letterSpacing: ".04em" }}>{badge}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: "#94a3b8", ...(wide ? { gridColumn: "1 / -1" } : {}) }}>{label}{children}</label>;
+}
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, background: checked ? "#0D4B9633" : "#0f172a",
+      border: `1px solid ${checked ? "#1E88D9" : "#334155"}`, borderRadius: 10, padding: "10px 12px", cursor: "pointer", color: checked ? "#f1f5f9" : "#94a3b8", fontWeight: 600, fontSize: 13, textAlign: "left",
+    }}>
+      {label}
+      <span style={{ width: 34, height: 18, borderRadius: 9, background: checked ? "#1E88D9" : "#334155", position: "relative", flexShrink: 0 }}>
+        <span style={{ position: "absolute", top: 2, left: checked ? 16 : 2, width: 14, height: 14, borderRadius: "50%", background: "white", transition: "left .12s" }} />
+      </span>
+    </button>
+  );
+}
+function Actions({ busy, msg, children }: { busy: boolean; msg?: { ok: boolean; text: string }; children?: React.ReactNode }) {
+  return (
+    <div style={{ gridColumn: "1 / -1", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <button disabled={busy} style={{ ...btn, opacity: busy ? 0.7 : 1 }}>{busy ? "Saving…" : "Save"}</button>
+      {children}
+      {msg?.text && <span style={{ fontSize: 13, color: msg.ok ? "#86efac" : "#fca5a5" }}>{msg.text}</span>}
+    </div>
+  );
+}
+function Msg({ ok, text }: { ok: boolean; text: string }) {
+  return <div style={{ fontSize: 13, marginTop: 10, color: ok ? "#86efac" : "#fca5a5" }}>{text}</div>;
+}
+function SubTitle({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 8 }}>{children}</div>;
+}
+
+const card: React.CSSProperties = { background: "#1e293b", borderRadius: 12, padding: 20, border: "1px solid #334155" };
+const subCard: React.CSSProperties = { background: "#0f172a", borderRadius: 8, padding: 14 };
+const formGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginTop: 12 };
+const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 12px", background: "#0f172a", border: "1.5px solid #334155", borderRadius: 8, color: "#e2e8f0", fontSize: 14 };
+const hint: React.CSSProperties = { fontSize: 13, color: "#94a3b8", margin: 0, lineHeight: 1.6 };
+const code: React.CSSProperties = { background: "#0f172a", padding: "1px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 12, color: "#94a3b8", border: "1px solid #334155" };
+const btn: React.CSSProperties = { background: "#0D4B96", color: "white", border: "none", borderRadius: 8, padding: "9px 20px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const btnGhost: React.CSSProperties = { ...btn, background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0" };
+const errBox: React.CSSProperties = { background: "rgba(239,68,68,.1)", border: "1px solid #7f1d1d", color: "#fca5a5", borderRadius: 8, padding: "10px 12px", fontSize: 13 };

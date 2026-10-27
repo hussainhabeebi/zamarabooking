@@ -1,17 +1,17 @@
 "use client";
-// Raw TripJack request / response files per call (hotels, flights, TripSafe):
+// Raw TripJack and Akbar request / response files per call (hotels, flights, TripSafe, Akbar):
 // list, filter to errors, download one file or a ZIP of the selected calls.
 import { useCallback, useEffect, useState } from "react";
 import { API, apiHeaders } from "@/lib/api";
 
-type Scope = "hotel" | "flight" | "tripsafe";
+type Scope = "hotel" | "flight" | "tripsafe" | "akbar";
 type Call = {
   id: string; endpoint: string; service: string; httpStatus: number | null; durationMs: number | null; error: string | null;
   bookingId: string | null; searchId: string | null; requestId: string | null; startedAt: string; hasResponse: boolean;
 };
 
 const SCOPES: { key: Scope; label: string }[] = [
-  { key: "hotel", label: "Hotels" }, { key: "flight", label: "Flights" }, { key: "tripsafe", label: "TripSafe" },
+  { key: "hotel", label: "Hotels" }, { key: "flight", label: "Flights" }, { key: "tripsafe", label: "TripSafe" }, { key: "akbar", label: "Akbar" },
 ];
 
 async function download(path: string, fallback: string) {

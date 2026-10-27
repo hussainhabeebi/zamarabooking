@@ -99,12 +99,14 @@ supplierLogsAdminRoutes.get("/export", async (c) => {
 
 
 // ── Raw request / response files (supplier_exchanges + R2) ──────────────────
-// scope: hotel | flight | tripsafe. Requests are shown as TripJack received them
-// (TripJack URL, apikey; never our gateway secret); responses exactly as received.
+// scope: hotel | flight | tripsafe | akbar. TripJack requests are shown as TripJack received
+// them (TripJack URL, apikey; never our gateway secret); Akbar requests as sent, secrets
+// blanked; responses exactly as received.
 
 const HOTEL_SCOPE = () => or(like(supplierExchanges.endpoint, "/hms/%"), like(supplierExchanges.endpoint, "/oms/v3/hotel/%"), like(supplierExchanges.endpoint, "/oms/v1/hotel/%"))!;
 const scopeFilter = (scope?: string) => scope === "hotel" ? HOTEL_SCOPE()
   : scope === "tripsafe" ? like(supplierExchanges.endpoint, "/insurance/%")
+  : scope === "akbar" ? eq(supplierExchanges.supplier, "AKBAR")
   : scope === "flight" ? or(like(supplierExchanges.endpoint, "/fms/%"), like(supplierExchanges.endpoint, "/oms/v1/air%"), like(supplierExchanges.endpoint, "/oms/v1/booking-details"), like(supplierExchanges.endpoint, "/air-%"), like(supplierExchanges.endpoint, "/v1/air/%"))!
   : undefined;
 
@@ -116,7 +118,7 @@ function hostFor(endpoint: string, env: "UAT" | "PRODUCTION") {
 }
 
 // "/hms/v3/hotel/listing" → "HotelListing"
-const serviceName = (endpoint: string) => endpoint.replace(/^\/(hms|oms|fms)\/v\d+\//, "").split(/[^a-zA-Z0-9]+/).filter(Boolean)
+const serviceName = (endpoint: string) => endpoint.replace(/^\/(hms|oms|fms)\/v\d+\//, "").replace(/^\/(flights|Flights|Utils|Payment)\//, "").split(/[^a-zA-Z0-9]+/).filter(Boolean)
   .map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("") || "Call";
 
 supplierLogsAdminRoutes.get("/exchanges", async (c) => {
@@ -148,6 +150,9 @@ async function exchangeFile(c: any, id: string, part: "request" | "response") {
   const obj = await c.env.DOCUMENTS_R2.get(key);
   if (!obj) return null;
   const name = `${serviceName(x.endpoint)}${part === "request" ? "Request" : "Response"}.${key.endsWith(".txt") ? "txt" : "json"}`;
+  if (part === "request" && x.supplier === "AKBAR") {
+    return { name, data: new Uint8Array(await obj.arrayBuffer()), date: x.startedAt as Date };
+  }
   if (part === "request") {
     let stored: Record<string, any> = {};
     try { stored = JSON.parse(await obj.text()); } catch { /* keep empty */ }

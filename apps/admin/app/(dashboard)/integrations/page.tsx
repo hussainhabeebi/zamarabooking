@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { API, apiHeaders } from "@/lib/api";
 import { HotelCitySync } from "./HotelCitySync";
+import { AkbarIntegration } from "./AkbarIntegration";
 
 type Env = "UAT" | "PRODUCTION";
 
@@ -121,7 +122,7 @@ export default function IntegrationsPage() {
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>Integrations</h1>
       <p style={{ color: "#64748b", fontSize: 14, marginBottom: 28 }}>
-        Configure external API suppliers: TripJack (insurance + cabs), Duffel (flights), and Google Flights SERP.
+        Configure external API suppliers: TripJack (flights, insurance + cabs), Akbar Travels (flights), Duffel (flights), and Google Flights SERP. Admin → Suppliers shows which sources customer search is using.
       </p>
 
       {/* ── SERP ──────────────────────────────────────────────────── */}
@@ -276,6 +277,9 @@ export default function IntegrationsPage() {
         </div>
       </Section>
 
+      {/* ── Akbar Travels ─────────────────────────────────────────── */}
+      <AkbarIntegration />
+
       {/* ── Secrets cheatsheet ───────────────────────────────────── */}
       <section style={{ ...card, marginTop: 16, borderColor: "#854d0e", background: "#1c1100" }}>
         <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fbbf24", margin: "0 0 12px" }}>
@@ -287,6 +291,7 @@ export default function IntegrationsPage() {
             ["DUFFEL_API_KEY",     "duffel_test_... for sandbox · duffel_live_... for production"],
             ["TRIPJACK_API_KEY",   "TripJack partner API key (shared for TripSafe + Cabs)"],
             ["TRIPJACK_API_BASE_URL", "https://uat.tripjack.com (UAT) or https://api.tripjack.com (Prod)"],
+            ["AKBAR_GATEWAY_KEY",  "Same value as ZAMRA_GATEWAY_KEY on the Akbar gateway (Coolify)"],
           ].map(([k, d]) => (
             <div key={k} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
               <code style={{ ...codeStyle, minWidth: 220, flexShrink: 0 }}>{k}</code>

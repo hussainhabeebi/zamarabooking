@@ -1,4 +1,5 @@
 import { serverAuthHeaders } from "../../../lib/server";
+import { FlightSourceSettings } from "./FlightSourceSettings";
 const SERVER_API = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
 interface SourceStatus {
@@ -32,7 +33,7 @@ const META: Record<string, { label: string; color: string }> = {
 };
 
 const CONFIGURE_LABEL: Record<string, string> = {
-  "/integrations": "Integrations", "/flight-sources": "Flight sources", "/manual-fares": "Manual fares",
+  "/integrations": "Integrations", "/integrations#akbar": "Integrations", "#poomas": "Settings below", "#manual": "Settings below",
 };
 
 export default async function SuppliersPage() {
@@ -42,9 +43,10 @@ export default async function SuppliersPage() {
     <div style={{ maxWidth: 900 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>Suppliers</h1>
       <p style={{ color: "#64748b", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
-        The flight sources customer search is using right now, worked out the same way search does. All live sources are searched
-        together and shown cheapest first. Switch a source on or off where it says; errors are from{" "}
-        <a href="/supplier-logs" style={{ color: "#93c5fd", fontWeight: 700 }}>API Logs</a>.
+        Every flight source and whether customer search is using it right now, worked out the same way search does. All live sources
+        are searched together and shown cheapest first, with your markup rules applied. TripJack and Akbar are set up in Integrations;
+        Poomas and manual fares below. Akbar, Poomas and manual fares are paid online on Zamra, then wait in Admin → Bookings until staff
+        issue the ticket and enter the PNR. Errors are from <a href="/supplier-logs" style={{ color: "#93c5fd", fontWeight: 700 }}>API Logs</a>.
       </p>
 
       {sources === null && (
@@ -84,6 +86,9 @@ export default async function SuppliersPage() {
           );
         })}
       </div>
+
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9", margin: "32px 0 0" }}>Poomas &amp; manual fares</h2>
+      <FlightSourceSettings />
     </div>
   );
 }

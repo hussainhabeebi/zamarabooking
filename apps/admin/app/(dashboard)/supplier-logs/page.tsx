@@ -55,6 +55,9 @@ const ENDPOINT_LABEL: Record<string, string> = {
   "/insurance/v2/booking":        "TripSafe Booking / Detail",
   "/insurance/v2/amendment/raise": "TripSafe Raise Amendment",
   "/insurance/v2/amendment/confirm": "TripSafe Confirm Amendment",
+  "/Utils/Signature":             "Akbar Token",
+  "/flights/ExpressSearch":       "Akbar Search",
+  "/flights/GetExpSearch":        "Akbar Search Results",
 };
 
 async function getLogs(sp: Record<string, string>): Promise<{ logs: LogEntry[]; fetchError?: string }> {
@@ -120,7 +123,8 @@ export default async function SupplierLogsPage({
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9" }}>Supplier API Logs</h1>
         <p style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>
-          Every TripJack / Riya API call (flights and hotels) — timestamp, endpoint, HTTP status, error detail.
+          Supplier API problems and checks for TripJack (flights, hotels, TripSafe), Akbar Travels and Poomas — timestamp, endpoint, HTTP
+          status, error detail. The raw request / response files of every TripJack and Akbar call are below the table.
         </p>
       </div>
 
@@ -137,12 +141,12 @@ export default async function SupplierLogsPage({
 
       {/* Filters */}
       <form method="GET" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
-        <select name="supplier" defaultValue={sp.supplier ?? "TRIPJACK"} style={sel}>
+        <select name="supplier" defaultValue={sp.supplier ?? ""} style={sel}>
           <option value="">All suppliers</option>
-          <option value="TRIPJACK">TRIPJACK</option>
-          <option value="RIYA">RIYA</option>
-          <option value="DUFFEL">DUFFEL</option>
-          <option value="GOOGLE_SERP">GOOGLE_SERP</option>
+          <option value="TRIPJACK">TripJack</option>
+          <option value="AKBAR">Akbar Travels</option>
+          <option value="POOMAS">Poomas</option>
+          <option value="MANUAL">Manual fares</option>
         </select>
         <select name="scope" defaultValue={sp.scope ?? ""} style={sel}>
           <option value="">Flights, hotels &amp; TripSafe</option>

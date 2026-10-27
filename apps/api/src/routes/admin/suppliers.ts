@@ -66,15 +66,15 @@ suppliersAdminRoutes.get("/status", async (c) => {
       note: inSearch("TRIPJACK") ? "" : "Off — switch on flight search in Integrations → TripJack (and check the TripJack secrets).",
     },
     {
-      supplier: "AKBAR", live: inSearch("AKBAR"), configure: "/flight-sources", booking: "Paid on Zamra, ticketed by staff on the Akbar portal",
+      supplier: "AKBAR", live: inSearch("AKBAR"), configure: "/integrations#akbar", booking: "Paid on Zamra, ticketed by staff on the Akbar portal",
       note: inSearch("AKBAR") ? "" : akbar.enabled ? "Switched on, but its credentials are incomplete." : "Off.",
     },
     {
-      supplier: "POOMAS", live: inSearch("POOMAS"), configure: "/flight-sources", booking: "Paid on Zamra, ticketed by staff on Poomas",
+      supplier: "POOMAS", live: inSearch("POOMAS"), configure: "#poomas", booking: "Paid on Zamra, ticketed by staff on Poomas",
       note: inSearch("POOMAS") ? "" : poomas.enabled ? "Switched on, but the API key is missing." : "Off.",
     },
     {
-      supplier: "MANUAL", live: manual.enabled, configure: "/manual-fares", booking: "Paid on Zamra, ticketed by staff",
+      supplier: "MANUAL", live: manual.enabled, configure: "#manual", booking: "Paid on Zamra, ticketed by staff",
       note: manual.enabled ? "" : "Off.",
     },
     ...(["RIYA", "DUFFEL", "GOOGLE_SERP"] as const).map((supplier) => ({

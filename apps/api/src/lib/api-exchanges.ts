@@ -6,14 +6,16 @@
 // (a non-JSON response keeps its raw text and gets a .txt name), plus an index row in
 // supplier_exchanges so admin can list them per booking or search.
 
-import type { ExchangeRecorder, SupplierExchange } from "@zamrabooking/suppliers";
+import type { SupplierExchange } from "@zamrabooking/suppliers";
 import { supplierExchanges } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 
-export interface ExchangeCollector { recorder: ExchangeRecorder; exchanges: SupplierExchange[] }
+// TripJack and Akbar calls share one shape; only the supplier name differs.
+export type AnyExchange = Omit<SupplierExchange, "supplier"> & { supplier: string };
+export interface ExchangeCollector { recorder: (x: AnyExchange) => void; exchanges: AnyExchange[] }
 
 export function collectExchanges(): ExchangeCollector {
-  const exchanges: SupplierExchange[] = [];
+  const exchanges: AnyExchange[] = [];
   return { exchanges, recorder: (x) => { exchanges.push(x); } };
 }
 
@@ -21,7 +23,7 @@ export async function persistExchanges(
   env: Pick<Env, "DOCUMENTS_R2">,
   db: Variables["db"],
   tenantId: string,
-  exchanges: SupplierExchange[],
+  exchanges: AnyExchange[],
   link: { bookingId?: string | null; searchId?: string | null; requestId?: string | null },
 ): Promise<void> {
   if (!exchanges.length) return;
