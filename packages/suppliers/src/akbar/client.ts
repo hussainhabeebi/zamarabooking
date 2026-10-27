@@ -23,7 +23,8 @@ import type { SearchParams } from "../base.js";
 //   {flightsUrl}/Utils/GetTravelCheckList → { TUI, ClientID }: traveller details the
 //                                        airline requires (passport, DOB, …)
 //
-// Every call must come from an IP Akbar has whitelisted.
+// Every call must come from an IP Akbar has whitelisted. Cloudflare Workers have no
+// fixed IP, so in production calls go through apps/akbar-gateway (gatewayUrl).
 
 export interface AkbarCredentials {
   utilsUrl:   string;   // https://b2bapiutils.benzyinfotech.com (test)
@@ -35,6 +36,8 @@ export interface AkbarCredentials {
   agentCode:  string;
   browserKey: string;
   key:        string;   // extra "Key" Akbar sends with test credentials; omitted when blank
+  gatewayUrl?: string;  // https://akbar-proxy.… — when set, every call goes through the gateway
+  gatewayKey?: string;  // the gateway's ZAMRA_GATEWAY_KEY
 }
 
 export interface AkbarToken {
@@ -215,10 +218,20 @@ export interface AkbarSearchOptions {
 export class AkbarClient {
   constructor(private creds: AkbarCredentials, private fetchImpl: typeof fetch = fetch) {}
 
+  // Through the gateway, /utils/… and /flights/… map to Akbar's two hosts.
+  private gateway() { return this.creds.gatewayUrl ? trimUrl(this.creds.gatewayUrl) : ""; }
+  private utilsBase()   { return this.gateway() ? `${this.gateway()}/utils` : trimUrl(this.creds.utilsUrl); }
+  private flightsBase() { return this.gateway() ? `${this.gateway()}/flights` : trimUrl(this.creds.flightsUrl); }
+
   private async post(url: string, endpoint: string, body: unknown, token?: string): Promise<unknown> {
+    if (this.gateway() && !this.creds.gatewayKey) throw new AkbarError("Akbar: AKBAR_GATEWAY_KEY is not set on the Worker", undefined, endpoint);
     const res = await this.fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: {
+        "Content-Type": "application/json", Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(this.gateway() ? { "X-Zamra-Gateway-Key": this.creds.gatewayKey! } : {}),
+      },
       body: JSON.stringify(body),
     });
     const text = await res.text();
@@ -229,60 +242,60 @@ export class AkbarClient {
 
   async signature(): Promise<AkbarToken> {
     const c = this.creds;
-    if (!c.utilsUrl || !c.merchantId || !c.apiKey || !c.clientId || !c.password || !c.browserKey) {
+    if (!(c.utilsUrl || c.gatewayUrl) || !c.merchantId || !c.apiKey || !c.clientId || !c.password || !c.browserKey) {
       throw new AkbarError("Akbar: fill in Utils URL, MerchantID, ApiKey, ClientID, Password and BrowserKey first");
     }
     const endpoint = "/Utils/Signature";
-    const data = await this.post(`${trimUrl(c.utilsUrl)}${endpoint}`, endpoint, signatureBody(c));
+    const data = await this.post(`${this.utilsBase()}${endpoint}`, endpoint, signatureBody(c));
     const token = pickString(data, ["Token", "token", "TokenID", "AccessToken", "access_token"]);
     if (!token) throw new AkbarError("Akbar Signature returned no token", 200, endpoint, JSON.stringify(data).slice(0, 1000));
     return { token, clientId: pickString(data, ["ClientID", "ClientId", "clientId"]) || c.clientId };
   }
 
   async expressSearch(params: SearchParams, auth: AkbarToken): Promise<unknown> {
-    if (!this.creds.flightsUrl) throw new AkbarError("Akbar: Flights URL not configured");
+    if (!this.creds.flightsUrl && !this.creds.gatewayUrl) throw new AkbarError("Akbar: Flights URL not configured");
     const endpoint = "/flights/ExpressSearch";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId), auth.token);
   }
 
   async getExpSearch(tui: string, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/GetExpSearch";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token);
   }
 
   async smartPricer(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/SmartPricer";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, smartPricerBody(trips, auth.clientId, tripType), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, smartPricerBody(trips, auth.clientId, tripType), auth.token);
   }
 
   async flightInfo(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken): Promise<unknown> {
     const endpoint = "/Flights/FlightInfo";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, flightInfoBody(trips, auth.clientId, tripType), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, flightInfoBody(trips, auth.clientId, tripType), auth.token);
   }
 
   async fareRule(trips: AkbarPricerTrip[], auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/FareRule";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, fareRuleBody(trips, auth.clientId), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, fareRuleBody(trips, auth.clientId), auth.token);
   }
 
   async ssr(trip: { tui: string; orderId: number | string; index?: string }, paidSsr: boolean, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/ssr";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, ssrBody(trip, auth.clientId, paidSsr), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, ssrBody(trip, auth.clientId, paidSsr), auth.token);
   }
 
   async seatLayout(trip: { tui: string; orderId: number | string }, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/SeatLayout";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, seatLayoutBody(trip, auth.clientId), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, seatLayoutBody(trip, auth.clientId), auth.token);
   }
 
   async startPay(p: AkbarStartPay, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/Payment/StartPay";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, startPayBody(p, auth.clientId, this.creds.browserKey), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, startPayBody(p, auth.clientId, this.creds.browserKey), auth.token);
   }
 
   async getItineraryStatus(transactionId: number, tui: string, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/Payment/GetItineraryStatus";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, { TUI: tui, TransactionID: transactionId }, auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { TUI: tui, TransactionID: transactionId }, auth.token);
   }
 
   // After StartPay: GetItineraryStatus until Success / Failed or the deadline passes.
@@ -302,22 +315,22 @@ export class AkbarClient {
 
   async retrieveBooking(transactionId: number | string, auth: AkbarToken, tui = ""): Promise<unknown> {
     const endpoint = "/Utils/RetrieveBooking";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, retrieveBookingBody(transactionId, auth.clientId, tui), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, retrieveBookingBody(transactionId, auth.clientId, tui), auth.token);
   }
 
   async cancel(c: AkbarCancel, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/cancel";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, cancelBody(c, auth.clientId), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, cancelBody(c, auth.clientId), auth.token);
   }
 
   async getSPricer(tui: string, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/GetSPricer";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, { TUI: tui, ClientID: auth.clientId }, auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { TUI: tui, ClientID: auth.clientId }, auth.token);
   }
 
   async getTravelCheckList(tui: string, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/Utils/GetTravelCheckList";
-    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, { TUI: tui, ClientID: auth.clientId }, auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { TUI: tui, ClientID: auth.clientId }, auth.token);
   }
 
   // ExpressSearch, then GetExpSearch until the results are complete or the deadline passes.

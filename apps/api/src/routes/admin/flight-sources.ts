@@ -8,11 +8,11 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { manualFares } from "@zamrabooking/db/schema";
-import { AkbarClient, AkbarError, normalizeAkbarSearch, PoomasAdapter, searchTui } from "@zamrabooking/suppliers";
+import { AkbarError, normalizeAkbarSearch, PoomasAdapter, searchTui } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
 import { logSupplierCall } from "../../lib/supplier-logger.js";
 import {
-  getAkbarSettings, getAkbarToken, getManualSettings, getPoomasSettings, saveAkbarSettings, saveManualSettings, savePoomasSettings,
+  akbarClient, getAkbarSettings, getAkbarToken, getManualSettings, getPoomasSettings, saveAkbarSettings, saveManualSettings, savePoomasSettings,
   SHEET_COLUMNS, sheetCsvUrl, syncManualFaresSheet, validateManualFare,
 } from "../../lib/flight-sources.js";
 
@@ -30,7 +30,7 @@ flightSourcesAdminRoutes.get("/", async (c) => {
     getAkbarSettings(c.env, tenantId), getPoomasSettings(c.env, tenantId), getManualSettings(c.env, tenantId),
   ]);
   return c.json({
-    akbar: { ...akbar, password: mask(akbar.password), apiKey: mask(akbar.apiKey), key: mask(akbar.key) },
+    akbar: { ...akbar, password: mask(akbar.password), apiKey: mask(akbar.apiKey), key: mask(akbar.key), gatewayKeySet: !!c.env.AKBAR_GATEWAY_KEY },
     poomas: { ...poomas, apiKey: mask(poomas.apiKey) },
     manual,
     sheetColumns: SHEET_COLUMNS,
@@ -54,13 +54,14 @@ flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
   agentCode:   z.string().trim().max(100),
   browserKey:  z.string().trim().max(200),
   key:         z.string().max(500).optional(),
+  gatewayUrl:  url,
 })), async (c) => {
   fullAdminOnly(c.get("userRole"));
   const body = c.req.valid("json");
   const saved = await getAkbarSettings(c.env, c.get("tenantId"));
   const next = {
     ...body,
-    utilsUrl: body.utilsUrl.replace(/\/+$/, ""), flightsUrl: body.flightsUrl.replace(/\/+$/, ""),
+    utilsUrl: body.utilsUrl.replace(/\/+$/, ""), flightsUrl: body.flightsUrl.replace(/\/+$/, ""), gatewayUrl: body.gatewayUrl.replace(/\/+$/, ""),
     password: keep(body.password, saved.password), apiKey: keep(body.apiKey, saved.apiKey), key: keep(body.key, saved.key),
   };
   if (next.enabled && !(next.utilsUrl && next.flightsUrl && next.merchantId && next.apiKey && next.clientId && next.password && next.browserKey)) {
@@ -81,13 +82,28 @@ flightSourcesAdminRoutes.post("/akbar/token", async (c) => {
   const s = await getAkbarSettings(c.env, tenantId);
   const started = Date.now();
   try {
-    const t = await getAkbarToken(c.env, tenantId, new AkbarClient(s), true);
+    const t = await getAkbarToken(c.env, tenantId, akbarClient(c.env, s), true);
     await logSupplierCall(c.get("db"), { tenantId, supplier: "AKBAR", endpoint: "/Utils/Signature", level: "INFO", durationMs: Date.now() - started });
     return c.json({ ok: true, clientId: t.clientId, durationMs: Date.now() - started });
   } catch (err) {
     const f = akbarFailure(err);
     await logSupplierCall(c.get("db"), { tenantId, supplier: "AKBAR", endpoint: "/Utils/Signature", level: "ERROR", httpStatus: f.httpStatus, errorMessage: f.error, responseSnippet: f.response, durationMs: Date.now() - started });
     return c.json({ ok: false, ...f, durationMs: Date.now() - started });
+  }
+});
+
+// The gateway's public outbound IP: the one to send Akbar for whitelisting.
+flightSourcesAdminRoutes.post("/akbar/egress-ip", zValidator("json", z.object({ gatewayUrl: z.string().trim().url() })), async (c) => {
+  fullAdminOnly(c.get("userRole"));
+  if (!c.env.AKBAR_GATEWAY_KEY) return c.json({ ok: false, error: "Add the AKBAR_GATEWAY_KEY secret to the Cloudflare Worker first." });
+  try {
+    const res = await fetch(`${c.req.valid("json").gatewayUrl.replace(/\/+$/, "")}/egress-ip`, {
+      headers: { "X-Zamra-Gateway-Key": c.env.AKBAR_GATEWAY_KEY }, signal: AbortSignal.timeout(10_000),
+    });
+    const d = await res.json().catch(() => ({})) as { ip?: string; error?: string };
+    return d.ip ? c.json({ ok: true, ip: d.ip }) : c.json({ ok: false, error: d.error ?? `Gateway answered HTTP ${res.status}` });
+  } catch (err) {
+    return c.json({ ok: false, error: `Couldn't reach the gateway: ${err instanceof Error ? err.message : String(err)}` });
   }
 });
 
@@ -102,7 +118,7 @@ flightSourcesAdminRoutes.post("/akbar/test", zValidator("json", z.object({
   const tenantId = c.get("tenantId");
   const p = c.req.valid("json");
   const s = await getAkbarSettings(c.env, tenantId);
-  const client = new AkbarClient(s);
+  const client = akbarClient(c.env, s);
   const started = Date.now();
   const params = { ...p, adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: "INR" as const };
   try {
