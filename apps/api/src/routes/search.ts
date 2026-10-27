@@ -225,7 +225,7 @@ function logSearchOutcome(
     writes.push(logSupplierCall(db, {
       tenantId, supplier: "TRIPJACK", endpoint: "flight-search", level: "ERROR", requestId: searchId,
       requestSummary, errorCode: "NO_SUPPLIER_ENABLED",
-      errorMessage: "No flight supplier is enabled for this tenant (check Admin → Integrations TripJack toggle and TRIPJACK_API_BASE_URL / API key / proxy key secrets).",
+      errorMessage: "No live flight source is switched on, so only manual fares (if any) were searched. Switch one on: TripJack in Admin → Integrations; Akbar or Poomas in Admin → Flight Sources. Admin → Suppliers shows what search is using.",
     }));
   }
 
