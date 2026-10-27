@@ -36,6 +36,6 @@ export {
 } from "./tripjack/insurance.js";
 export { parseTripjackSeatMap, seatTotal, type SeatOption, type SegmentSeatMap } from "./tripjack/seat-map.js";
 export {
-  AkbarClient, AkbarError, AKBAR_TOKEN_TTL_SECONDS, signatureBody, expressSearchBody, smartPricerBody, fareRuleBody, flightInfoBody, ssrBody, isSearchComplete, searchTui,
+  AkbarClient, AkbarError, AKBAR_TOKEN_TTL_SECONDS, signatureBody, expressSearchBody, smartPricerBody, fareRuleBody, flightInfoBody, ssrBody, seatLayoutBody, isSearchComplete, searchTui,
   type AkbarCredentials, type AkbarToken, type AkbarSearchOptions, type AkbarPricerTrip,
 } from "./akbar/client.js";

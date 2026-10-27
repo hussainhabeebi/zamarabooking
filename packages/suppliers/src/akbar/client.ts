@@ -14,6 +14,7 @@ import type { SearchParams } from "../base.js";
 //   {flightsUrl}/Flights/FlightInfo    → flight, fare and SSR details from store/cache
 //   {flightsUrl}/flights/FareRule      → fare rules for the chosen fare (same Trips as SmartPricer)
 //   {flightsUrl}/flights/ssr           → seats / meals / baggage on sale (Index "" after SmartPricer)
+//   {flightsUrl}/flights/SeatLayout    → seat map for sale; only after SmartPricer + GetSPricer
 //   {flightsUrl}/Utils/GetTravelCheckList → { TUI, ClientID }: traveller details the
 //                                        airline requires (passport, DOB, …)
 //
@@ -122,6 +123,11 @@ export function ssrBody(trip: { tui: string; orderId: number | string; index?: s
   return { ClientID: clientId, PaidSSR: paidSsr, Source: source, Trips: [{ TUI: trip.tui, Amount: 0, OrderID: trip.orderId, Index: trip.index ?? "" }] };
 }
 
+// SeatLayout request: TUI from SmartPricer / GetSPricer, Index always "".
+export function seatLayoutBody(trip: { tui: string; orderId: number | string }, clientId: string) {
+  return { ClientID: clientId, Source: "LV", Trips: [{ TUI: trip.tui, Index: "", OrderID: trip.orderId }] };
+}
+
 function pickString(data: unknown, keys: string[]): string {
   if (!data || typeof data !== "object") return "";
   for (const k of keys) {
@@ -203,6 +209,11 @@ export class AkbarClient {
   async ssr(trip: { tui: string; orderId: number | string; index?: string }, paidSsr: boolean, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/ssr";
     return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, ssrBody(trip, auth.clientId, paidSsr), auth.token);
+  }
+
+  async seatLayout(trip: { tui: string; orderId: number | string }, auth: AkbarToken): Promise<unknown> {
+    const endpoint = "/flights/SeatLayout";
+    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, seatLayoutBody(trip, auth.clientId), auth.token);
   }
 
   async getSPricer(tui: string, auth: AkbarToken): Promise<unknown> {

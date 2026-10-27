@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  AkbarClient, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, signatureBody, smartPricerBody, ssrBody,
+  AkbarClient, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody,
 } from "@zamrabooking/suppliers";
 import {
   DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
@@ -214,6 +214,10 @@ test("Akbar search polls GetExpSearch with the TUI until Completed", async () =>
   assert.equal(calls[1].url, "https://flights.test/flights/GetExpSearch");
   assert.deepEqual(calls[1].body, { ClientID: "cid", TUI: "t1" });
   assert.ok(calls.every((c) => c.auth === "Bearer jwt"));
+});
+
+test("Akbar seat layout body", () => {
+  assert.deepEqual(seatLayoutBody({ tui: "t", orderId: 1 }, "cid"), { ClientID: "cid", Source: "LV", Trips: [{ TUI: "t", Index: "", OrderID: 1 }] });
 });
 
 test("Akbar pricing, fare rule, flight info and SSR bodies", () => {
