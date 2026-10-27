@@ -376,3 +376,43 @@ test("Akbar client calls the global fetch unbound (Workers reject this-bound fet
     assert.equal(receiver, undefined);
   } finally { globalThis.fetch = realFetch; }
 });
+
+test("Akbar search stops when ExpressSearch already holds flights", async () => {
+  const urls: string[] = [];
+  const fetchImpl = (async (url: string) => { urls.push(url); return json({ TUI: "t", Completed: false, Trips: [{ Journey: [akbarJourney] }] }); }) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(
+    { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" },
+    { token: "jwt", clientId: "cid" }, { sleep: async () => {} },
+  );
+  assert.equal(r.polls, 0);
+  assert.equal(r.completed, true);
+  assert.deepEqual(urls, ["https://flights.test/flights/ExpressSearch"]);
+});
+
+test("a failed GetExpSearch reports what ExpressSearch answered", async () => {
+  const fetchImpl = (async (url: string) => url.endsWith("/ExpressSearch")
+    ? json({ TUI: "t9", Completed: false, Notices: ["collecting"] })
+    : new Response("error code: 504", { status: 504 })) as unknown as typeof fetch;
+  await assert.rejects(
+    new AkbarClient(akbarCreds, fetchImpl).search(
+      { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" },
+      { token: "jwt", clientId: "cid" }, { sleep: async () => {} },
+    ),
+    (err: any) => err.statusCode === 504 && /ExpressSearch answered: .*t9/.test(err.responseSnippet) && /error code: 504/.test(err.responseSnippet),
+  );
+});
+
+test("an Akbar call that hangs times out on its own", async () => {
+  const keepAlive = setTimeout(() => {}, 5000);   // AbortSignal.timeout's timer doesn't hold Node open
+  const fetchImpl = ((_u: string, init: RequestInit) => new Promise((_, reject) => {
+    init.signal!.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "TimeoutError" })));
+  })) as unknown as typeof fetch;
+  await assert.rejects(
+    new AkbarClient(akbarCreds, fetchImpl).expressSearch(
+      { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" },
+      { token: "jwt", clientId: "cid" }, 1000,
+    ),
+    (err: any) => err.statusCode === 504 && /timed out after 1s/.test(err.message),
+  );
+  clearTimeout(keepAlive);
+});

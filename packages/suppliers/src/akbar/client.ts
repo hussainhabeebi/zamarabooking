@@ -209,6 +209,12 @@ export function isSearchComplete(data: unknown): boolean {
 
 export const searchTui = (data: unknown) => pickString(data, ["TUI", "Tui"]);
 
+// True when the response already holds flights (Trips[n].Journey[] not empty).
+export function hasJourneys(data: unknown): boolean {
+  const trips = (data as { Trips?: unknown } | null)?.Trips;
+  return Array.isArray(trips) && trips.some((t) => Array.isArray((t as { Journey?: unknown } | null)?.Journey) && ((t as { Journey: unknown[] }).Journey.length > 0));
+}
+
 export interface AkbarSearchOptions {
   pollIntervalMs?: number;   // between GetExpSearch calls
   deadlineMs?:     number;   // the docs allow 50 s after ExpressSearch
@@ -225,17 +231,26 @@ export class AkbarClient {
   private utilsBase()   { return this.gateway() ? `${this.gateway()}/utils` : trimUrl(this.creds.utilsUrl); }
   private flightsBase() { return this.gateway() ? `${this.gateway()}/flights` : trimUrl(this.creds.flightsUrl); }
 
-  private async post(url: string, endpoint: string, body: unknown, token?: string): Promise<unknown> {
+  // Every call has its own time limit, so one slow Akbar answer can't hold up a whole search.
+  private async post(url: string, endpoint: string, body: unknown, token?: string, timeoutMs = 30_000): Promise<unknown> {
     if (this.gateway() && !this.creds.gatewayKey) throw new AkbarError("Akbar: AKBAR_GATEWAY_KEY is not set on the Worker", undefined, endpoint);
-    const res = await this.fetchImpl(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json", Accept: "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(this.gateway() ? { "X-Zamra-Gateway-Key": this.creds.gatewayKey! } : {}),
-      },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json", Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(this.gateway() ? { "X-Zamra-Gateway-Key": this.creds.gatewayKey! } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(Math.max(1000, timeoutMs)),
+      });
+    } catch (err) {
+      const name = (err as { name?: string })?.name;
+      if (name === "TimeoutError" || name === "AbortError") throw new AkbarError(`Akbar ${endpoint} timed out after ${Math.round(timeoutMs / 1000)}s`, 504, endpoint);
+      throw err;
+    }
     const text = await res.text();
     if (!res.ok) throw new AkbarError(`Akbar ${endpoint} failed (HTTP ${res.status})`, res.status, endpoint, text.slice(0, 1000));
     try { return JSON.parse(text); }
@@ -254,15 +269,15 @@ export class AkbarClient {
     return { token, clientId: pickString(data, ["ClientID", "ClientId", "clientId"]) || c.clientId };
   }
 
-  async expressSearch(params: SearchParams, auth: AkbarToken): Promise<unknown> {
+  async expressSearch(params: SearchParams, auth: AkbarToken, timeoutMs?: number): Promise<unknown> {
     if (!this.creds.flightsUrl && !this.creds.gatewayUrl) throw new AkbarError("Akbar: Flights URL not configured");
     const endpoint = "/flights/ExpressSearch";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId), auth.token, timeoutMs);
   }
 
-  async getExpSearch(tui: string, auth: AkbarToken): Promise<unknown> {
+  async getExpSearch(tui: string, auth: AkbarToken, timeoutMs?: number): Promise<unknown> {
     const endpoint = "/flights/GetExpSearch";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token, timeoutMs);
   }
 
   async smartPricer(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken): Promise<unknown> {
@@ -335,19 +350,29 @@ export class AkbarClient {
     return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { TUI: tui, ClientID: auth.clientId }, auth.token);
   }
 
-  // ExpressSearch, then GetExpSearch until the results are complete or the deadline passes.
-  // Returns the last response; `completed` is false when Akbar was still collecting fares.
+  // ExpressSearch (Mode SY: Akbar waits for every airline), then GetExpSearch only while the
+  // answer holds no flights yet and isn't marked complete. A failed or slow follow-up keeps
+  // the flights already received. `completed` is false when Akbar was still collecting fares.
   async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number }> {
     const { pollIntervalMs = 2000, deadlineMs = 45_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
     const started = Date.now();
-    let data = await this.expressSearch(params, auth);
+    const left = () => deadlineMs - (Date.now() - started);
+    const first = await this.expressSearch(params, auth, deadlineMs);
+    let data = first;
     const tui = searchTui(data);
     let polls = 0;
-    while (!isSearchComplete(data) && tui && Date.now() - started + pollIntervalMs < deadlineMs) {
+    while (!isSearchComplete(data) && !hasJourneys(data) && tui && left() > pollIntervalMs + 1000) {
       await sleep(pollIntervalMs);
-      data = await this.getExpSearch(tui, auth);
+      try {
+        data = await this.getExpSearch(tui, auth, left());
+      } catch (err) {
+        if (!(err instanceof AkbarError)) throw err;
+        // Show what ExpressSearch said too: that is what tells us how Akbar answered.
+        throw new AkbarError(err.message, err.statusCode, err.endpoint,
+          `ExpressSearch answered: ${JSON.stringify(first).slice(0, 1500)}\n\n${err.endpoint ?? "GetExpSearch"} answered: ${err.responseSnippet ?? "(nothing)"}`);
+      }
       polls++;
     }
-    return { data, completed: isSearchComplete(data), polls };
+    return { data, completed: isSearchComplete(data) || hasJourneys(data), polls };
   }
 }
