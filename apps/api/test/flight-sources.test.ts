@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  AkbarClient, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody,
+  AkbarClient, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, cancelBody,
 } from "@zamrabooking/suppliers";
 import {
   DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
@@ -214,6 +214,21 @@ test("Akbar search polls GetExpSearch with the TUI until Completed", async () =>
   assert.equal(calls[1].url, "https://flights.test/flights/GetExpSearch");
   assert.deepEqual(calls[1].body, { ClientID: "cid", TUI: "t1" });
   assert.ok(calls.every((c) => c.auth === "Bearer jwt"));
+});
+
+test("Akbar StartPay body", () => {
+  assert.deepEqual(startPayBody({ transactionId: 230003316, netAmount: 2903.68, tui: "t" }, "cid", "bk"), {
+    TransactionID: 230003316, PaymentAmount: 0, NetAmount: 2903.68, BrowserKey: "bk", ClientID: "cid", TUI: "t",
+    Hold: false, Promo: null, PaymentType: "", BankCode: "",
+  });
+});
+
+test("Akbar RetrieveBooking and Cancel bodies", () => {
+  assert.deepEqual(retrieveBookingBody(200001224, "cid"), { TUI: "", ClientID: "cid", ReferenceNumber: "200001224", ReferenceType: "T", ServiceType: "FLT" });
+  assert.deepEqual(cancelBody({ transactionId: 123412, remarks: "Test", trips: [{ crsPnr: "T9DGF24", pax: [{ id: 5024, ticket: "734553687" }] }] }, "cid"), {
+    ClientID: "cid", ClientIP: "", Remarks: "Test", TUI: "", TransactionID: 123412,
+    Trips: [{ CRSPNR: "T9DGF24", Pax: [{ ID: 5024, Ticket: "734553687" }] }],
+  });
 });
 
 test("Akbar seat layout body", () => {

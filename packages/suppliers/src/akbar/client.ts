@@ -15,6 +15,9 @@ import type { SearchParams } from "../base.js";
 //   {flightsUrl}/flights/FareRule      → fare rules for the chosen fare (same Trips as SmartPricer)
 //   {flightsUrl}/flights/ssr           → seats / meals / baggage on sale (Index "" after SmartPricer)
 //   {flightsUrl}/flights/SeatLayout    → seat map for sale; only after SmartPricer + GetSPricer
+//   {flightsUrl}/Payment/StartPay      → pays from the Akbar deposit account and books
+//   {flightsUrl}/Utils/RetrieveBooking → booking by Transaction ID
+//   {flightsUrl}/flights/cancel        → cancels passengers' tickets on a PNR
 //   {flightsUrl}/Utils/GetTravelCheckList → { TUI, ClientID }: traveller details the
 //                                        airline requires (passport, DOB, …)
 //
@@ -128,6 +131,54 @@ export function seatLayoutBody(trip: { tui: string; orderId: number | string }, 
   return { ClientID: clientId, Source: "LV", Trips: [{ TUI: trip.tui, Index: "", OrderID: trip.orderId }] };
 }
 
+export interface AkbarStartPay {
+  transactionId: number;   // from the CreateItinerary response
+  netAmount:     number;   // NetAmount from the CreateItinerary response
+  tui:           string;
+}
+
+// StartPay request (deposit account). PaymentAmount 0, Hold false, PaymentType / BankCode "".
+// The docs list 36 fields; these are the first 10, the ones a deposit payment needs.
+export function startPayBody(p: AkbarStartPay, clientId: string, browserKey: string) {
+  return {
+    TransactionID: p.transactionId,
+    PaymentAmount: 0,
+    NetAmount:     p.netAmount,
+    BrowserKey:    browserKey,
+    ClientID:      clientId,
+    TUI:           p.tui,
+    Hold:          false,
+    Promo:         null,
+    PaymentType:   "",
+    BankCode:      "",
+  };
+}
+
+// RetrieveBooking by Transaction ID (ReferenceType "T"); the docs' sample sends it as a string.
+export function retrieveBookingBody(transactionId: number | string, clientId: string, tui = "") {
+  return { TUI: tui, ClientID: clientId, ReferenceNumber: String(transactionId), ReferenceType: "T", ServiceType: "FLT" };
+}
+
+export interface AkbarCancel {
+  transactionId: number;
+  tui?:          string;
+  remarks?:      string;
+  clientIp?:     string;
+  // The screenshot cuts off inside "Trips"; CRSPNR and Pax are read as fields of each trip.
+  trips: { crsPnr: string; pax: { id: number; ticket: string }[] }[];
+}
+
+export function cancelBody(c: AkbarCancel, clientId: string) {
+  return {
+    ClientID:      clientId,
+    ClientIP:      c.clientIp ?? "",
+    Remarks:       c.remarks ?? "",
+    TUI:           c.tui ?? "",
+    TransactionID: c.transactionId,
+    Trips:         c.trips.map((t) => ({ CRSPNR: t.crsPnr, Pax: t.pax.map((p) => ({ ID: p.id, Ticket: p.ticket })) })),
+  };
+}
+
 function pickString(data: unknown, keys: string[]): string {
   if (!data || typeof data !== "object") return "";
   for (const k of keys) {
@@ -214,6 +265,21 @@ export class AkbarClient {
   async seatLayout(trip: { tui: string; orderId: number | string }, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/flights/SeatLayout";
     return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, seatLayoutBody(trip, auth.clientId), auth.token);
+  }
+
+  async startPay(p: AkbarStartPay, auth: AkbarToken): Promise<unknown> {
+    const endpoint = "/Payment/StartPay";
+    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, startPayBody(p, auth.clientId, this.creds.browserKey), auth.token);
+  }
+
+  async retrieveBooking(transactionId: number | string, auth: AkbarToken, tui = ""): Promise<unknown> {
+    const endpoint = "/Utils/RetrieveBooking";
+    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, retrieveBookingBody(transactionId, auth.clientId, tui), auth.token);
+  }
+
+  async cancel(c: AkbarCancel, auth: AkbarToken): Promise<unknown> {
+    const endpoint = "/flights/cancel";
+    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, cancelBody(c, auth.clientId), auth.token);
   }
 
   async getSPricer(tui: string, auth: AkbarToken): Promise<unknown> {
