@@ -216,7 +216,9 @@ export interface AkbarSearchOptions {
 }
 
 export class AkbarClient {
-  constructor(private creds: AkbarCredentials, private fetchImpl: typeof fetch = fetch) {}
+  // Cloudflare Workers reject fetch called as a method of another object
+  // ("Illegal invocation"), so the default calls the global fetch directly.
+  constructor(private creds: AkbarCredentials, private fetchImpl: typeof fetch = (input, init) => fetch(input, init)) {}
 
   // Through the gateway, /utils/… and /flights/… map to Akbar's two hosts.
   private gateway() { return this.creds.gatewayUrl ? trimUrl(this.creds.gatewayUrl) : ""; }
