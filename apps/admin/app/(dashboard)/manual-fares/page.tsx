@@ -100,7 +100,7 @@ export default function ManualFaresPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", margin: 0 }}>Manual fares</h1>
           <p style={{ color: "#64748b", fontSize: 14, margin: "6px 0 0", maxWidth: 680, lineHeight: 1.5 }}>
             Your own prices, shown in search next to TripJack and Poomas. Fares from the Google Sheet are marked <b style={{ color: "#cbd5e1" }}>Sheet</b> and
-            are replaced on every sync, so change those in the sheet. Turn the source on and link the sheet in <a href="/flight-sources" style={{ color: "#93c5fd" }}>Flight sources</a>.
+            are replaced on every sync, so change those in the sheet. Turn the source on and link the sheet in <a href="/suppliers#manual" style={{ color: "#93c5fd" }}>Suppliers</a>.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>

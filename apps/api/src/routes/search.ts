@@ -383,7 +383,7 @@ async function runSearch(
       ...params, currency: searchCurrency,
       legs: params.legs?.map((l) => ({ origin: l.origin, destination: l.destination, date: l.departureDate })),
     },
-    supplierConfigs.map((s) => s.name === "TRIPJACK" && s.credentials ? { ...s, credentials: { ...s.credentials, recorder: collector.recorder } } : s),
+    supplierConfigs.map((s) => (s.name === "TRIPJACK" || s.name === "AKBAR") && s.credentials ? { ...s, credentials: { ...s.credentials, recorder: collector.recorder } } : s),
     { platformCredentials: { ...platformCredentials, ...(platformCredentials.TRIPJACK ? { TRIPJACK: { ...platformCredentials.TRIPJACK, recorder: collector.recorder } as typeof platformCredentials.TRIPJACK } : {}) } },
   );
   persistInBackground(c, persistExchanges(c.env, db, tenantId, collector.exchanges, { searchId }));

@@ -38,7 +38,36 @@ export interface AkbarCredentials {
   key:        string;   // extra "Key" Akbar sends with test credentials; omitted when blank
   gatewayUrl?: string;  // https://akbar-proxy.… — when set, every call goes through the gateway
   gatewayKey?: string;  // the gateway's ZAMRA_GATEWAY_KEY
+  recorder?:   (x: AkbarExchange) => void;   // receives every call for Admin → API Logs
 }
+
+// One Akbar call as sent and received, for Admin → API Logs (request / response files).
+// Secrets are blanked: Password, ApiKey and Key in the Signature body, the Bearer token,
+// and the gateway key.
+export interface AkbarExchange {
+  supplier:        "AKBAR";
+  endpoint:        string;
+  url:             string;
+  method:          "POST";
+  requestHeaders:  Record<string, string>;
+  requestBody:     string;
+  status:          number | null;
+  responseHeaders: Record<string, string>;
+  responseBody:    string | null;
+  error?:          string;
+  startedAt:       string;
+  durationMs:      number;
+}
+
+const SECRET_FIELDS = new Set(["Password", "ApiKey", "Key"]);
+const TOKEN_FIELDS = new Set(["Token", "token", "TokenID", "AccessToken", "access_token"]);
+// The Signature answer holds the 48-hour token itself: blank it in the stored copy.
+const redactResponse = (endpoint: string, text: string) => {
+  if (endpoint !== "/Utils/Signature") return text;
+  try { return JSON.stringify(JSON.parse(text), (k, v) => (TOKEN_FIELDS.has(k) && typeof v === "string" && v ? "••••" : v)); }
+  catch { return text; }
+};
+const redactBody = (body: unknown) => JSON.stringify(body, (k, v) => (SECRET_FIELDS.has(k) && typeof v === "string" && v ? "••••" : v));
 
 export interface AkbarToken {
   token:    string;
@@ -234,6 +263,17 @@ export class AkbarClient {
   // Every call has its own time limit, so one slow Akbar answer can't hold up a whole search.
   private async post(url: string, endpoint: string, body: unknown, token?: string, timeoutMs = 30_000): Promise<unknown> {
     if (this.gateway() && !this.creds.gatewayKey) throw new AkbarError("Akbar: AKBAR_GATEWAY_KEY is not set on the Worker", undefined, endpoint);
+    const startedAt = new Date();
+    const record = (status: number | null, responseHeaders: Record<string, string>, responseBody: string | null, error?: string) => {
+      try {
+        this.creds.recorder?.({
+          supplier: "AKBAR", endpoint, url, method: "POST",
+          requestHeaders: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer ••••" } : {}) },
+          requestBody: redactBody(body), status, responseHeaders, responseBody, ...(error ? { error } : {}),
+          startedAt: startedAt.toISOString(), durationMs: Date.now() - startedAt.getTime(),
+        });
+      } catch { /* logging never breaks a call */ }
+    };
     let res: Response;
     try {
       res = await this.fetchImpl(url, {
@@ -248,10 +288,13 @@ export class AkbarClient {
       });
     } catch (err) {
       const name = (err as { name?: string })?.name;
-      if (name === "TimeoutError" || name === "AbortError") throw new AkbarError(`Akbar ${endpoint} timed out after ${Math.round(timeoutMs / 1000)}s`, 504, endpoint);
+      const timedOut = name === "TimeoutError" || name === "AbortError";
+      record(null, {}, null, timedOut ? `timed out after ${Math.round(timeoutMs / 1000)}s` : err instanceof Error ? err.message : String(err));
+      if (timedOut) throw new AkbarError(`Akbar ${endpoint} timed out after ${Math.round(timeoutMs / 1000)}s`, 504, endpoint);
       throw err;
     }
     const text = await res.text();
+    record(res.status, Object.fromEntries(res.headers.entries()), redactResponse(endpoint, text));
     if (!res.ok) throw new AkbarError(`Akbar ${endpoint} failed (HTTP ${res.status})`, res.status, endpoint, text.slice(0, 1000));
     try { return JSON.parse(text); }
     catch { throw new AkbarError(`Akbar ${endpoint} returned a response that is not JSON`, res.status, endpoint, text.slice(0, 1000)); }

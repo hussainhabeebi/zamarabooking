@@ -416,3 +416,24 @@ test("an Akbar call that hangs times out on its own", async () => {
   );
   clearTimeout(keepAlive);
 });
+
+test("Akbar calls are recorded for API Logs with secrets blanked", async () => {
+  const recorded: any[] = [];
+  const fetchImpl = (async (url: string) => url.endsWith("/Signature")
+    ? json({ Token: "jwt-secret", ClientID: "cid" })
+    : new Response("error code: 504", { status: 504 })) as unknown as typeof fetch;
+  const client = new AkbarClient({ ...akbarCreds, password: "pw", apiKey: "ak", key: "k", recorder: (x) => recorded.push(x) }, fetchImpl);
+  const token = await client.signature();
+  assert.equal(token.token, "jwt-secret");   // the caller still gets the real token
+  await assert.rejects(client.getExpSearch("t", token));
+  assert.deepEqual(recorded.map((x) => [x.supplier, x.endpoint, x.status]), [["AKBAR", "/Utils/Signature", 200], ["AKBAR", "/flights/GetExpSearch", 504]]);
+  const sig = JSON.parse(recorded[0].requestBody);
+  assert.equal(sig.Password, "••••");
+  assert.equal(sig.ApiKey, "••••");
+  assert.equal(sig.Key, "••••");
+  assert.equal(sig.ClientID, "bitest");
+  assert.equal(JSON.parse(recorded[0].responseBody).Token, "••••");
+  assert.equal(recorded[1].requestHeaders.Authorization, "Bearer ••••");
+  assert.equal(recorded[1].responseBody, "error code: 504");
+  assert.ok(!JSON.stringify(recorded).includes("jwt-secret") && !JSON.stringify(recorded).includes('"pw"'));
+});
