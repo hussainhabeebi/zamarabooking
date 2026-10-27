@@ -39,3 +39,4 @@ export {
   AkbarClient, AkbarError, AKBAR_TOKEN_TTL_SECONDS, signatureBody, expressSearchBody, smartPricerBody, fareRuleBody, flightInfoBody, ssrBody, seatLayoutBody, startPayBody, retrieveBookingBody, cancelBody, itineraryFinalStatus, isSearchComplete, searchTui,
   type AkbarCredentials, type AkbarToken, type AkbarSearchOptions, type AkbarPricerTrip, type AkbarStartPay, type AkbarCancel,
 } from "./akbar/client.js";
+export { AkbarAdapter, normalizeAkbarSearch, normalizeAkbarJourney, akbarJourneys, akbarDurationMinutes } from "./akbar/adapter.js";

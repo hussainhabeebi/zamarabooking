@@ -456,9 +456,11 @@ async function handlePaymentCaptured(
   }
 }
 
-const OFFLINE_LABEL: Record<string, string> = { POOMAS: "Poomas", MANUAL: "manual" };
+const OFFLINE_LABEL: Record<string, string> = { POOMAS: "Poomas", AKBAR: "Akbar Travels", MANUAL: "manual" };
+// Where staff issue the ticket for each offline supplier.
+const ISSUE_ON: Record<string, string> = { POOMAS: " on Poomas", AKBAR: " on Akbar Travels" };
 
-// Poomas / manual fares have no supplier call: record the payment, tell the
+// Poomas / Akbar / manual fares have no supplier call: record the payment, tell the
 // customer the ticket is being issued, and ask staff to issue it (Admin → Bookings →
 // Issue ticket, which sends the e-ticket).
 async function recordOfflinePayment(
@@ -477,7 +479,7 @@ async function recordOfflinePayment(
   }).where(eq(payments.gatewayOrderId, data.orderId));
   const label = OFFLINE_LABEL[booking.supplier ?? ""] ?? String(booking.supplier);
   await logBookingEvent(env, booking.id, "BOOK", "info",
-    `Payment received for a ${label} fare — issue the ticket${booking.supplier === "POOMAS" ? " on Poomas" : ""} and enter the PNR in Admin → Bookings`,
+    `Payment received for a ${label} fare — issue the ticket${ISSUE_ON[booking.supplier ?? ""] ?? ""} and enter the PNR in Admin → Bookings`,
     { orderId: data.orderId, amount: data.amount });
 
   // Never let follow-up steps fail (and re-run) a paid booking.
@@ -512,7 +514,7 @@ async function recordOfflinePayment(
         subject: `Issue ticket: ${route} ${date} (${label} fare, paid)`,
         html: emailLayout({
           title: "A paid booking needs a ticket",
-          body: `<p>${escapeHtml(booking.contactEmail ?? "A customer")} paid for a ${escapeHtml(label)} fare. Issue the ticket${booking.supplier === "POOMAS" ? " on Poomas" : ""}, then open the booking in Admin and click <b>Issue ticket</b> to send the e-ticket.</p>`,
+          body: `<p>${escapeHtml(booking.contactEmail ?? "A customer")} paid for a ${escapeHtml(label)} fare. Issue the ticket${ISSUE_ON[booking.supplier ?? ""] ?? ""}, then open the booking in Admin and click <b>Issue ticket</b> to send the e-ticket.</p>`,
           rows: [["Route", route], ["Date", date], ["Flight", flight || "—"], ["Travellers", String(booking.adultCount + booking.childCount + booking.infantCount)],
             ["Amount paid", money(Number(booking.totalAmount), booking.currency)], ["Booking ID", booking.id]],
           cta: { label: "Open in Admin", href: `https://admin.zamrabooking.com/bookings` },

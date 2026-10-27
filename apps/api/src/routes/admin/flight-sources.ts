@@ -8,7 +8,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { manualFares } from "@zamrabooking/db/schema";
-import { AkbarClient, AkbarError, PoomasAdapter, searchTui } from "@zamrabooking/suppliers";
+import { AkbarClient, AkbarError, normalizeAkbarSearch, PoomasAdapter, searchTui } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
 import { logSupplierCall } from "../../lib/supplier-logger.js";
 import {
@@ -58,11 +58,15 @@ flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
   fullAdminOnly(c.get("userRole"));
   const body = c.req.valid("json");
   const saved = await getAkbarSettings(c.env, c.get("tenantId"));
-  await saveAkbarSettings(c.env, c.get("tenantId"), {
+  const next = {
     ...body,
     utilsUrl: body.utilsUrl.replace(/\/+$/, ""), flightsUrl: body.flightsUrl.replace(/\/+$/, ""),
     password: keep(body.password, saved.password), apiKey: keep(body.apiKey, saved.apiKey), key: keep(body.key, saved.key),
-  });
+  };
+  if (next.enabled && !(next.utilsUrl && next.flightsUrl && next.merchantId && next.apiKey && next.clientId && next.password && next.browserKey)) {
+    return c.json({ error: "Fill in both URLs, MerchantID, ApiKey, ClientID, Password and BrowserKey before turning Akbar on." }, 400);
+  }
+  await saveAkbarSettings(c.env, c.get("tenantId"), next);
   return c.json({ ok: true });
 });
 
@@ -87,8 +91,8 @@ flightSourcesAdminRoutes.post("/akbar/token", async (c) => {
   }
 });
 
-// One ExpressSearch (+ GetExpSearch until complete). Returns the raw response so the
-// fare fields can be checked before Akbar fares go into customer search.
+// One ExpressSearch (+ GetExpSearch until complete). Returns the fares Zamra read from it
+// and the raw response, so both can be checked against Akbar's portal.
 flightSourcesAdminRoutes.post("/akbar/test", zValidator("json", z.object({
   origin:        z.string().length(3).toUpperCase(),
   destination:   z.string().length(3).toUpperCase(),
@@ -110,12 +114,19 @@ flightSourcesAdminRoutes.post("/akbar/test", zValidator("json", z.object({
       return client.search(params, token);
     });
     const raw = JSON.stringify(result.data);
+    const fares = normalizeAkbarSearch(result.data, "ECONOMY");
+    const cheapest = fares.reduce<(typeof fares)[number] | null>((min, f) => (!min || f.totalFare < min.totalFare ? f : min), null);
     await logSupplierCall(c.get("db"), {
       tenantId, supplier: "AKBAR", endpoint: "/flights/ExpressSearch", level: "INFO", requestSummary: p,
       responseSnippet: raw, durationMs: Date.now() - started,
     });
     return c.json({
       ok: true, completed: result.completed, polls: result.polls, tui: searchTui(result.data),
+      fares: fares.length,
+      cheapest: cheapest && {
+        airline: cheapest.airlineName, flight: `${cheapest.airline} ${cheapest.flightNumber}`,
+        departure: cheapest.departureTime, arrival: cheapest.arrivalTime, price: cheapest.totalFare,
+      },
       response: raw.slice(0, 6000), responseLength: raw.length, durationMs: Date.now() - started,
     });
   } catch (err) {

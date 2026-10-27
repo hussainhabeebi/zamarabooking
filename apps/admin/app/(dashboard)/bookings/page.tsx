@@ -132,7 +132,7 @@ export default async function AdminBookingsPage({
                       {b.status.replace(/_/g, " ")}
                     </span>
                     {/* Poomas / manual fare paid, ticket not issued by staff yet */}
-                    {b.status === "CONFIRMED" && (b.supplier === "POOMAS" || b.supplier === "MANUAL") && (
+                    {b.status === "CONFIRMED" && ["POOMAS", "AKBAR", "MANUAL"].includes(b.supplier) && (
                       <span style={{ display: "block", marginTop: 4, color: "#fde047", fontSize: 11, fontWeight: 700 }}>Needs ticket</span>
                     )}
                   </td>

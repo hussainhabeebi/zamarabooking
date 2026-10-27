@@ -3,7 +3,7 @@
 // GOOGLE_SERP implements search only and always returns isBookable: false.
 
 // Flight sources with an adapter. MANUAL fares come from the Zamra database instead.
-export type SupplierName = "RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL" | "POOMAS";
+export type SupplierName = "RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL" | "POOMAS" | "AKBAR";
 
 export interface SearchParams {
   origin:       string;  // IATA code

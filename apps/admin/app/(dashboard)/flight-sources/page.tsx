@@ -52,22 +52,23 @@ export default function FlightSourcesPage() {
       <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>Flight sources</h1>
       <p style={{ color: "#64748b", fontSize: 14, marginBottom: 20, lineHeight: 1.6 }}>
         Where flight prices come from besides TripJack (Integrations). All sources show together in search, cheapest first, with your
-        markup rules applied. <b style={{ color: "#cbd5e1" }}>Poomas and manual fares</b> are paid online on Zamra; the booking then waits in
+        markup rules applied. <b style={{ color: "#cbd5e1" }}>Akbar, Poomas and manual fares</b> are paid online on Zamra; the booking then waits in
         Admin → Bookings until staff issue the ticket and enter the PNR, which emails the e-ticket to the customer.
       </p>
 
       {/* ── Akbar Travels ── */}
-      <Section color="#f59e0b" title="Akbar Travels API" badge="connection test">
+      <Section color="#f59e0b" title="Akbar Travels API" badge={akbar.enabled ? "live in search" : "off"}>
         <p style={hint}>
           Akbar's B2B API (by Benzy Infotech). Enter the Signature credentials Akbar sent you; the token they return lasts 48 hours and is reused
-          for every call. Akbar only answers calls from a <b style={{ color: "#cbd5e1" }}>whitelisted IP</b>. Use the tests below to check the
-          connection; Akbar fares are not shown to customers yet.
+          for every call. Akbar only answers calls from a <b style={{ color: "#cbd5e1" }}>whitelisted IP</b>. The price shown is Akbar's net fare;
+          your markup is added on top. One-way fares only. After payment, book the same flight on the Akbar portal and enter the PNR on the
+          booking. Run the test search before switching it on.
         </p>
         <form onSubmit={(e) => { e.preventDefault(); run("akbar", async () => {
           await call("/akbar", "PUT", { ...akbar, ...akbarSecrets });
           setAkbarSecrets({ password: "", apiKey: "", key: "" }); await load(); return "Saved.";
         }); }} style={formGrid}>
-          <Toggle label="Use Akbar Travels" checked={akbar.enabled} onChange={(v) => set("akbar", { enabled: v })} />
+          <Toggle label="Show Akbar fares in search" checked={akbar.enabled} onChange={(v) => set("akbar", { enabled: v })} />
           <Field label="Environment">
             <select value={akbar.environment} onChange={(e) => set("akbar", { environment: e.target.value as "UAT" | "PRODUCTION" })} style={input}>
               <option value="UAT">Test</option><option value="PRODUCTION">Live</option>
@@ -108,7 +109,10 @@ export default function FlightSourcesPage() {
               const r = await call("/akbar/test", "POST", test);
               if (!r.ok) { setAkbarRaw(r.response ?? ""); throw new Error(r.error); }
               setAkbarRaw(r.response);
-              return `Akbar answered in ${(r.durationMs / 1000).toFixed(1)}s${r.completed ? "" : " (results still incomplete)"} — ${r.responseLength.toLocaleString("en-IN")} characters.`;
+              const when = `${(r.durationMs / 1000).toFixed(1)}s${r.completed ? "" : ", results still incomplete"}`;
+              if (!r.fares) return `Akbar answered (${when}) but Zamra read no fares from it — check the response below.`;
+              const ch = r.cheapest;
+              return `${r.fares} fares (${when}). Cheapest: ${ch.airline} ${ch.flight}, ${ch.departure.slice(11, 16)} → ${ch.arrival.slice(11, 16)}, ₹${Number(ch.price).toLocaleString("en-IN")}. Compare with Akbar's portal.`;
             })} style={btnGhost}>{busy === "akbarTest" ? "Searching…" : "Run test search"}</button>
           </div>
           {msg.akbarTest?.text && <Msg {...msg.akbarTest} />}

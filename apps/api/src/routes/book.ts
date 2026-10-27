@@ -55,7 +55,7 @@ const passengerSchema = z.object({
 const directBookSchema = z.object({
   fareId:        z.string().min(1),
   // POOMAS / MANUAL: paid here, ticketed by staff (lib/flight-sources.ts).
-  supplier:      z.enum(["TRIPJACK", "RIYA", "POOMAS", "MANUAL"]),
+  supplier:      z.enum(["TRIPJACK", "RIYA", "POOMAS", "AKBAR", "MANUAL"]),
   // Up to 9 seats (adults + children); lap infants come on top, one per adult.
   passengers:    z.array(passengerSchema).min(1).max(18),
   contactEmail:  z.string().email(),

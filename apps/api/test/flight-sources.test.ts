@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  AkbarClient, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, cancelBody,
+  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, cancelBody,
 } from "@zamrabooking/suppliers";
 import {
   DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
@@ -277,4 +277,69 @@ test("old Akbar settings fields are dropped", async () => {
   assert.equal(s.clientId, "c");
   assert.equal(s.utilsUrl, DEFAULT_AKBAR.utilsUrl);
   assert.ok(!("username" in s) && !("baseUrl" in s));
+});
+
+// ── Akbar in customer search ─────────────────────────────────────────────────
+
+const akbarJourney = {
+  Index: "6E|1", Provider: "6E", VAC: "6E", FlightNo: "6E 2101", From: "BOM", To: "DEL",
+  DepartureTime: "2026-12-01T06:00:00", ArrivalTime: "2026-12-01T08:10:00", Duration: "02h 10m ", Stops: 0, Seats: 7,
+  AirlineName: "IndiGo|IndiGo|IndiGo", NetFare: 4890.5, GrossFare: 5100, Refundable: "Y", Cabin: "E", RBD: "R",
+  FCType: "SAVER", Inclusions: { Baggage: "15 Kg", Cabin: "7 Kg" }, Connections: [], OrderID: 1,
+};
+
+test("Akbar journey becomes a Zamra fare at Akbar's net fare", () => {
+  const fares = normalizeAkbarSearch({ TUI: "tui1", Completed: true, Trips: [{ Journey: [
+    akbarJourney,
+    { ...akbarJourney, Index: "6E|2", NetFare: 0 },             // no price → dropped
+    { ...akbarJourney, Index: "6E|3", ReturnIdentifier: 2 },     // special-return half → dropped
+  ] }] }, "ECONOMY");
+  assert.equal(fares.length, 1);
+  const f = fares[0];
+  assert.equal(f.id, "AK|tui1|6E|1");
+  assert.equal(f.supplier, "AKBAR");
+  assert.equal(f.airline, "6E");
+  assert.equal(f.airlineName, "IndiGo");
+  assert.equal(f.flightNumber, "2101");
+  assert.equal(f.duration, 130);
+  assert.equal(f.totalFare, 4890.5);
+  assert.equal(f.isRefundable, true);
+  assert.deepEqual(f.baggage, { cabin: "7 Kg", checked: "15 Kg" });
+  assert.equal(f.seatsLeft, 7);
+  assert.equal(f.fareIdentifier, "SAVER");
+});
+
+test("Akbar duration formats", () => {
+  assert.equal(akbarDurationMinutes("2h 5m"), 125);
+  assert.equal(akbarDurationMinutes("14h"), 840);
+  assert.equal(akbarDurationMinutes(95), 95);
+  assert.equal(akbarDurationMinutes("95"), 95);
+  assert.equal(normalizeAkbarSearch({ TUI: "t", Trips: [{ Journey: [{ ...akbarJourney, Duration: "" }] }] }, "ECONOMY")[0].duration, 130);
+});
+
+test("Akbar adapter searches one-way with the shared token, renewing it once on 401", async () => {
+  const realFetch = globalThis.fetch;
+  const tokens: boolean[] = [];
+  let searches = 0;
+  globalThis.fetch = (async (url: string) => {
+    if (url.endsWith("/flights/ExpressSearch") && ++searches === 1) return json({ error: "expired" }, 401);
+    return json({ TUI: "t", Completed: true, Trips: [{ Journey: [akbarJourney] }] });
+  }) as unknown as typeof fetch;
+  try {
+    const adapter = new AkbarAdapter({ ...akbarCreds, getToken: async (fresh?: boolean) => { tokens.push(!!fresh); return { token: "jwt", clientId: "cid" }; } });
+    const base = { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, currency: "INR" as const };
+    assert.equal((await adapter.search({ ...base, tripType: "ONEWAY" })).length, 1);
+    assert.deepEqual(tokens, [false, true]);
+    assert.deepEqual(await adapter.search({ ...base, tripType: "ROUNDTRIP", returnDate: "2026-12-05" }), []);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("Akbar fares are offline and booked at the searched price", async () => {
+  assert.equal(isOfflineSupplier("AKBAR"), true);
+  const env = { FARE_CACHE_KV: memoryKv() } as any;
+  const [fare] = normalizeAkbarSearch({ TUI: "t", Trips: [{ Journey: [akbarJourney] }] }, "ECONOMY");
+  const pax = { adults: 1, children: 0, infants: 0 };
+  await rememberOfflineFares(env, "t1", [fare], pax);
+  assert.equal((await quoteOfflineFare(env, null as any, "t1", "AKBAR", fare.id, pax))?.totalFare, 4890.5);
+  assert.equal(await quoteOfflineFare(env, null as any, "t1", "AKBAR", fare.id, { ...pax, adults: 2 }), null);
 });

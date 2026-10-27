@@ -1,5 +1,6 @@
 // Zamra's flight sources besides TripJack, all set up in Admin → Flight Sources:
-//   • Akbar Travels API (Benzy B2B) — credentials + connection test; not in customer search yet.
+//   • Akbar Travels API (Benzy B2B) — live search; booked offline (staff ticket on Akbar)
+//     until the CreateItinerary booking flow is built.
 //   • Poomas Partner API — live search; booked offline (staff ticket on Poomas).
 //   • Manual fares — Admin table + Google Sheet sync; booked offline.
 // "Offline" fares are paid on Zamra like any fare; the booking then waits in
@@ -99,20 +100,20 @@ export const saveManualSettings = (env: Env, tenantId: string, s: ManualSettings
 
 // ── Offline suppliers ────────────────────────────────────────────────────────
 
-export const OFFLINE_SUPPLIERS = ["POOMAS", "MANUAL"] as const;
+export const OFFLINE_SUPPLIERS = ["POOMAS", "AKBAR", "MANUAL"] as const;
 export type OfflineSupplier = (typeof OFFLINE_SUPPLIERS)[number];
 export const isOfflineSupplier = (s: string | null | undefined): s is OfflineSupplier =>
   (OFFLINE_SUPPLIERS as readonly string[]).includes(s ?? "");
 
 export interface Pax { adults: number; children: number; infants: number }
 
-// Poomas fares are remembered at search time so a booking is charged the
+// Poomas and Akbar fares are remembered at search time so a booking is charged the
 // searched price, never a price sent by the browser.
 const OFFLINE_FARE_TTL = 30 * 60;
 const offlineFareKey = (tenantId: string, fareId: string) => `offline_fare:${tenantId}:${fareId}`;
 
 export async function rememberOfflineFares(env: Env, tenantId: string, fares: NormalizedFare[], pax: Pax) {
-  await Promise.all(fares.filter((f) => f.supplier === "POOMAS").map((f) =>
+  await Promise.all(fares.filter((f) => f.supplier === "POOMAS" || f.supplier === "AKBAR").map((f) =>
     env.FARE_CACHE_KV.put(offlineFareKey(tenantId, f.id), JSON.stringify({ fare: f, pax }), { expirationTtl: OFFLINE_FARE_TTL })));
 }
 
@@ -121,7 +122,7 @@ export async function quoteOfflineFare(env: Env, db: Db, tenantId: string, suppl
   if (supplier === "MANUAL") return quoteManualFare(env, db, tenantId, fareId, pax);
   const stored = await env.FARE_CACHE_KV.get(offlineFareKey(tenantId, fareId), "json").catch(() => null) as { fare: NormalizedFare; pax: Pax } | null;
   if (!stored) return null;
-  // The Poomas price covers the party that was searched.
+  // The Poomas / Akbar price covers the party that was searched.
   const same = stored.pax.adults === pax.adults && stored.pax.children === pax.children && stored.pax.infants === pax.infants;
   return same ? stored.fare : null;
 }
