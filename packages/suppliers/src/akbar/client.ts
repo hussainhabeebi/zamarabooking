@@ -16,6 +16,8 @@ import type { SearchParams } from "../base.js";
 //   {flightsUrl}/flights/ssr           → seats / meals / baggage on sale (Index "" after SmartPricer)
 //   {flightsUrl}/flights/SeatLayout    → seat map for sale; only after SmartPricer + GetSPricer
 //   {flightsUrl}/Payment/StartPay      → pays from the Akbar deposit account and books
+//   {flightsUrl}/Payment/GetItineraryStatus → { TUI, TransactionID }: call after StartPay until
+//                                        CurrentStatus is "Success" or "Failed", then RetrieveBooking
 //   {flightsUrl}/Utils/RetrieveBooking → booking by Transaction ID
 //   {flightsUrl}/flights/cancel        → cancels passengers' tickets on a PNR
 //   {flightsUrl}/Utils/GetTravelCheckList → { TUI, ClientID }: traveller details the
@@ -179,6 +181,12 @@ export function cancelBody(c: AkbarCancel, clientId: string) {
   };
 }
 
+// "Success" / "Failed" once the booking is final; "" while Akbar is still working on it.
+export function itineraryFinalStatus(data: unknown): "Success" | "Failed" | "" {
+  const v = pickString(data, ["CurrentStatus"]).toLowerCase();
+  return v === "success" ? "Success" : v === "failed" ? "Failed" : "";
+}
+
 function pickString(data: unknown, keys: string[]): string {
   if (!data || typeof data !== "object") return "";
   for (const k of keys) {
@@ -270,6 +278,26 @@ export class AkbarClient {
   async startPay(p: AkbarStartPay, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/Payment/StartPay";
     return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, startPayBody(p, auth.clientId, this.creds.browserKey), auth.token);
+  }
+
+  async getItineraryStatus(transactionId: number, tui: string, auth: AkbarToken): Promise<unknown> {
+    const endpoint = "/Payment/GetItineraryStatus";
+    return this.post(`${trimUrl(this.creds.flightsUrl)}${endpoint}`, endpoint, { TUI: tui, TransactionID: transactionId }, auth.token);
+  }
+
+  // After StartPay: GetItineraryStatus until Success / Failed or the deadline passes.
+  // status "" = still pending at the deadline (check again later; don't rebook).
+  async waitForItinerary(transactionId: number, tui: string, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ status: "Success" | "Failed" | ""; data: unknown; polls: number }> {
+    const { pollIntervalMs = 3000, deadlineMs = 60_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
+    const started = Date.now();
+    let polls = 0;
+    for (;;) {
+      const data = await this.getItineraryStatus(transactionId, tui, auth);
+      polls++;
+      const status = itineraryFinalStatus(data);
+      if (status || Date.now() - started + pollIntervalMs >= deadlineMs) return { status, data, polls };
+      await sleep(pollIntervalMs);
+    }
   }
 
   async retrieveBooking(transactionId: number | string, auth: AkbarToken, tui = ""): Promise<unknown> {

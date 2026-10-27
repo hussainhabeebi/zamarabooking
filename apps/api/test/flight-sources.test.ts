@@ -231,6 +231,17 @@ test("Akbar RetrieveBooking and Cancel bodies", () => {
   });
 });
 
+test("Akbar waits for the itinerary status after StartPay", async () => {
+  const calls: any[] = [];
+  const replies = [{ CurrentStatus: "InProgress" }, { CurrentStatus: "" }, { CurrentStatus: "Success" }];
+  const fetchImpl = (async (url: string, init: RequestInit) => { calls.push({ url, body: JSON.parse(String(init.body)) }); return json(replies.shift()); }) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).waitForItinerary(230003656, "t", { token: "jwt", clientId: "cid" }, { sleep: async () => {} });
+  assert.equal(r.status, "Success");
+  assert.equal(r.polls, 3);
+  assert.equal(calls[0].url, "https://flights.test/Payment/GetItineraryStatus");
+  assert.deepEqual(calls[0].body, { TUI: "t", TransactionID: 230003656 });
+});
+
 test("Akbar seat layout body", () => {
   assert.deepEqual(seatLayoutBody({ tui: "t", orderId: 1 }, "cid"), { ClientID: "cid", Source: "LV", Trips: [{ TUI: "t", Index: "", OrderID: 1 }] });
 });
