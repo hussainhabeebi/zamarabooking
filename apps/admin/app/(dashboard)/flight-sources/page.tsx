@@ -7,6 +7,7 @@ type Sources = {
   akbar:  {
     enabled: boolean; environment: "UAT" | "PRODUCTION"; utilsUrl: string; flightsUrl: string;
     merchantId: string; apiKey: string; clientId: string; password: string; agentCode: string; browserKey: string; key: string;
+    gatewayUrl: string; gatewayKeySet: boolean;
   };
   poomas: { enabled: boolean; apiKey: string; baseUrl: string };
   manual: { enabled: boolean; sheetUrl: string; autoSync: boolean; lastSync?: SyncResult };
@@ -65,7 +66,8 @@ export default function FlightSourcesPage() {
           booking. Run the test search before switching it on.
         </p>
         <form onSubmit={(e) => { e.preventDefault(); run("akbar", async () => {
-          await call("/akbar", "PUT", { ...akbar, ...akbarSecrets });
+          const { gatewayKeySet: _k, ...fields } = akbar;
+          await call("/akbar", "PUT", { ...fields, ...akbarSecrets });
           setAkbarSecrets({ password: "", apiKey: "", key: "" }); await load(); return "Saved.";
         }); }} style={formGrid}>
           <Toggle label="Show Akbar fares in search" checked={akbar.enabled} onChange={(v) => set("akbar", { enabled: v })} />
@@ -76,6 +78,9 @@ export default function FlightSourcesPage() {
           </Field>
           <Field label="Utils URL (Signature)"><input value={akbar.utilsUrl} onChange={(e) => set("akbar", { utilsUrl: e.target.value })} placeholder="https://b2bapiutils.benzyinfotech.com" style={input} /></Field>
           <Field label="Flights URL"><input value={akbar.flightsUrl} onChange={(e) => set("akbar", { flightsUrl: e.target.value })} placeholder="https://b2bapiflights.benzyinfotech.com" style={input} /></Field>
+          <Field label="Gateway URL (fixed IP, Coolify)" wide>
+            <input value={akbar.gatewayUrl} onChange={(e) => set("akbar", { gatewayUrl: e.target.value })} placeholder="https://akbar-proxy.zamrabooking.com — blank calls Akbar directly" style={input} />
+          </Field>
           <Field label="MerchantID"><input value={akbar.merchantId} onChange={(e) => set("akbar", { merchantId: e.target.value })} style={input} /></Field>
           <Field label="ClientID"><input value={akbar.clientId} onChange={(e) => set("akbar", { clientId: e.target.value })} autoComplete="off" style={input} /></Field>
           <Field label="AgentCode"><input value={akbar.agentCode} onChange={(e) => set("akbar", { agentCode: e.target.value })} placeholder="Blank if Akbar gave none" style={input} /></Field>
@@ -90,6 +95,11 @@ export default function FlightSourcesPage() {
             <input type="password" value={akbarSecrets.key} onChange={(e) => setAkbarSecrets((s) => ({ ...s, key: e.target.value }))} placeholder={akbar.key ? "Leave blank to keep" : "Only if Akbar sent one"} autoComplete="off" style={input} />
           </Field>
           <Actions busy={busy === "akbar"} msg={msg.akbar}>
+            <button type="button" disabled={!!busy || !akbar.gatewayUrl} onClick={() => run("akbarToken", async () => {
+              const r = await call("/akbar/egress-ip", "POST", { gatewayUrl: akbar.gatewayUrl });
+              if (!r.ok) throw new Error(r.error);
+              return `Send Akbar this IP to whitelist: ${r.ip}`;
+            })} style={btnGhost}>Show IP to whitelist</button>
             <button type="button" disabled={!!busy} onClick={() => run("akbarToken", async () => {
               const r = await call("/akbar/token", "POST");
               if (!r.ok) throw new Error(`${r.error}${r.response ? ` — ${r.response}` : ""}`);
@@ -98,6 +108,9 @@ export default function FlightSourcesPage() {
           </Actions>
         </form>
         {msg.akbarToken?.text && <Msg {...msg.akbarToken} />}
+        {akbar.gatewayUrl && !akbar.gatewayKeySet && (
+          <Msg ok={false} text="The AKBAR_GATEWAY_KEY secret is missing on the Cloudflare Worker — calls through the gateway will fail until it is added." />
+        )}
         <div style={{ ...subCard, marginTop: 14 }}>
           <SubTitle>Test search (1 adult, one-way; Indigo is enabled on test)</SubTitle>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>

@@ -28,6 +28,7 @@ export interface AkbarSettings {
   agentCode:   string;
   browserKey:  string;
   key:         string;
+  gatewayUrl:  string;   // apps/akbar-gateway on Coolify (fixed IP Akbar whitelists); blank = call Akbar directly
 }
 
 export interface PoomasSettings {
@@ -54,8 +55,11 @@ export interface ManualSettings {
 export const AKBAR_TEST_URLS = { utilsUrl: "https://b2bapiutils.benzyinfotech.com", flightsUrl: "https://b2bapiflights.benzyinfotech.com" };
 export const DEFAULT_AKBAR: AkbarSettings = {
   enabled: false, environment: "UAT", ...AKBAR_TEST_URLS,
-  merchantId: "", apiKey: "", clientId: "", password: "", agentCode: "", browserKey: "", key: "",
+  merchantId: "", apiKey: "", clientId: "", password: "", agentCode: "", browserKey: "", key: "", gatewayUrl: "",
 };
+
+// The client for these settings, with the gateway key from the Worker's secrets.
+export const akbarClient = (env: Env, s: AkbarSettings) => new AkbarClient({ ...s, gatewayKey: env.AKBAR_GATEWAY_KEY });
 export const DEFAULT_POOMAS: PoomasSettings = { enabled: false, apiKey: "", baseUrl: "https://api.flypoomas.com" };
 export const DEFAULT_MANUAL: ManualSettings = { enabled: false, sheetUrl: "", autoSync: true };
 

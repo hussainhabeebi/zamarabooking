@@ -10,8 +10,7 @@ import { collectExchanges, persistExchanges, persistInBackground } from "../lib/
 import { recordFareObservation, sendFareAlerts } from "../lib/fare-insights.js";
 import { optionalAgentId } from "../lib/agent-markup.js";
 import { agentPricing, rulesFor } from "../lib/agent-program.js";
-import { AkbarClient } from "@zamrabooking/suppliers";
-import { getAkbarSettings, getAkbarToken, getPoomasSettings, rememberOfflineFares, searchManualFares } from "../lib/flight-sources.js";
+import { akbarClient, getAkbarSettings, getAkbarToken, getPoomasSettings, rememberOfflineFares, searchManualFares } from "../lib/flight-sources.js";
 
 const searchSchema = z.object({
   origin:        z.string().length(3).toUpperCase(),
@@ -185,10 +184,10 @@ export async function resolveFlightSuppliers(env: Env, tenant: Variables["tenant
   // Akbar Travels (Admin → Flight Sources). The 48-hour Signature token is shared via KV.
   const akbar = await getAkbarSettings(env, tenantId).catch(() => null);
   if (akbar?.enabled && akbar.flightsUrl && akbar.clientId && akbar.password && akbar.apiKey) {
-    const akbarClient = new AkbarClient(akbar);
+    const client = akbarClient(env, akbar);
     supplierConfigs.push({
       name: "AKBAR", isEnabled: true, priority: 40, maxRetries: 0, timeoutMs: TRIPJACK_SEARCH_TIMEOUT_MS,
-      credentials: { ...akbar, getToken: (fresh?: boolean) => getAkbarToken(env, tenantId, akbarClient, fresh) },
+      credentials: { ...akbar, gatewayKey: env.AKBAR_GATEWAY_KEY, getToken: (fresh?: boolean) => getAkbarToken(env, tenantId, client, fresh) },
     });
   }
 

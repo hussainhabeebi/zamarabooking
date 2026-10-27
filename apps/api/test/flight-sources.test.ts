@@ -343,3 +343,26 @@ test("Akbar fares are offline and booked at the searched price", async () => {
   assert.equal((await quoteOfflineFare(env, null as any, "t1", "AKBAR", fare.id, pax))?.totalFare, 4890.5);
   assert.equal(await quoteOfflineFare(env, null as any, "t1", "AKBAR", fare.id, { ...pax, adults: 2 }), null);
 });
+
+test("Akbar calls go through the gateway when one is set", async () => {
+  const calls: { url: string; key?: string; auth?: string }[] = [];
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    const h = init.headers as Record<string, string>;
+    calls.push({ url, key: h["X-Zamra-Gateway-Key"], auth: h.Authorization });
+    return json(url.endsWith("/Signature") ? { Token: "jwt" } : { TUI: "t", Completed: true });
+  }) as unknown as typeof fetch;
+  const client = new AkbarClient({ ...akbarCreds, gatewayUrl: "https://gw.test/", gatewayKey: "gk" }, fetchImpl);
+  const token = await client.signature();
+  await client.expressSearch({ origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" }, token);
+  await client.startPay({ transactionId: 1, netAmount: 1, tui: "t" }, token);
+  assert.deepEqual(calls.map((c) => c.url), [
+    "https://gw.test/utils/Utils/Signature", "https://gw.test/flights/flights/ExpressSearch", "https://gw.test/flights/Payment/StartPay",
+  ]);
+  assert.ok(calls.every((c) => c.key === "gk"));
+  assert.equal(calls[1].auth, "Bearer jwt");
+  // Direct calls never carry the gateway key.
+  const direct: (string | undefined)[] = [];
+  await new AkbarClient(akbarCreds, (async (_u: string, init: RequestInit) => { direct.push((init.headers as Record<string, string>)["X-Zamra-Gateway-Key"]); return json({ Token: "x" }); }) as unknown as typeof fetch).signature();
+  assert.deepEqual(direct, [undefined]);
+  await assert.rejects(new AkbarClient({ ...akbarCreds, gatewayUrl: "https://gw.test" }, fetchImpl).signature(), /AKBAR_GATEWAY_KEY/);
+});
