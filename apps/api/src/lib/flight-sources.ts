@@ -1,5 +1,5 @@
 // Zamra's flight sources besides TripJack, all set up in Admin → Flight Sources:
-//   • Akbar Travels API — settings only until Akbar's API documentation arrives.
+//   • Akbar Travels API (Benzy B2B) — credentials + connection test; not in customer search yet.
 //   • Poomas Partner API — live search; booked offline (staff ticket on Poomas).
 //   • Manual fares — Admin table + Google Sheet sync; booked offline.
 // "Offline" fares are paid on Zamra like any fare; the booking then waits in
@@ -8,20 +8,25 @@
 import { and, eq, gte, sql } from "drizzle-orm";
 import { manualFares, tenants } from "@zamrabooking/db/schema";
 import type { Db } from "@zamrabooking/db";
-import type { NormalizedFare, SearchParams } from "@zamrabooking/suppliers";
+import { AKBAR_TOKEN_TTL_SECONDS, AkbarClient, type AkbarToken, type NormalizedFare, type SearchParams } from "@zamrabooking/suppliers";
 import type { Env } from "../types.js";
 import { FOREIGN_CURRENCIES, getFx, type ForeignCurrency } from "./fx.js";
 
 // ── Settings (TENANT_CACHE_KV, like the other Admin integrations) ────────────
 
+// Field names follow Akbar's Signature request (MerchantID, ApiKey, ClientID, …).
 export interface AkbarSettings {
   enabled:     boolean;
   environment: "UAT" | "PRODUCTION";
-  baseUrl:     string;
-  username:    string;
-  password:    string;
-  agencyCode:  string;
+  utilsUrl:    string;
+  flightsUrl:  string;
+  merchantId:  string;
   apiKey:      string;
+  clientId:    string;
+  password:    string;
+  agentCode:   string;
+  browserKey:  string;
+  key:         string;
 }
 
 export interface PoomasSettings {
@@ -45,7 +50,11 @@ export interface ManualSettings {
   lastSync?: SheetSyncResult;
 }
 
-export const DEFAULT_AKBAR: AkbarSettings = { enabled: false, environment: "UAT", baseUrl: "", username: "", password: "", agencyCode: "", apiKey: "" };
+export const AKBAR_TEST_URLS = { utilsUrl: "https://b2bapiutils.benzyinfotech.com", flightsUrl: "https://b2bapiflights.benzyinfotech.com" };
+export const DEFAULT_AKBAR: AkbarSettings = {
+  enabled: false, environment: "UAT", ...AKBAR_TEST_URLS,
+  merchantId: "", apiKey: "", clientId: "", password: "", agentCode: "", browserKey: "", key: "",
+};
 export const DEFAULT_POOMAS: PoomasSettings = { enabled: false, apiKey: "", baseUrl: "https://api.flypoomas.com" };
 export const DEFAULT_MANUAL: ManualSettings = { enabled: false, sheetUrl: "", autoSync: true };
 
@@ -61,10 +70,30 @@ async function saveSettings(env: Env, tenantId: string, source: SourceKey, value
   await env.TENANT_CACHE_KV.put(settingsKey(tenantId, source), JSON.stringify(value));
 }
 
-export const getAkbarSettings  = (env: Env, tenantId: string) => loadSettings(env, tenantId, "akbar", DEFAULT_AKBAR);
+// Settings saved before the Benzy fields existed (baseUrl, username, agencyCode) are dropped.
+export const getAkbarSettings = async (env: Env, tenantId: string): Promise<AkbarSettings> => {
+  const s = await loadSettings(env, tenantId, "akbar", DEFAULT_AKBAR);
+  return Object.fromEntries(Object.keys(DEFAULT_AKBAR).map((k) => [k, s[k as keyof AkbarSettings]])) as unknown as AkbarSettings;
+};
 export const getPoomasSettings = (env: Env, tenantId: string) => loadSettings(env, tenantId, "poomas", DEFAULT_POOMAS);
 export const getManualSettings = (env: Env, tenantId: string) => loadSettings(env, tenantId, "manual", DEFAULT_MANUAL);
-export const saveAkbarSettings  = (env: Env, tenantId: string, s: AkbarSettings) => saveSettings(env, tenantId, "akbar", s);
+export const saveAkbarSettings = async (env: Env, tenantId: string, s: AkbarSettings) => {
+  await saveSettings(env, tenantId, "akbar", s);
+  await env.TENANT_CACHE_KV.delete(akbarTokenKey(tenantId));   // new credentials → new token
+};
+
+// Akbar's Signature token lasts 48 hours, so one token serves every call until then.
+const akbarTokenKey = (tenantId: string) => `akbar_token:${tenantId}`;
+
+export async function getAkbarToken(env: Env, tenantId: string, client: AkbarClient, fresh = false): Promise<AkbarToken> {
+  if (!fresh) {
+    const cached = await env.TENANT_CACHE_KV.get(akbarTokenKey(tenantId), "json").catch(() => null) as AkbarToken | null;
+    if (cached?.token) return cached;
+  }
+  const token = await client.signature();
+  await env.TENANT_CACHE_KV.put(akbarTokenKey(tenantId), JSON.stringify(token), { expirationTtl: AKBAR_TOKEN_TTL_SECONDS });
+  return token;
+}
 export const savePoomasSettings = (env: Env, tenantId: string, s: PoomasSettings) => saveSettings(env, tenantId, "poomas", s);
 export const saveManualSettings = (env: Env, tenantId: string, s: ManualSettings) => saveSettings(env, tenantId, "manual", s);
 

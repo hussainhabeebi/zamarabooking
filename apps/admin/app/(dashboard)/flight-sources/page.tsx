@@ -4,7 +4,10 @@ import { API, apiHeaders } from "@/lib/api";
 
 type SyncResult = { at: string; ok: boolean; imported: number; skipped: number; errors: string[] };
 type Sources = {
-  akbar:  { enabled: boolean; environment: "UAT" | "PRODUCTION"; baseUrl: string; username: string; password: string; agencyCode: string; apiKey: string; connected: boolean };
+  akbar:  {
+    enabled: boolean; environment: "UAT" | "PRODUCTION"; utilsUrl: string; flightsUrl: string;
+    merchantId: string; apiKey: string; clientId: string; password: string; agentCode: string; browserKey: string; key: string;
+  };
   poomas: { enabled: boolean; apiKey: string; baseUrl: string };
   manual: { enabled: boolean; sheetUrl: string; autoSync: boolean; lastSync?: SyncResult };
   sheetColumns: string[];
@@ -24,7 +27,8 @@ export default function FlightSourcesPage() {
   const [error, setError] = useState("");
   const [msg, setMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [busy, setBusy] = useState("");
-  const [akbarSecrets, setAkbarSecrets] = useState({ password: "", apiKey: "" });
+  const [akbarSecrets, setAkbarSecrets] = useState({ password: "", apiKey: "", key: "" });
+  const [akbarRaw, setAkbarRaw] = useState("");
   const [poomasKey, setPoomasKey] = useState("");
   const [test, setTest] = useState({ origin: "COK", destination: "DXB", departureDate: tomorrow() });
 
@@ -53,32 +57,63 @@ export default function FlightSourcesPage() {
       </p>
 
       {/* ── Akbar Travels ── */}
-      <Section color="#f59e0b" title="Akbar Travels API" badge={akbar.connected ? "connected" : "waiting for API documents"}>
+      <Section color="#f59e0b" title="Akbar Travels API" badge="connection test">
         <p style={hint}>
-          Save your Akbar Travels credentials here. Akbar fares start showing in search once the connection is built from Akbar's
-          API documentation; until then this source stays off in search even when switched on.
+          Akbar's B2B API (by Benzy Infotech). Enter the Signature credentials Akbar sent you; the token they return lasts 48 hours and is reused
+          for every call. Akbar only answers calls from a <b style={{ color: "#cbd5e1" }}>whitelisted IP</b>. Use the tests below to check the
+          connection; Akbar fares are not shown to customers yet.
         </p>
         <form onSubmit={(e) => { e.preventDefault(); run("akbar", async () => {
-          await call("/akbar", "PUT", { ...akbar, password: akbarSecrets.password, apiKey: akbarSecrets.apiKey });
-          setAkbarSecrets({ password: "", apiKey: "" }); await load(); return "Saved.";
+          await call("/akbar", "PUT", { ...akbar, ...akbarSecrets });
+          setAkbarSecrets({ password: "", apiKey: "", key: "" }); await load(); return "Saved.";
         }); }} style={formGrid}>
           <Toggle label="Use Akbar Travels" checked={akbar.enabled} onChange={(v) => set("akbar", { enabled: v })} />
           <Field label="Environment">
             <select value={akbar.environment} onChange={(e) => set("akbar", { environment: e.target.value as "UAT" | "PRODUCTION" })} style={input}>
-              <option value="UAT">UAT / test</option><option value="PRODUCTION">Production</option>
+              <option value="UAT">Test</option><option value="PRODUCTION">Live</option>
             </select>
           </Field>
-          <Field label="API base URL"><input value={akbar.baseUrl} onChange={(e) => set("akbar", { baseUrl: e.target.value })} placeholder="https://… (from Akbar)" style={input} /></Field>
-          <Field label="Agency / client code"><input value={akbar.agencyCode} onChange={(e) => set("akbar", { agencyCode: e.target.value })} style={input} /></Field>
-          <Field label="Username"><input value={akbar.username} onChange={(e) => set("akbar", { username: e.target.value })} autoComplete="off" style={input} /></Field>
+          <Field label="Utils URL (Signature)"><input value={akbar.utilsUrl} onChange={(e) => set("akbar", { utilsUrl: e.target.value })} placeholder="https://b2bapiutils.benzyinfotech.com" style={input} /></Field>
+          <Field label="Flights URL"><input value={akbar.flightsUrl} onChange={(e) => set("akbar", { flightsUrl: e.target.value })} placeholder="https://b2bapiflights.benzyinfotech.com" style={input} /></Field>
+          <Field label="MerchantID"><input value={akbar.merchantId} onChange={(e) => set("akbar", { merchantId: e.target.value })} style={input} /></Field>
+          <Field label="ClientID"><input value={akbar.clientId} onChange={(e) => set("akbar", { clientId: e.target.value })} autoComplete="off" style={input} /></Field>
+          <Field label="AgentCode"><input value={akbar.agentCode} onChange={(e) => set("akbar", { agentCode: e.target.value })} placeholder="Blank if Akbar gave none" style={input} /></Field>
+          <Field label="BrowserKey"><input value={akbar.browserKey} onChange={(e) => set("akbar", { browserKey: e.target.value })} autoComplete="off" style={input} /></Field>
+          <Field label={`ApiKey${akbar.apiKey ? ` (saved ${akbar.apiKey})` : ""}`}>
+            <input type="password" value={akbarSecrets.apiKey} onChange={(e) => setAkbarSecrets((s) => ({ ...s, apiKey: e.target.value }))} placeholder={akbar.apiKey ? "Leave blank to keep" : ""} autoComplete="off" style={input} />
+          </Field>
           <Field label={`Password${akbar.password ? ` (saved ${akbar.password})` : ""}`}>
             <input type="password" value={akbarSecrets.password} onChange={(e) => setAkbarSecrets((s) => ({ ...s, password: e.target.value }))} placeholder={akbar.password ? "Leave blank to keep" : ""} autoComplete="new-password" style={input} />
           </Field>
-          <Field label={`API key / token${akbar.apiKey ? ` (saved ${akbar.apiKey})` : ""}`}>
-            <input type="password" value={akbarSecrets.apiKey} onChange={(e) => setAkbarSecrets((s) => ({ ...s, apiKey: e.target.value }))} placeholder={akbar.apiKey ? "Leave blank to keep" : "If Akbar issues one"} autoComplete="off" style={input} />
+          <Field label={`Key${akbar.key ? ` (saved ${akbar.key})` : ""}`}>
+            <input type="password" value={akbarSecrets.key} onChange={(e) => setAkbarSecrets((s) => ({ ...s, key: e.target.value }))} placeholder={akbar.key ? "Leave blank to keep" : "Only if Akbar sent one"} autoComplete="off" style={input} />
           </Field>
-          <Actions busy={busy === "akbar"} msg={msg.akbar} />
+          <Actions busy={busy === "akbar"} msg={msg.akbar}>
+            <button type="button" disabled={!!busy} onClick={() => run("akbarToken", async () => {
+              const r = await call("/akbar/token", "POST");
+              if (!r.ok) throw new Error(`${r.error}${r.response ? ` — ${r.response}` : ""}`);
+              return `Token received in ${(r.durationMs / 1000).toFixed(1)}s.`;
+            })} style={btnGhost}>{busy === "akbarToken" ? "Checking…" : "Get token"}</button>
+          </Actions>
         </form>
+        {msg.akbarToken?.text && <Msg {...msg.akbarToken} />}
+        <div style={{ ...subCard, marginTop: 14 }}>
+          <SubTitle>Test search (1 adult, one-way; Indigo is enabled on test)</SubTitle>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+            <input value={test.origin} onChange={(e) => setTest({ ...test, origin: e.target.value.toUpperCase() })} maxLength={3} style={{ ...input, width: 80 }} aria-label="From" />
+            <input value={test.destination} onChange={(e) => setTest({ ...test, destination: e.target.value.toUpperCase() })} maxLength={3} style={{ ...input, width: 80 }} aria-label="To" />
+            <input type="date" value={test.departureDate} onChange={(e) => setTest({ ...test, departureDate: e.target.value })} style={{ ...input, width: 170 }} aria-label="Date" />
+            <button type="button" disabled={!!busy} onClick={() => run("akbarTest", async () => {
+              setAkbarRaw("");
+              const r = await call("/akbar/test", "POST", test);
+              if (!r.ok) { setAkbarRaw(r.response ?? ""); throw new Error(r.error); }
+              setAkbarRaw(r.response);
+              return `Akbar answered in ${(r.durationMs / 1000).toFixed(1)}s${r.completed ? "" : " (results still incomplete)"} — ${r.responseLength.toLocaleString("en-IN")} characters.`;
+            })} style={btnGhost}>{busy === "akbarTest" ? "Searching…" : "Run test search"}</button>
+          </div>
+          {msg.akbarTest?.text && <Msg {...msg.akbarTest} />}
+          {akbarRaw && <pre style={{ ...code, display: "block", marginTop: 10, maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{akbarRaw}</pre>}
+        </div>
       </Section>
 
       {/* ── Poomas ── */}

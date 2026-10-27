@@ -8,10 +8,11 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { manualFares } from "@zamrabooking/db/schema";
-import { PoomasAdapter } from "@zamrabooking/suppliers";
+import { AkbarClient, AkbarError, PoomasAdapter, searchTui } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
+import { logSupplierCall } from "../../lib/supplier-logger.js";
 import {
-  getAkbarSettings, getManualSettings, getPoomasSettings, saveAkbarSettings, saveManualSettings, savePoomasSettings,
+  getAkbarSettings, getAkbarToken, getManualSettings, getPoomasSettings, saveAkbarSettings, saveManualSettings, savePoomasSettings,
   SHEET_COLUMNS, sheetCsvUrl, syncManualFaresSheet, validateManualFare,
 } from "../../lib/flight-sources.js";
 
@@ -29,7 +30,7 @@ flightSourcesAdminRoutes.get("/", async (c) => {
     getAkbarSettings(c.env, tenantId), getPoomasSettings(c.env, tenantId), getManualSettings(c.env, tenantId),
   ]);
   return c.json({
-    akbar: { ...akbar, password: mask(akbar.password), apiKey: mask(akbar.apiKey), connected: false },
+    akbar: { ...akbar, password: mask(akbar.password), apiKey: mask(akbar.apiKey), key: mask(akbar.key) },
     poomas: { ...poomas, apiKey: mask(poomas.apiKey) },
     manual,
     sheetColumns: SHEET_COLUMNS,
@@ -39,22 +40,92 @@ flightSourcesAdminRoutes.get("/", async (c) => {
 // Secrets left blank (or still masked) keep their saved value.
 const keep = (next: string | undefined, saved: string) => (next && !next.includes("•") ? next.trim() : saved);
 
+const url = z.string().trim().url().or(z.literal(""));
+
 flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
   enabled:     z.boolean(),
   environment: z.enum(["UAT", "PRODUCTION"]),
-  baseUrl:     z.string().trim().url().or(z.literal("")),
-  username:    z.string().trim().max(200),
-  password:    z.string().max(500).optional(),
-  agencyCode:  z.string().trim().max(100),
+  utilsUrl:    url,
+  flightsUrl:  url,
+  merchantId:  z.string().trim().max(50),
   apiKey:      z.string().max(500).optional(),
+  clientId:    z.string().trim().max(200),
+  password:    z.string().max(500).optional(),
+  agentCode:   z.string().trim().max(100),
+  browserKey:  z.string().trim().max(200),
+  key:         z.string().max(500).optional(),
 })), async (c) => {
   fullAdminOnly(c.get("userRole"));
   const body = c.req.valid("json");
   const saved = await getAkbarSettings(c.env, c.get("tenantId"));
   await saveAkbarSettings(c.env, c.get("tenantId"), {
-    ...body, password: keep(body.password, saved.password), apiKey: keep(body.apiKey, saved.apiKey),
+    ...body,
+    utilsUrl: body.utilsUrl.replace(/\/+$/, ""), flightsUrl: body.flightsUrl.replace(/\/+$/, ""),
+    password: keep(body.password, saved.password), apiKey: keep(body.apiKey, saved.apiKey), key: keep(body.key, saved.key),
   });
   return c.json({ ok: true });
+});
+
+const akbarFailure = (err: unknown) => err instanceof AkbarError
+  ? { error: err.message, httpStatus: err.statusCode, response: err.responseSnippet }
+  : { error: err instanceof Error ? err.message : String(err) };
+
+// Asks Akbar for a fresh Signature token with the saved credentials.
+flightSourcesAdminRoutes.post("/akbar/token", async (c) => {
+  fullAdminOnly(c.get("userRole"));
+  const tenantId = c.get("tenantId");
+  const s = await getAkbarSettings(c.env, tenantId);
+  const started = Date.now();
+  try {
+    const t = await getAkbarToken(c.env, tenantId, new AkbarClient(s), true);
+    await logSupplierCall(c.get("db"), { tenantId, supplier: "AKBAR", endpoint: "/Utils/Signature", level: "INFO", durationMs: Date.now() - started });
+    return c.json({ ok: true, clientId: t.clientId, durationMs: Date.now() - started });
+  } catch (err) {
+    const f = akbarFailure(err);
+    await logSupplierCall(c.get("db"), { tenantId, supplier: "AKBAR", endpoint: "/Utils/Signature", level: "ERROR", httpStatus: f.httpStatus, errorMessage: f.error, responseSnippet: f.response, durationMs: Date.now() - started });
+    return c.json({ ok: false, ...f, durationMs: Date.now() - started });
+  }
+});
+
+// One ExpressSearch (+ GetExpSearch until complete). Returns the raw response so the
+// fare fields can be checked before Akbar fares go into customer search.
+flightSourcesAdminRoutes.post("/akbar/test", zValidator("json", z.object({
+  origin:        z.string().length(3).toUpperCase(),
+  destination:   z.string().length(3).toUpperCase(),
+  departureDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+})), async (c) => {
+  fullAdminOnly(c.get("userRole"));
+  const tenantId = c.get("tenantId");
+  const p = c.req.valid("json");
+  const s = await getAkbarSettings(c.env, tenantId);
+  const client = new AkbarClient(s);
+  const started = Date.now();
+  const params = { ...p, adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: "INR" as const };
+  try {
+    let token = await getAkbarToken(c.env, tenantId, client);
+    const result = await client.search(params, token).catch(async (err) => {
+      // A cached token Akbar no longer accepts: get a new one and retry once.
+      if (!(err instanceof AkbarError && err.statusCode === 401)) throw err;
+      token = await getAkbarToken(c.env, tenantId, client, true);
+      return client.search(params, token);
+    });
+    const raw = JSON.stringify(result.data);
+    await logSupplierCall(c.get("db"), {
+      tenantId, supplier: "AKBAR", endpoint: "/flights/ExpressSearch", level: "INFO", requestSummary: p,
+      responseSnippet: raw, durationMs: Date.now() - started,
+    });
+    return c.json({
+      ok: true, completed: result.completed, polls: result.polls, tui: searchTui(result.data),
+      response: raw.slice(0, 6000), responseLength: raw.length, durationMs: Date.now() - started,
+    });
+  } catch (err) {
+    const f = akbarFailure(err);
+    await logSupplierCall(c.get("db"), {
+      tenantId, supplier: "AKBAR", endpoint: err instanceof AkbarError && err.endpoint ? err.endpoint : "/flights/ExpressSearch", level: "ERROR",
+      httpStatus: f.httpStatus, errorMessage: f.error, responseSnippet: f.response, requestSummary: p, durationMs: Date.now() - started,
+    });
+    return c.json({ ok: false, ...f, durationMs: Date.now() - started });
+  }
 });
 
 flightSourcesAdminRoutes.put("/poomas", zValidator("json", z.object({

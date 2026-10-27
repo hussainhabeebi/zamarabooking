@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizePoomasOffer, PoomasAdapter } from "@zamrabooking/suppliers";
 import {
-  isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
+  AkbarClient, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, signatureBody, smartPricerBody, ssrBody,
+} from "@zamrabooking/suppliers";
+import {
+  DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
 } from "../src/lib/flight-sources.js";
 
 function memoryKv(init: Record<string, string> = {}) {
@@ -155,4 +157,94 @@ test("only Poomas and manual fares are ticketed offline", () => {
   assert.equal(isOfflineSupplier("MANUAL"), true);
   assert.equal(isOfflineSupplier("TRIPJACK"), false);
   assert.equal(isOfflineSupplier(null), false);
+});
+
+// ── Akbar Travels (Benzy B2B) ────────────────────────────────────────────────
+
+const akbarCreds = {
+  utilsUrl: "https://utils.test/", flightsUrl: "https://flights.test", merchantId: "300", apiKey: "k", clientId: "bitest",
+  password: "p", agentCode: "", browserKey: "bk", key: "",
+};
+
+test("Akbar Signature sends the doc's fields and reads the token", async () => {
+  const calls: { url: string; body: any; auth?: string }[] = [];
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push({ url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
+    return json({ Token: "jwt", ClientID: "search-client" });
+  }) as unknown as typeof fetch;
+  const t = await new AkbarClient(akbarCreds, fetchImpl).signature();
+  assert.deepEqual(t, { token: "jwt", clientId: "search-client" });
+  assert.equal(calls[0].url, "https://utils.test/Utils/Signature");
+  assert.deepEqual(calls[0].body, { MerchantID: "300", ApiKey: "k", ClientID: "bitest", Password: "p", AgentCode: "", BrowserKey: "bk" });
+  assert.equal(calls[0].auth, undefined);
+  assert.equal(signatureBody({ ...akbarCreds, key: "ef20" }).Key, "ef20");
+});
+
+test("Akbar Signature without a token is an error", async () => {
+  const fetchImpl = (async () => json({ Code: "401", Msg: ["Invalid"] })) as unknown as typeof fetch;
+  await assert.rejects(new AkbarClient(akbarCreds, fetchImpl).signature(), /no token/);
+});
+
+test("Akbar ExpressSearch body", () => {
+  const body = expressSearchBody({
+    origin: "bom", destination: "del", departureDate: "2026-12-01", returnDate: "2026-12-05",
+    adults: 2, children: 1, infants: 1, cabinClass: "BUSINESS", tripType: "ROUNDTRIP", currency: "INR",
+  }, "cid");
+  assert.equal(body.Cabin, "B");
+  assert.equal(body.FareType, "RT");
+  assert.equal(body.ClientID, "cid");
+  assert.deepEqual([body.ADT, body.CHD, body.INF], [2, 1, 1]);
+  assert.deepEqual(body.Trips, [{ From: "BOM", To: "DEL", OnwardDate: "2026-12-01", ReturnDate: "2026-12-05", TUI: "" }]);
+});
+
+test("Akbar search polls GetExpSearch with the TUI until Completed", async () => {
+  const calls: { url: string; body: any; auth: string }[] = [];
+  const replies = [{ TUI: "t1", Completed: false }, { TUI: "t1", Completed: "False" }, { TUI: "t1", Completed: true, Trips: [] }];
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push({ url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
+    return json(replies.shift());
+  }) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(
+    { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" },
+    { token: "jwt", clientId: "cid" }, { sleep: async () => {} },
+  );
+  assert.equal(r.completed, true);
+  assert.equal(r.polls, 2);
+  assert.equal(calls[0].url, "https://flights.test/flights/ExpressSearch");
+  assert.equal(calls[1].url, "https://flights.test/flights/GetExpSearch");
+  assert.deepEqual(calls[1].body, { ClientID: "cid", TUI: "t1" });
+  assert.ok(calls.every((c) => c.auth === "Bearer jwt"));
+});
+
+test("Akbar pricing, fare rule, flight info and SSR bodies", () => {
+  const trip = { amount: 20709, index: "1G|1", orderId: 1, tui: "t" };
+  assert.deepEqual(smartPricerBody([trip], "cid", "ON"), {
+    ClientID: "cid", Trips: [{ Amount: 20709, Index: "1G|1", OrderID: 1, TUI: "t" }], Mode: "SY", Options: "A", Source: "SF", TripType: "ON",
+  });
+  assert.deepEqual(fareRuleBody([trip], "cid"), { ClientID: "cid", Source: "SF", Trips: [{ Amount: 20709, Index: "1G|1", OrderID: 1, TUI: "t" }] });
+  assert.equal(flightInfoBody([trip], "cid", "RT").Trips[0].ChannelCode, null);
+  assert.deepEqual(ssrBody({ tui: "t", orderId: 1 }, "cid", true), {
+    ClientID: "cid", PaidSSR: true, Source: "LV", Trips: [{ TUI: "t", Amount: 0, OrderID: 1, Index: "" }],
+  });
+});
+
+test("Akbar token is cached and new credentials drop it", async () => {
+  const kv = { ...memoryKv(), async delete(k: string) { kv.store.delete(k); } };
+  const env = { TENANT_CACHE_KV: kv } as any;
+  let signatures = 0;
+  const fetchImpl = (async () => { signatures++; return json({ Token: `jwt${signatures}` }); }) as unknown as typeof fetch;
+  const client = new AkbarClient(akbarCreds, fetchImpl);
+  assert.equal((await getAkbarToken(env, "t1", client)).token, "jwt1");
+  assert.equal((await getAkbarToken(env, "t1", client)).token, "jwt1");
+  assert.equal((await getAkbarToken(env, "t1", client, true)).token, "jwt2");
+  await saveAkbarSettings(env, "t1", { ...DEFAULT_AKBAR, ...akbarCreds });
+  assert.equal((await getAkbarToken(env, "t1", client)).token, "jwt3");
+});
+
+test("old Akbar settings fields are dropped", async () => {
+  const env = { TENANT_CACHE_KV: memoryKv({ "admin_settings:t1:integration:akbar": JSON.stringify({ enabled: true, username: "u", baseUrl: "x", clientId: "c" }) }) } as any;
+  const s = await getAkbarSettings(env, "t1");
+  assert.equal(s.clientId, "c");
+  assert.equal(s.utilsUrl, DEFAULT_AKBAR.utilsUrl);
+  assert.ok(!("username" in s) && !("baseUrl" in s));
 });
