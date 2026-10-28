@@ -123,7 +123,7 @@ export default async function SupplierLogsPage({
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9" }}>Supplier API Logs</h1>
         <p style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>
-          Supplier API problems and checks for TripJack (flights, hotels, TripSafe), Akbar Travels and Poomas — timestamp, endpoint, HTTP
+          Supplier API problems and checks for TripJack (flights, TripSafe), Akbar Travels and Poomas — timestamp, endpoint, HTTP
           status, error detail. The raw request / response files of every TripJack and Akbar call are below the table.
         </p>
       </div>
@@ -149,8 +149,8 @@ export default async function SupplierLogsPage({
           <option value="MANUAL">Manual fares</option>
         </select>
         <select name="scope" defaultValue={sp.scope ?? ""} style={sel}>
-          <option value="">Flights, hotels &amp; TripSafe</option>
-          <option value="hotel">Hotels only</option>
+          <option value="">All calls</option>
+          {/* Hotels hidden for now: <option value="hotel">Hotels only</option> */}
         </select>
         <select name="level" defaultValue={sp.level ?? ""} style={sel}>
           <option value="">All levels</option>
@@ -254,7 +254,7 @@ export default async function SupplierLogsPage({
         )}
       </div>
 
-      <RawApiCalls initialScope="hotel" />
+      <RawApiCalls initialScope="flight" />
     </div>
   );
 }
