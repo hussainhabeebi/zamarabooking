@@ -1,3 +1,4 @@
+import { redactAkbarJson } from "../../lib/akbar-evidence.js";
 import { Hono } from "hono";
 import { supplierApiLogs, supplierExchanges } from "@zamrabooking/db/schema";
 import { eq, and, desc, gte, inArray, like, lte, or, asc } from "drizzle-orm";
@@ -150,8 +151,8 @@ async function exchangeFile(c: any, id: string, part: "request" | "response") {
   const obj = await c.env.DOCUMENTS_R2.get(key);
   if (!obj) return null;
   const name = `${serviceName(x.endpoint)}${part === "request" ? "Request" : "Response"}.${key.endsWith(".txt") ? "txt" : "json"}`;
-  if (part === "request" && x.supplier === "AKBAR") {
-    return { name, data: new Uint8Array(await obj.arrayBuffer()), date: x.startedAt as Date };
+  if (x.supplier === "AKBAR") {
+    return { name, data: new TextEncoder().encode(redactAkbarJson(await obj.text())), date: x.startedAt as Date };
   }
   if (part === "request") {
     let stored: Record<string, any> = {};

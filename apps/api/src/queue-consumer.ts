@@ -442,9 +442,11 @@ async function handlePaymentCaptured(
   }
   try {
     await logBookingEvent(env, booking.id, "QUEUE", "info",
-      `Payment confirmed — starting ${booking.supplier} booking (attempt ${attempt}${finalAttempt ? ", final" : ""})`,
+      booking.supplier === "AKBAR" ? "Payment confirmed; Akbar supplier booking remains disabled"
+        : `Payment confirmed — starting ${booking.supplier} booking (attempt ${attempt}${finalAttempt ? ", final" : ""})`,
       { orderId: data.orderId, gatewayPaymentId: data.gatewayPaymentId, amount: data.amount });
-    if (isOfflineSupplier(booking.supplier)) await recordOfflinePayment(db, env, data, booking);
+    if (booking.supplier === "AKBAR") await recordAkbarPaymentPending(db, env, data, booking);
+    else if (isOfflineSupplier(booking.supplier)) await recordOfflinePayment(db, env, data, booking);
     else await bookPaidBooking(db, env, data, booking, finalAttempt);
   } catch (err) {
     await recordBookingError(env, booking.id, err, attempt);
@@ -454,6 +456,32 @@ async function handlePaymentCaptured(
   } finally {
     await releaseBookingLock(env, booking.id);
   }
+}
+
+// A payment callback is not supplier booking evidence. This path has no supplier,
+// reward, ticketing or notification operation and is safe to repeat after a write failure.
+export async function recordAkbarPaymentPending(
+  db: ReturnType<typeof createDb>, env: Env, data: PaymentCapturedMsg,
+  booking: typeof bookings.$inferSelect,
+): Promise<void> {
+  if (booking.supplier !== "AKBAR" || !["PAYMENT_PENDING", "HELD"].includes(booking.status)) {
+    throw new Error("Akbar pending booking required");
+  }
+  const fd = (booking.flightData ?? {}) as Record<string, any>;
+  await db.update(payments).set({
+    gatewayPaymentId: data.gatewayPaymentId, status: "SUCCESS", updatedAt: new Date(),
+  }).where(and(eq(payments.gatewayOrderId, data.orderId), eq(payments.bookingId, booking.id)));
+  await db.update(bookings).set({
+    // Reuse the existing pending state; do not assert a supplier seat hold or confirmation.
+    status: "PAYMENT_PENDING",
+    flightData: { ...fd, offline: { ...(fd.offline ?? {}),
+      paidAt: fd.offline?.paidAt ?? new Date().toISOString(), ticketing: "PENDING",
+      supplierConfirmation: "PENDING", paymentRecorded: true,
+    } }, updatedAt: new Date(),
+  }).where(and(eq(bookings.id, booking.id), eq(bookings.tenantId, booking.tenantId),
+    eq(bookings.status, booking.status)));
+  await logBookingEvent(env, booking.id, "BOOK", "warn",
+    "Akbar payment recorded; supplier booking remains pending. No CreateItinerary or ticketing call was made.");
 }
 
 const OFFLINE_LABEL: Record<string, string> = { POOMAS: "Poomas", AKBAR: "Akbar Travels", MANUAL: "manual" };

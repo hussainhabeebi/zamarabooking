@@ -1,3 +1,4 @@
+import { redactAkbarJson } from "./akbar-evidence.js";
 // Stores raw supplier API exchanges for certification logs.
 //
 // Each exchange becomes two separate R2 files:
@@ -40,18 +41,18 @@ export async function persistExchanges(
       const requestKey = `${base}-request.json`;
       // The apikey stays (TripJack certification needs it); our gateway secret never does.
       const headers = Object.fromEntries(Object.entries(x.requestHeaders).filter(([k]) => k.toLowerCase() !== "x-zamra-gateway-key"));
-      await env.DOCUMENTS_R2.put(requestKey, JSON.stringify({
+      await env.DOCUMENTS_R2.put(requestKey, (x.supplier === "AKBAR" ? redactAkbarJson : (v: string) => v)(JSON.stringify({
         method: x.method, url: x.url, headers, body: parsedRequest, sentAt: x.startedAt,
-      }, null, 2), { httpMetadata: { contentType: "application/json" } });
+      }, null, 2)), { httpMetadata: { contentType: "application/json" } });
 
       let responseKey: string | null = null;
       if (x.responseBody !== null) {
         let isJson = true;
         try { JSON.parse(x.responseBody); } catch { isJson = false; }
         responseKey = `${base}-response.${isJson ? "json" : "txt"}`;
-        await env.DOCUMENTS_R2.put(responseKey, x.responseBody, {
+        await env.DOCUMENTS_R2.put(responseKey, x.supplier === "AKBAR" ? redactAkbarJson(x.responseBody) : x.responseBody, {
           httpMetadata: { contentType: isJson ? "application/json" : "text/plain; charset=utf-8" },
-          customMetadata: { httpStatus: String(x.status ?? ""), responseHeaders: JSON.stringify(x.responseHeaders).slice(0, 1800) },
+          customMetadata: { httpStatus: String(x.status ?? ""), responseHeaders: (x.supplier === "AKBAR" ? redactAkbarJson(JSON.stringify(x.responseHeaders)) : JSON.stringify(x.responseHeaders)).slice(0, 1800) },
         });
       }
 

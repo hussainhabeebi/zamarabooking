@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { searchFares, type SupplierConfig, type PlatformCredentials, type SupplierDiagnostic } from "@zamrabooking/suppliers";
+import { AkbarClient, type AkbarCredentials, searchFares, type SupplierConfig, type PlatformCredentials, type SupplierDiagnostic } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../types.js";
 import { logSupplierCall } from "../lib/supplier-logger.js";
 import { DISPLAY_CURRENCIES, getFx, type ForeignCurrency } from "../lib/fx.js";
@@ -383,7 +383,19 @@ async function runSearch(
       ...params, currency: searchCurrency,
       legs: params.legs?.map((l) => ({ origin: l.origin, destination: l.destination, date: l.departureDate })),
     },
-    supplierConfigs.map((s) => (s.name === "TRIPJACK" || s.name === "AKBAR") && s.credentials ? { ...s, credentials: { ...s.credentials, recorder: collector.recorder } } : s),
+    supplierConfigs.map((s) => {
+      if (s.name === "AKBAR" && s.credentials) {
+        const credentials = { ...s.credentials, recorder: collector.recorder };
+        // Authentication must use the SAME recorder; the previous closure's client
+        // was created before this collector and silently omitted Signature calls.
+        const client = new AkbarClient(credentials as unknown as AkbarCredentials);
+        return { ...s, credentials: { ...credentials,
+          getToken: (fresh?: boolean) => getAkbarToken(c.env, tenantId, client, fresh),
+        } };
+      }
+      return s.name === "TRIPJACK" && s.credentials
+        ? { ...s, credentials: { ...s.credentials, recorder: collector.recorder } } : s;
+    }),
     { platformCredentials: { ...platformCredentials, ...(platformCredentials.TRIPJACK ? { TRIPJACK: { ...platformCredentials.TRIPJACK, recorder: collector.recorder } as typeof platformCredentials.TRIPJACK } : {}) } },
   );
   persistInBackground(c, persistExchanges(c.env, db, tenantId, collector.exchanges, { searchId }));
