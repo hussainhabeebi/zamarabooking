@@ -1,3 +1,4 @@
+import { akbarEvidencePack } from "../../lib/akbar-evidence-export.js";
 import { akbarConfirmation, redactAkbarJson } from "../../lib/akbar-evidence.js";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -181,7 +182,14 @@ bookingsAdminRoutes.get("/:id/exchanges.zip", async (c) => {
   const db = c.get("db");
   const b = await loadBooking(c, c.req.param("id"));
   if (b.supplier === "AKBAR") {
-    throw new HTTPException(409, { message: "Akbar certification pack is not implemented. Download the genuine individual Akbar request/response records; do not use a TripJack certification pack." });
+    const rows = await db.select().from(supplierExchanges).where(exchangeFilter(b))
+      .orderBy(asc(supplierExchanges.startedAt)).limit(501);
+    const files = await akbarEvidencePack(c.env.DOCUMENTS_R2, b, rows);
+    return new Response(buildZip(files), { headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="akbar-uat-evidence-${b.id}.zip"`,
+      "Cache-Control": "private, no-store",
+    } });
   }
   const name = caseName(b);
   const files = await certificationPack(c.env, db, b, await tripjackEnvironment(c.env, c.get("tenantId")), `${tripFolderName(b)}/${name}/`);
@@ -263,6 +271,7 @@ bookingsAdminRoutes.post("/:id/issue-ticket", zValidator("json", z.object({
   supplierRef:   z.string().trim().max(100).optional(),
 })), async (c) => {
   const b = await loadBooking(c, c.req.param("id"));
+  if (b.supplier === "AKBAR") throw new HTTPException(409, { message: "Akbar ticketing requires a verified supplier workflow; manual entry cannot establish API confirmation" });
   if (!isOfflineSupplier(b.supplier)) throw new HTTPException(400, { message: "Only Poomas, Akbar and manual fare bookings are ticketed here." });
   if (b.status !== "CONFIRMED" && b.status !== "TICKETED") {
     throw new HTTPException(400, { message: b.status === "PAYMENT_PENDING" ? "The customer hasn't paid for this booking yet." : `This booking is ${b.status}.` });

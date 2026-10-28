@@ -158,7 +158,7 @@ export default function BookingDetailPage() {
         <br />Stored internal status: {b.status}. Do not retry payment or create another booking to obtain logs.
       </div>}
       {notice && <div style={okBox}>{notice}</div>}
-      {offline && <IssueTicket key={`${b.status}-${b.pnr ?? ""}`} booking={b} passengers={data.passengers} onDone={(m) => { setNotice(m); load(); }} />}
+      {offline && b.supplier !== "AKBAR" && <IssueTicket key={`${b.status}-${b.pnr ?? ""}`} booking={b} passengers={data.passengers} onDone={(m) => { setNotice(m); load(); }} />}
 
       {tab === "overview" && (
         <div style={grid}>
@@ -258,7 +258,7 @@ export default function BookingDetailPage() {
             {b.supplier === "AKBAR" ? " Akbar downloads redact credentials and passenger information. HTTP 200 is transport success, not booking confirmation. Missing calls cannot be reconstructed." : " Existing supplier log handling is unchanged."}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <button disabled={!!busy || !data.exchanges.length || b.supplier === "AKBAR"} onClick={() => download("exchanges.zip", "zip")} style={btn}>{busy === "zip" ? "Preparing…" : `Download ${supplierLabel} certification logs (ZIP)`}</button>
+            <button disabled={!!busy || !data.exchanges.length} onClick={() => download("exchanges.zip", "zip")} style={btn}>{busy === "zip" ? "Preparing…" : b.supplier === "AKBAR" ? "Download Akbar UAT evidence (ZIP)" : `Download ${supplierLabel} certification logs (ZIP)`}</button>
             {b.supplier === "TRIPJACK" && b.supplierBookingRef && (
               <button disabled={!!busy} onClick={refreshDetails} style={btnGhost}>{busy === "refresh" ? "Fetching…" : "Fetch booking details from TripJack"}</button>
             )}

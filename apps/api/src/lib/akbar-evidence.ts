@@ -10,12 +10,14 @@ export function redactAkbarJson(text: string): string {
   }
 }
 
-export function akbarConfirmation(booking: { status: string; pnr?: string | null; supplierBookingRef?: string | null }) {
+export function akbarConfirmation(booking: { status: string; pnr?: string | null; supplierBookingRef?: string | null; flightData?: unknown }) {
   // Legacy staff-entered references and payment status are NOT API confirmation evidence.
+  const fd = booking.flightData as { offline?: { paymentRecorded?: boolean } } | null;
   return {
     supplierConfirmed: false,
     label: ["CONFIRMED", "TICKETED"].includes(booking.status)
-      ? "Supplier confirmation unverified" : booking.status,
+      ? "Supplier confirmation unverified" : fd?.offline?.paymentRecorded
+        ? "Paid · supplier confirmation pending" : booking.status,
     transactionId: null,
     reason: "Akbar CreateItinerary and supplier confirmation capture are not implemented. Payment or a manual reference does not establish an API booking.",
   };

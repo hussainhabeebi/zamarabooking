@@ -77,13 +77,33 @@ test("Akbar request download uses recorded Akbar URL and redacts historical secr
   assert.match(text, /akbar\.example\.test/);
   assert.doesNotMatch(text, /tripjack|secret/);
 });
-test("Akbar cannot be downloaded through the TripJack booking ZIP exporter", async () => {
-  const app = new Hono();
+test("Akbar ZIP route exports Akbar evidence rather than using TripJack certification", async () => {
+  const app = new Hono(); let selects = 0;
   app.use("*", async (c, next) => {
     c.set("tenantId" as never, "tenant" as never);
-    c.set("db" as never, { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: "booking", tenantId: "tenant", supplier: "AKBAR" }] }) }) }) } as never);
+    c.set("db" as never, { select: () => {
+      if (++selects === 1) return { from: () => ({ where: () => ({ limit: async () => [{ id: "booking", tenantId: "tenant", supplier: "AKBAR" }] }) }) };
+      return { from: () => ({ where: () => ({ orderBy: () => ({ limit: async () => [] }) }) }) };
+    } } as never);
     await next();
   });
   app.route("/bookings", bookingsAdminRoutes);
-  assert.equal((await app.request("/bookings/booking/exchanges.zip")).status, 409);
+  const res = await app.request("/bookings/booking/exchanges.zip", {}, { DOCUMENTS_R2: {} });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-disposition")!, /akbar-uat-evidence/);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  assert.equal(bytes[0], 0x50); assert.equal(bytes[1], 0x4b);
+  assert.match(new TextDecoder().decode(bytes), /AkbarEvidenceManifest/);
+});
+
+test("manual Akbar ticket issuance cannot manufacture API confirmation", async () => {
+  const app = new Hono();
+  app.use("*", async (c, next) => {
+    c.set("tenantId" as never, "tenant" as never);
+    c.set("db" as never, { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ supplier: "AKBAR", status: "CONFIRMED" }] }) }) }) } as never);
+    await next();
+  });
+  app.route("/bookings", bookingsAdminRoutes);
+  const res = await app.request("/bookings/b/issue-ticket", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pnr: "ABC123" }) });
+  assert.equal(res.status, 409);
 });
