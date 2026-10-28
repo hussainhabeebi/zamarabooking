@@ -1,14 +1,14 @@
 "use client";
 
-// Baggage & visa checker — static rules per airline and destination (no AI).
+// Baggage checker — static rules per airline (no AI). The visa section was removed;
+// its data is still in lib/travel-rules.
 // Opened from search results with ?airline=6E&from=COK&to=DXB, or on its own.
 
 import { useEffect, useState } from "react";
-import { AIRLINES, AIRPORT_COUNTRY, GENERAL_BAGGAGE_RULES, STATUS_LABEL, VISA_FOR_INDIANS, VISA_GENERAL } from "../lib/travel-rules";
+import { AIRLINES, AIRPORT_COUNTRY, GENERAL_BAGGAGE_RULES } from "../lib/travel-rules";
 
 export default function TravelCheckPage() {
   const [airline, setAirline] = useState("");
-  const [destination, setDestination] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
@@ -17,21 +17,18 @@ export default function TravelCheckPage() {
     const a = (q.get("airline") ?? "").toUpperCase();
     if (AIRLINES.some((x) => x.code === a)) setAirline(a);
     const to = (q.get("to") ?? "").toUpperCase();
-    const country = AIRPORT_COUNTRY[to];
-    if (country && country !== "IN") setDestination(country);
     setFrom((q.get("from") ?? "").toUpperCase());
     setTo(to);
   }, []);
 
   const bag = AIRLINES.find((a) => a.code === airline);
-  const visa = VISA_FOR_INDIANS.find((v) => v.country === destination);
   const domestic = AIRPORT_COUNTRY[from] === "IN" && AIRPORT_COUNTRY[to] === "IN";
 
   return (
     <main className="page-container tc">
       <style>{css}</style>
-      <h1>Baggage &amp; visa checker</h1>
-      <p className="tc-lead">Quick guidance before you book. Rules change and vary by fare — always confirm with the airline or embassy before you travel.</p>
+      <h1>Baggage checker</h1>
+      <p className="tc-lead">Quick guidance before you book. Rules change and vary by fare — always confirm with the airline before you travel.</p>
 
       <section className="tc-card">
         <h2>🧳 Baggage allowance</h2>
@@ -53,26 +50,7 @@ export default function TravelCheckPage() {
         <ul className="tc-list">{GENERAL_BAGGAGE_RULES.map((r) => <li key={r}>{r}</li>)}</ul>
       </section>
 
-      <section className="tc-card">
-        <h2>🛂 Visa for Indian passport holders</h2>
-        <label className="tc-field">
-          <span>Travelling to</span>
-          <select value={destination} onChange={(e) => setDestination(e.target.value)}>
-            <option value="">Choose a country</option>
-            {VISA_FOR_INDIANS.map((v) => <option key={v.country} value={v.country}>{v.name}</option>)}
-          </select>
-        </label>
-        {visa && (
-          <div className="tc-visa">
-            <span className="tc-badge" style={{ color: STATUS_LABEL[visa.status].color, background: STATUS_LABEL[visa.status].bg }}>{STATUS_LABEL[visa.status].label}</span>
-            <p><b>{visa.name}:</b> {visa.summary}</p>
-            {visa.tips?.length ? <ul className="tc-list">{visa.tips.map((t) => <li key={t}>{t}</li>)}</ul> : null}
-          </div>
-        )}
-        <ul className="tc-list">{VISA_GENERAL.map((r) => <li key={r}>{r}</li>)}</ul>
-      </section>
-
-      <p className="tc-note">This is general information, not legal advice. ZamraBooking isn&apos;t responsible for entry decisions made by airlines or immigration.</p>
+      <p className="tc-note">This is general information. The airline&apos;s own baggage rules for your fare always apply.</p>
       <a className="tc-back" href="/">← Search flights</a>
     </main>
   );
@@ -85,7 +63,5 @@ const css = `.tc{max-width:760px;padding:28px 16px 48px}.tc h1{margin:0 0 6px;fo
 .tc-facts{display:grid;gap:8px;margin:0 0 12px}.tc-facts div{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:10px 12px;border-radius:10px;background:#f8fafc}
 .tc-facts .tc-hit{background:#fef2f2;outline:1px solid #fecaca}.tc-facts dt{font-weight:800;color:#334155}.tc-facts dd{margin:0}
 .tc-list{margin:8px 0 0;padding-left:18px;color:#334155;font-size:14px;line-height:1.55}
-.tc-visa{background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:8px}.tc-visa p{margin:8px 0 0}
-.tc-badge{display:inline-block;font-size:12px;font-weight:800;border-radius:999px;padding:3px 10px}
 .tc-note{font-size:12px;color:#64748b}.tc-back{color:#0D4B96;font-weight:700;text-decoration:none}
 @media(max-width:520px){.tc-facts div{grid-template-columns:1fr}}`;

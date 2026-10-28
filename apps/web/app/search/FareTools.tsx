@@ -2,7 +2,7 @@
 
 // Above one-way results: a price calendar (cheapest fare per adult seen on
 // nearby days, from recent searches), a "notify me when it drops" alert and a
-// link to the baggage & visa checker.
+// link to the baggage checker.
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { convertInr, type FxRates } from "../lib/fx";
@@ -74,7 +74,7 @@ export function FareTools({ origin, destination, departureDate, currency, displa
       )}
       <div className="ft-actions">
         <PriceAlert origin={origin} destination={destination} date={departureDate} currency={currency} shownCurrency={shownCurrency} cheapest={cheapest} fmt={fmt} toShown={toShown} toFare={toFare} />
-        <a className="ft-link" href={`/travel-check?${new URLSearchParams({ from: origin, to: destination, ...(airline ? { airline } : {}) })}`}>🧳 Baggage &amp; visa check</a>
+        <a className="ft-link" href={`/travel-check?${new URLSearchParams({ from: origin, to: destination, ...(airline ? { airline } : {}) })}`}>🧳 Baggage check</a>
       </div>
     </div>
   );
