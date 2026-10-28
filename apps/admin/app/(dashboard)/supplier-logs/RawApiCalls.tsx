@@ -11,7 +11,8 @@ type Call = {
 };
 
 const SCOPES: { key: Scope; label: string }[] = [
-  { key: "hotel", label: "Hotels" }, { key: "flight", label: "Flights" }, { key: "tripsafe", label: "TripSafe" }, { key: "akbar", label: "Akbar" },
+  // Hotels hidden for now; add { key: "hotel", label: "Hotels" } back to show them again.
+  { key: "flight", label: "Flights" }, { key: "tripsafe", label: "TripSafe" }, { key: "akbar", label: "Akbar" },
 ];
 
 async function download(path: string, fallback: string) {
@@ -25,7 +26,7 @@ async function download(path: string, fallback: string) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-export function RawApiCalls({ initialScope = "hotel" }: { initialScope?: Scope }) {
+export function RawApiCalls({ initialScope = "flight" }: { initialScope?: Scope }) {
   const [scope, setScope] = useState<Scope>(initialScope);
   const [errorsOnly, setErrorsOnly] = useState(false);
   const [rows, setRows] = useState<Call[] | null>(null);
