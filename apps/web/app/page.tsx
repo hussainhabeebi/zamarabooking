@@ -2,6 +2,7 @@ import "./homepage.css";
 import SearchWidget from "./components/SearchWidget";
 import HeroBanner from "./components/HeroBanner";
 import PopularRoutes from "./components/PopularRoutes";
+import { HOTELS_ENABLED } from "./lib/features";
 import type { ReactNode } from "react";
 
 const benefits = [
@@ -73,7 +74,7 @@ export default function HomePage() {
         <h2 className="home-title">A little more for your journey.</h2>
         <div className="zamra-offers">
           <a href="#flight-search" className="zamra-offer"><span className="offer-number">01 / HOMECOMINGS</span><h3>Time to fly home?</h3><p>Explore flights between India and the Gulf.</p><span className="offer-link">Plan your journey <span aria-hidden="true">↗</span></span></a>
-          <a href="/hotels" className="zamra-offer zamra-offer-light"><span className="offer-number">02 / NEW HORIZONS</span><h3>Find your next stay.</h3><p>Find a place to settle in, wherever you land.</p><span className="offer-link">Explore hotels <span aria-hidden="true">↗</span></span></a>
+          {HOTELS_ENABLED && <a href="/hotels" className="zamra-offer zamra-offer-light"><span className="offer-number">02 / NEW HORIZONS</span><h3>Find your next stay.</h3><p>Find a place to settle in, wherever you land.</p><span className="offer-link">Explore hotels <span aria-hidden="true">↗</span></span></a>}
         </div>
       </section>
 

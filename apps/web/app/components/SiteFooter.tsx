@@ -1,5 +1,6 @@
 import { BUSINESS } from "../lib/business";
 import { LEGAL_LINKS } from "./LegalPage";
+import { HOTELS_ENABLED } from "../lib/features";
 
 const PORTAL_URL = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/+$/, "");
 const quickLinks = [
@@ -7,7 +8,7 @@ const quickLinks = [
   ["My Trips", "/trips"], ["Agent Portal", `${PORTAL_URL}/login`], ["Contact", "/contact"],
 ];
 const services = [
-  ["Flight booking", "/#flight-search"], ["Hotels", "/hotels"],
+  ["Flight booking", "/#flight-search"], ...(HOTELS_ENABLED ? [["Hotels", "/hotels"]] : []),
   ["Travel assistance", "/travel-check"],
   ["My account", "/account"], ["Register your agency", `${PORTAL_URL}/register`],
 ];
