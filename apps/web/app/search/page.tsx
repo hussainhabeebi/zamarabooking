@@ -195,7 +195,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
             </div>
           )}
 
-          {/* Price calendar, price alert, baggage & visa checker */}
+          {/* Price calendar, price alert, baggage checker */}
           {params.origin && params.destination && params.departureDate && (
             <FareTools
               origin={params.origin.toUpperCase()}
