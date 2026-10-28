@@ -64,3 +64,21 @@ Official indexed Revamp documentation reviewed on 28 October 2026:
 - https://wrc.benzyinfotech.com/home/b2b-revamp-flight/flight/paymentgetitinerarystatus/ — status polling after StartPay until Success/Failed, followed by RetrieveBooking.
 - https://wrc.benzyinfotech.com/home/b2b-revamp-flight/flight/websettings/ — feature-gating for SSR/SeatLayout.
 The flight documentation landing page was inaccessible to the retrieval tool on this pass (and previously required sign-in). Search did not yield an authoritative Revamp CreateItinerary request/response contract. The separate Airline Connector and hotel examples must not be substituted. Obtain the current official Revamp Postman collection including full OneWay/RoundTrip CreateItinerary, SSR/seat selections, transaction/PNR/ticket response mappings, UAT scope and recovery semantics before completing or wiring booking. Complete genuine lifecycle logs, normalized persisted TransactionId/PNRs and automatic supplier confirmation remain blocked; no actual supplier requests were made to obtain them.
+
+## Verified contract increment and Node 22 validation
+
+The existing client now has a documented `/Utils/WebSettings` request and a pure SSR/SeatLayout capability parser. Missing, malformed or conflicting duplicate feature lists fail closed. The method is not wired to checkout, and the existing gateway allowlist has NOT been expanded: a future gateway review must explicitly permit WebSettings before UAT use through that gateway. No SSR/SeatLayout purchase or CreateItinerary payload has been guessed.
+
+GetItineraryStatus now validates the documented `Code` and response `transactionID` against the caller's genuine reference, preserves string identifiers without numeric conversion, rejects unsafe numeric identifiers, and bounds polling calls by deadline and maximum count. A successful itinerary status still does not establish PNRs/tickets. No new booking status promotion or real network operation is activated.
+
+Local Node 22.23.4 validation: 63 selected API/mock/regression tests and 24 supplier tests passed. API/Admin/supplier TypeScript checks and the Admin Next.js validation build passed. The new `akbar-safety-ci.yml` is PR-only, contents:read, has no secrets, deploy steps, database commands or artifacts. It uses repository-pinned pnpm 9.12.0 and Node 22; tests reject unmocked fetch. Validation builds point to 127.0.0.1:9 and must never deploy. Actual GitHub run status is reported separately in the PR.
+
+Rendered Admin QA remains blocked: the local Node 22 mock app and read-only fixture proxy started, but the cloud browser could not reach the workspace loopback server (`ERR_CONNECTION_REFUSED`). The servers were stopped. No production UI or supplier calls were used as a substitute. Build/type checks and route unit tests are not represented as rendered QA. An accessible isolated preview/local browser test environment is required for responsive visual/interaction checks.
+
+Exact remaining booking contract blockers:
+- Official Revamp flight CreateItinerary endpoint, complete OneWay and RoundTrip bodies, mandatory passenger/contact/document/GST fields, selected SSR/seat association, and success/error examples.
+- Exact returned transaction reference field/type, authoritative PNR/ticket and per-passenger/per-leg mapping in RetrieveBooking, plus confirmation versus ticketing criteria.
+- Verified SSR/SeatLayout Revamp request/response examples, pricing-context lifetimes, return-itinerary composition and repricing/fare-change handling.
+- Provider-approved timeout/idempotency/reconciliation behavior for unknown CreateItinerary outcomes, status transitions and StartPay/hold/ticketing boundaries.
+- Current UAT authorization/whitelist confirmation and sanitized certification-export acceptance requirements. No credentials should be supplied in source/chat.
+The official WebSettings and GetItineraryStatus pages were retrievable; the landing page timed out and no verified Revamp CreateItinerary example was located. Separate Airline Connector, hotel and insurance examples are not interchangeable. Keep checkout blocked, no merges or deployment.

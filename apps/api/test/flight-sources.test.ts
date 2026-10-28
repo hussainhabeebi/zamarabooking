@@ -202,7 +202,7 @@ test("Akbar search polls GetExpSearch with the TUI until Completed", async () =>
   const replies = [{ TUI: "t1", Completed: false }, { TUI: "t1", Completed: "False" }, { TUI: "t1", Completed: true, Trips: [] }];
   const fetchImpl = (async (url: string, init: RequestInit) => {
     calls.push({ url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
-    return json(replies.shift());
+    return json({ Code: "200", transactionID: 230003656, ...replies.shift() });
   }) as unknown as typeof fetch;
   const r = await new AkbarClient(akbarCreds, fetchImpl).search(
     { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" },
@@ -234,7 +234,7 @@ test("Akbar RetrieveBooking and Cancel bodies", () => {
 test("Akbar waits for the itinerary status after StartPay", async () => {
   const calls: any[] = [];
   const replies = [{ CurrentStatus: "InProgress" }, { CurrentStatus: "" }, { CurrentStatus: "Success" }];
-  const fetchImpl = (async (url: string, init: RequestInit) => { calls.push({ url, body: JSON.parse(String(init.body)) }); return json(replies.shift()); }) as unknown as typeof fetch;
+  const fetchImpl = (async (url: string, init: RequestInit) => { calls.push({ url, body: JSON.parse(String(init.body)) }); return json({ Code: "200", transactionID: 230003656, ...replies.shift() }); }) as unknown as typeof fetch;
   const r = await new AkbarClient(akbarCreds, fetchImpl).waitForItinerary(230003656, "t", { token: "jwt", clientId: "cid" }, { sleep: async () => {} });
   assert.equal(r.status, "Success");
   assert.equal(r.polls, 3);

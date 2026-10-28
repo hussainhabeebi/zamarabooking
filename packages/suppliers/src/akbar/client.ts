@@ -69,6 +69,30 @@ const redactResponse = (endpoint: string, text: string) => {
 };
 const redactBody = (body: unknown) => JSON.stringify(body, (k, v) => (SECRET_FIELDS.has(k) && typeof v === "string" && v ? "••••" : v));
 
+// Verified Revamp WebSettings contract; no network or booking is activated here.
+// https://wrc.benzyinfotech.com/home/b2b-revamp-flight/flight/websettings/
+export function webSettingsBody(clientId: string, tui = "") {
+  return { ClientID: clientId, TUI: tui };
+}
+export function akbarAncillaryFeatures(input: unknown, airline: string, region: "DOMESTIC" | "INTERNATIONAL") {
+  const d = input as { Code?: unknown; Settings?: unknown } | null;
+  if (!d || String(d.Code) !== "200" || !Array.isArray(d.Settings) ||
+      d.Settings.length > 1000 || !/^[A-Z0-9]{2,6}$/.test(airline) ||
+      !["DOMESTIC", "INTERNATIONAL"].includes(region)) {
+    throw new AkbarError("Invalid Akbar WebSettings response or feature request");
+  }
+  const suffix = region === "DOMESTIC" ? "Dom" : "Int";
+  const enabled = (key: string) => {
+    const rows = d.Settings as { Key?: unknown; Value?: unknown }[];
+    const values = rows.filter((r) => r && r.Key === key).map((r) => r.Value);
+    // Missing, malformed or conflicting duplicate settings fail closed.
+    if (!values.length || values.some((v) => typeof v !== "string")) return false;
+    const sets = values.map((v) => [...new Set((v as string).split(",").map((s) => s.trim()).filter(Boolean))].sort().join(","));
+    return sets.every((v) => v === sets[0]) && sets[0].split(",").includes(airline);
+  };
+  return { ssr: enabled(`ShowSSR${suffix}`), seatLayout: enabled(`ShowSeatLayout${suffix}`) };
+}
+
 export interface AkbarToken {
   token:    string;
   clientId: string;   // ClientID for search requests (from the Signature response when it returns one)
@@ -213,6 +237,22 @@ export function cancelBody(c: AkbarCancel, clientId: string) {
   };
 }
 
+// Verified GetItineraryStatus field spelling (response transactionID, request TransactionID).
+// This is status evidence only; it cannot establish a PNR or authorize payment.
+export function akbarTransactionId(value: unknown): string {
+  if (typeof value === "number" && (!Number.isSafeInteger(value) || value <= 0)) throw new AkbarError("Invalid Akbar transaction identifier");
+  if ((typeof value !== "number" && typeof value !== "string") || !/^[1-9][0-9]*$/.test(String(value))) throw new AkbarError("Invalid Akbar transaction identifier");
+  return String(value);
+}
+export function parseAkbarItineraryStatus(data: unknown, expectedId: string | number) {
+  const d = data as Record<string, unknown> | null;
+  const expected = akbarTransactionId(expectedId);
+  if (!d || String(d.Code) !== "200" || akbarTransactionId(d.transactionID) !== expected || typeof d.CurrentStatus !== "string") {
+    throw new AkbarError("Akbar itinerary status did not establish the expected transaction outcome");
+  }
+  return { transactionId: expected, status: itineraryFinalStatus(d), raw: data };
+}
+
 // "Success" / "Failed" once the booking is final; "" while Akbar is still working on it.
 export function itineraryFinalStatus(data: unknown): "Success" | "Failed" | "" {
   const v = pickString(data, ["CurrentStatus"]).toLowerCase();
@@ -284,7 +324,7 @@ export class AkbarClient {
           ...(this.gateway() ? { "X-Zamra-Gateway-Key": this.creds.gatewayKey! } : {}),
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(Math.max(1000, timeoutMs)),
+        signal: AbortSignal.timeout(Math.max(1, timeoutMs)),
       });
     } catch (err) {
       const name = (err as { name?: string })?.name;
@@ -310,6 +350,11 @@ export class AkbarClient {
     const token = pickString(data, ["Token", "token", "TokenID", "AccessToken", "access_token"]);
     if (!token) throw new AkbarError("Akbar Signature returned no token", 200, endpoint, JSON.stringify(data).slice(0, 1000));
     return { token, clientId: pickString(data, ["ClientID", "ClientId", "clientId"]) || c.clientId };
+  }
+
+  async webSettings(auth: AkbarToken, tui = ""): Promise<unknown> {
+    const endpoint = "/Utils/WebSettings";
+    return this.post(`${this.utilsBase()}${endpoint}`, endpoint, webSettingsBody(auth.clientId, tui), auth.token);
   }
 
   async expressSearch(params: SearchParams, auth: AkbarToken, timeoutMs?: number): Promise<unknown> {
@@ -353,22 +398,28 @@ export class AkbarClient {
     return this.post(`${this.flightsBase()}${endpoint}`, endpoint, startPayBody(p, auth.clientId, this.creds.browserKey), auth.token);
   }
 
-  async getItineraryStatus(transactionId: number, tui: string, auth: AkbarToken): Promise<unknown> {
+  async getItineraryStatus(transactionId: number | string, tui: string, auth: AkbarToken, timeoutMs?: number): Promise<unknown> {
+    akbarTransactionId(transactionId);
+    if (!tui) throw new AkbarError("Akbar itinerary status requires its TUI");
     const endpoint = "/Payment/GetItineraryStatus";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { TUI: tui, TransactionID: transactionId }, auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { TUI: tui, TransactionID: transactionId }, auth.token, timeoutMs);
   }
 
   // After StartPay: GetItineraryStatus until Success / Failed or the deadline passes.
   // status "" = still pending at the deadline (check again later; don't rebook).
-  async waitForItinerary(transactionId: number, tui: string, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ status: "Success" | "Failed" | ""; data: unknown; polls: number }> {
+  async waitForItinerary(transactionId: number | string, tui: string, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ status: "Success" | "Failed" | ""; data: unknown; polls: number }> {
     const { pollIntervalMs = 3000, deadlineMs = 60_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
+    if (!Number.isFinite(deadlineMs) || deadlineMs <= 0 || deadlineMs > 60000 || !Number.isFinite(pollIntervalMs) || pollIntervalMs < 0) throw new AkbarError("Invalid itinerary polling limits");
     const started = Date.now();
     let polls = 0;
     for (;;) {
-      const data = await this.getItineraryStatus(transactionId, tui, auth);
+      const remaining = deadlineMs - (Date.now() - started);
+      if (remaining <= 0) return { status: "", data: null, polls };
+      const data = await this.getItineraryStatus(transactionId, tui, auth, remaining);
       polls++;
-      const status = itineraryFinalStatus(data);
-      if (status || Date.now() - started + pollIntervalMs >= deadlineMs) return { status, data, polls };
+      const status = parseAkbarItineraryStatus(data, transactionId).status;
+      if (Date.now() - started >= deadlineMs) return { status: "", data, polls };
+      if (status || polls >= 100 || Date.now() - started + pollIntervalMs >= deadlineMs) return { status, data, polls };
       await sleep(pollIntervalMs);
     }
   }

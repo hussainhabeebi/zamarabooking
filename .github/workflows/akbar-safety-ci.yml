@@ -1,0 +1,55 @@
+name: Akbar safety checks (Node 22, no deployment)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'apps/admin/**'
+      - 'packages/suppliers/**'
+      - 'packages/db/**'
+      - 'packages/types/**'
+      - 'scripts/deny-test-network.mjs'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/akbar-safety-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: akbar-safety-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Node 22 mock-only API, supplier and Admin validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+      API_BASE_URL: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: TypeScript
+        run: |
+          node node_modules/typescript/bin/tsc --noEmit -p apps/api/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p apps/admin/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p packages/suppliers/tsconfig.json
+      - name: Local mock API and supplier regression tests
+        run: |
+          node --import ./scripts/deny-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/akbar-evidence.test.ts apps/api/test/akbar-release-safety.test.ts apps/api/test/akbar-revamp-contract.test.ts apps/api/test/flight-sources.test.ts apps/api/test/certification-pack.test.ts apps/api/test/tripjack-reviewed-total.test.ts
+          node --import ./scripts/deny-test-network.mjs --test packages/suppliers/test/*.test.cjs
+      - name: Admin validation build (never a deployment artifact)
+        run: node apps/admin/node_modules/next/dist/bin/next build apps/admin
