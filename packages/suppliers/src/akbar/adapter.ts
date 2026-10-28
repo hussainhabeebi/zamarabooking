@@ -74,7 +74,7 @@ export function normalizeAkbarJourney(j: Raw, tui: string, cabinClass: string): 
   return {
     id:            `AK|${tui}|${index}`,
     supplier:      "AKBAR",
-    isBookable:    true,
+    isBookable:    false,
     airline,
     airlineName,
     flightNumber,

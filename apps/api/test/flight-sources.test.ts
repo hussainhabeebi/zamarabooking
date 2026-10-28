@@ -298,6 +298,7 @@ test("Akbar journey becomes a Zamra fare at Akbar's net fare", () => {
   const f = fares[0];
   assert.equal(f.id, "AK|tui1|6E|1");
   assert.equal(f.supplier, "AKBAR");
+  assert.equal(f.isBookable, false);
   assert.equal(f.airline, "6E");
   assert.equal(f.airlineName, "IndiGo");
   assert.equal(f.flightNumber, "2101");

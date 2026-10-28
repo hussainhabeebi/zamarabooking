@@ -249,6 +249,10 @@ bookDirectRoutes.post("/", zValidator("json", directBookSchema, (result, c) => {
   const tenantId = c.get("tenantId");
   const tenant   = c.get("tenant");
   const requestId = crypto.randomUUID();
+  if (body.supplier === "AKBAR") {
+    return c.json({ errorCode: "AKBAR_BOOKING_DISABLED", error: "Akbar API booking is not available until its UAT booking lifecycle is verified. No payment has been initiated.", requestId }, 409);
+  }
+
   const exchanges = (c as any).get("exchanges") as ExchangeCollector | undefined;
   (c as any).set("exchangeRequestId", requestId);
   if (body.searchId) (c as any).set("exchangeSearchId", body.searchId);

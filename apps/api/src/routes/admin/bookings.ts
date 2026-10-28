@@ -1,3 +1,4 @@
+import { akbarConfirmation, redactAkbarJson } from "../../lib/akbar-evidence.js";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import {
@@ -57,6 +58,11 @@ bookingsAdminRoutes.patch("/:id/status", async (c) => {
   const { status, note } = await c.req.json() as { status: string; note: string };
   const db       = c.get("db");
   const tenantId = c.get("tenantId");
+  const [current] = await db.select().from(bookings)
+    .where(and(eq(bookings.id, c.req.param("id")), eq(bookings.tenantId, tenantId))).limit(1);
+  if (current?.supplier === "AKBAR" && ["CONFIRMED", "TICKETED"].includes(status)) {
+    throw new HTTPException(409, { message: "Akbar supplier confirmation cannot be asserted through a manual status override" });
+  }
 
   await db.update(bookings)
     .set({ status: status as "CONFIRMED", updatedAt: new Date() })
@@ -80,9 +86,12 @@ async function loadBooking(c: any, id: string) {
 // Exchanges for the booking itself plus the search it was booked from.
 function exchangeFilter(b: typeof bookings.$inferSelect) {
   const searchId = (b.flightData as Record<string, unknown> | null)?.searchId;
-  return typeof searchId === "string"
+  const link = typeof searchId === "string"
     ? or(eq(supplierExchanges.bookingId, b.id), eq(supplierExchanges.searchId, searchId))
     : eq(supplierExchanges.bookingId, b.id);
+  return b.supplier === "AKBAR"
+    ? and(eq(supplierExchanges.tenantId, b.tenantId), eq(supplierExchanges.supplier, "AKBAR"), link)
+    : link;
 }
 
 // TripJack certification logs for several bookings: one folder per booking with
@@ -97,6 +106,7 @@ bookingsAdminRoutes.get("/certification.zip", async (c) => {
   const used = new Map<string, number>();
   for (const id of ids) {
     const b = await loadBooking(c, id);
+    if (b.supplier === "AKBAR") throw new HTTPException(409, { message: "Akbar records cannot be exported as a TripJack certification pack" });
     files.push(...await certificationPack(c.env, db, b, environment, packFolderName(b, used)));
   }
   return new Response(buildZip(files), { headers: {
@@ -124,6 +134,7 @@ bookingsAdminRoutes.get("/:id", async (c) => {
   const queueReceipt = waiting && paidOrder ? await readQueueReceipt(c.env, paidOrder) : null;
   const paymentConfirmed = Boolean(paidOrder);
   return c.json({
+    ...(b.supplier === "AKBAR" ? { supplierConfirmation: akbarConfirmation(b) } : {}),
     booking: b, queueError, queueReceipt, paymentConfirmed, events: await readBookingEvents(c.env, b.id), customer: customer[0] ?? null, passengers, payments: paymentRows, cancellations: amendments,
     supportRequests: support, walletTransactions: walletTx,
     exchanges: exchanges.map((x) => ({ ...x, requestKey: undefined, responseKey: undefined, hasResponse: Boolean(x.responseKey) })),
@@ -144,6 +155,11 @@ bookingsAdminRoutes.get("/:id/exchanges/:exchangeId/:part", async (c) => {
   const obj = await c.env.DOCUMENTS_R2.get(key);
   if (!obj) throw new HTTPException(404, { message: "Log file missing from storage" });
   const name = certificationFileName(x.endpoint, part, key);
+  if (x.supplier === "AKBAR") {
+    return new Response(redactAkbarJson(await obj.text()), { headers: {
+      "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "private, no-store",
+    } });
+  }
   if (part === "request") {
     // As TripJack received it: TripJack URL, apikey header, body — no gateway secret.
     let stored: Record<string, any> = {};
@@ -164,6 +180,9 @@ bookingsAdminRoutes.get("/:id/exchanges/:exchangeId/:part", async (c) => {
 bookingsAdminRoutes.get("/:id/exchanges.zip", async (c) => {
   const db = c.get("db");
   const b = await loadBooking(c, c.req.param("id"));
+  if (b.supplier === "AKBAR") {
+    throw new HTTPException(409, { message: "Akbar certification pack is not implemented. Download the genuine individual Akbar request/response records; do not use a TripJack certification pack." });
+  }
   const name = caseName(b);
   const files = await certificationPack(c.env, db, b, await tripjackEnvironment(c.env, c.get("tenantId")), `${tripFolderName(b)}/${name}/`);
   if (files.length <= 1) throw new HTTPException(404, { message: "No API logs stored for this booking yet" });

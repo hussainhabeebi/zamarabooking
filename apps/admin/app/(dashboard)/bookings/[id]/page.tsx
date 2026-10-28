@@ -99,6 +99,8 @@ export default function BookingDetailPage() {
   const b = data.booking;
   const fd = (b.flightData ?? {}) as Record<string, unknown>;
   const offline = OFFLINE.includes(b.supplier);
+  const supplierLabel = b.supplier === "AKBAR" ? "Akbar Travels" : b.supplier;
+  const statusLabel = data.supplierConfirmation?.label ?? b.status;
 
   return (
     <div>
@@ -110,7 +112,7 @@ export default function BookingDetailPage() {
             {fmtDate(b.departureDate)} · PNR <strong style={{ color: "#e2e8f0" }}>{b.pnr ?? "—"}</strong> · {b.supplier} {b.supplierBookingRef ?? ""} · <span style={{ fontFamily: "monospace" }}>{b.id}</span>
           </div>
         </div>
-        <span style={{ color: STATUS_COLOR[b.status] ?? "#94a3b8", fontWeight: 800, fontSize: 13, border: "1px solid #334155", borderRadius: 20, padding: "5px 12px" }}>{b.status}</span>
+        <span style={{ color: STATUS_COLOR[b.status] ?? "#94a3b8", fontWeight: 800, fontSize: 13, border: "1px solid #334155", borderRadius: 20, padding: "5px 12px" }}>{statusLabel}</span>
       </div>
 
       <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #334155", marginBottom: 16, overflowX: "auto" }}>
@@ -150,13 +152,18 @@ export default function BookingDetailPage() {
       {b.status === "PAYMENT_FAILED" && data.queueError && (
         <div style={errBox}><b>Airline booking failed:</b> {data.queueError.message}</div>
       )}
+      {data.supplierConfirmation && <div style={errBox}>
+        <b>Akbar supplier confirmation: unverified.</b> {data.supplierConfirmation.reason}
+        <br />Akbar TransactionId: not captured. Payment status is shown separately under Payments &amp; refunds.
+        <br />Stored internal status: {b.status}. Do not retry payment or create another booking to obtain logs.
+      </div>}
       {notice && <div style={okBox}>{notice}</div>}
       {offline && <IssueTicket key={`${b.status}-${b.pnr ?? ""}`} booking={b} passengers={data.passengers} onDone={(m) => { setNotice(m); load(); }} />}
 
       {tab === "overview" && (
         <div style={grid}>
           <Card title="Booking">
-            <Row k="Status" v={b.status} /><Row k="Channel" v={b.channel} /><Row k="Trip" v={`${b.tripType} · ${b.cabinClass}`} />
+            <Row k="Status" v={statusLabel} /><Row k="Channel" v={b.channel} /><Row k="Trip" v={`${b.tripType} · ${b.cabinClass}`} />
             <Row k="Travellers" v={`${b.adultCount} adult · ${b.childCount} child · ${b.infantCount} infant`} />
             <Row k="Booked" v={fmtDate(b.createdAt)} /><Row k="Updated" v={fmtDate(b.updatedAt)} />
             <Row k="Ticket numbers" v={(b.ticketNumbers ?? []).join(", ") || "—"} />
@@ -247,11 +254,11 @@ export default function BookingDetailPage() {
       {tab === "logs" && (
         <Card title="Supplier API request / response logs">
           <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 12px" }}>
-            Every TripJack call for this booking (and the search it was booked from). Each request and response is a separate JSON file.
-            Requests include the exact URL, headers (with the API key) and body sent; responses are stored exactly as received, unmodified.
+            {supplierLabel} records for this booking and its linked search. Each request and response is a separate file.
+            {b.supplier === "AKBAR" ? " Akbar downloads redact credentials and passenger information. HTTP 200 is transport success, not booking confirmation. Missing calls cannot be reconstructed." : " Existing supplier log handling is unchanged."}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <button disabled={!!busy || !data.exchanges.length} onClick={() => download("exchanges.zip", "zip")} style={btn}>{busy === "zip" ? "Preparing…" : "Download TripJack certification logs (ZIP)"}</button>
+            <button disabled={!!busy || !data.exchanges.length || b.supplier === "AKBAR"} onClick={() => download("exchanges.zip", "zip")} style={btn}>{busy === "zip" ? "Preparing…" : `Download ${supplierLabel} certification logs (ZIP)`}</button>
             {b.supplier === "TRIPJACK" && b.supplierBookingRef && (
               <button disabled={!!busy} onClick={refreshDetails} style={btnGhost}>{busy === "refresh" ? "Fetching…" : "Fetch booking details from TripJack"}</button>
             )}
@@ -270,9 +277,10 @@ export default function BookingDetailPage() {
           {data.exchanges.length === 0 ? (
             <p style={{ color: "#64748b", fontSize: 13 }}>No raw API logs for this booking yet. Logs are recorded for bookings made after this feature was deployed.</p>
           ) : (
-            <Table head={["Time", "Call", "HTTP", "ms", "Request", "Response"]}
+            <Table head={["Time", "Supplier", "Call", "HTTP", "ms", "Request", "Response"]}
               rows={data.exchanges.map((x: any) => [
                 fmtDate(x.startedAt),
+                x.supplier,
                 <span key="c"><strong>{ENDPOINT_LABEL[x.endpoint] ?? x.endpoint}</strong><small style={{ display: "block", color: "#64748b", fontFamily: "monospace" }}>{x.endpoint}{x.searchId && !x.bookingId ? " · search" : ""}</small></span>,
                 <span key="h" style={{ color: x.httpStatus && x.httpStatus < 300 ? "#4ade80" : "#f87171", fontWeight: 700 }}>{x.httpStatus ?? (x.error ? "ERR" : "—")}</span>,
                 x.durationMs ?? "—",
