@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { apiCall, readCustomerToken } from "../lib/customer-api";
 import { CURRENCY_EVENT, isPrefCurrency, readPrefCurrency, savePrefCurrency, syncAccountCurrency, type PrefCurrency } from "../lib/currency-pref";
 import { CURRENCY_LIST } from "../lib/fx";
+import { HOTELS_ENABLED } from "../lib/features";
 
 function flightSearchUrl() { return "/#flight-search"; }
 
@@ -87,10 +88,11 @@ export default function SiteNav() {
   ];
 
   const portalUrl = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/+$/, "");
-  const primaryItems = [{ key: "home", label: "Home", href: "/" }, ...navItems.filter(({ key }) => ["flights", "hotels", "trips"].includes(key))];
+  const shown = navItems.filter(({ key }) => key !== "hotels" || HOTELS_ENABLED);
+  const primaryItems = [{ key: "home", label: "Home", href: "/" }, ...shown.filter(({ key }) => ["flights", "hotels", "trips"].includes(key))];
   function isActive(key: string) { return key === "home" ? pathname === "/" : active === key; }
   const secondaryItems = [
-    ...navItems.filter(({ key }) => key === "hotels"),
+    ...shown.filter(({ key }) => key === "hotels"),
     { key: "assistance", label: "Travel assistance", href: "/travel-check" },
     { key: "agents", label: "Agent Portal", href: `${portalUrl}/login` },
     { key: "register", label: "Register your agency", href: `${portalUrl}/register` },
