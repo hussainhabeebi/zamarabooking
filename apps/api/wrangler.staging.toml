@@ -1,22 +1,26 @@
 # PhonePe SANDBOX staging Worker. Separate from production: own name, own
 # workers.dev HTTPS URL, own KV/queues, no custom domain, no cron.
-# Deploy only with: wrangler deploy --config wrangler.staging.toml
+# Deployed by Cloudflare Workers Builds (Dashboard) with:
+#   cd apps/api && npx wrangler deploy --config wrangler.staging.toml
 # KV ids below are the staging resources created on 29 Oct 2026 (never production ids).
 # PhonePe ledger = the Neon staging branch (DATABASE_URL) with
 # docs/migrations/phonepe-pg-v2-proposed.sql applied there. The D1 database
 # zamra-phonepe-staging belongs to the separate sandbox harness Worker only.
 #
-# DATABASE_URL secret must point at the Neon `phonepe-staging` branch, never at
-# production. That branch holds copies of real customer data, so do NOT give this
-# Worker email/WhatsApp/supplier credentials (RESEND_*, LEADVYNE_*, RIYA_*,
-# TRIPJACK_*, AKBAR_*, NOMOD_*, RAZORPAY_*): staging must not contact customers,
-# book suppliers or take real payments.
+# DATABASE_URL secret must point at the schema-only Neon `phonepe-staging` branch
+# (role phonepe_staging), never at production. Never give this Worker
+# email/WhatsApp/supplier/Nomod/Razorpay credentials (RESEND_*, LEADVYNE_*, RIYA_*,
+# TRIPJACK_*, AKBAR_*, NOMOD_*, RAZORPAY_*): staging must not contact anyone, book
+# suppliers or take real payments.
 name = "zamra-api-staging"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 account_id = "f098f93799dd7203d996a8cb1a982ce1"
 workers_dev = true
+# PHONEPE_RETURN_ORIGIN and the release gates are set in the Dashboard (Settings →
+# Variables and Secrets) so you decide when PhonePe turns on; keep them on deploy.
+keep_vars = true
 
 [[kv_namespaces]]
 binding = "SESSIONS_KV"
@@ -53,7 +57,7 @@ max_batch_timeout = 2
 ENVIRONMENT          = "staging"
 PLATFORM_TENANT_SLUG = "zamra"
 PHONEPE_ENVIRONMENT  = "sandbox"
-# PHONEPE_RETURN_ORIGIN = "https://<staging web origin>"   (HTTPS origin only)
-# PHONEPE_TENANT_ID     = "<zamra tenant id from the staging Neon branch>"
-# Release gates stay off until each check passes:
-# PHONEPE_SCHEMA_READY / PHONEPE_MERCHANT_ACTIVE / PHONEPE_RELEASE_APPROVED = "true"
+PHONEPE_TENANT_ID    = "5e7acd7c-d40f-4ac3-ae93-a23a27f56d9d"   # zamra tenant on phonepe-staging
+# Dashboard (Text): PHONEPE_RETURN_ORIGIN = https://zamra-web-staging.<subdomain>.workers.dev
+# Dashboard (Text), only when each check passes: PHONEPE_SCHEMA_READY,
+# PHONEPE_MERCHANT_ACTIVE, PHONEPE_RELEASE_APPROVED = "true"

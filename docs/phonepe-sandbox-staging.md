@@ -24,94 +24,82 @@ The schema fingerprint lines from step 1 (`tables`, `columns`, `columns_md5`, `i
 
 Keep the `tenant_id` printed by step 5 for `PHONEPE_TENANT_ID`. Delete the branch after acceptance.
 
-## 3. Staging secrets and settings
+## 3. Deploy the staging API from the Cloudflare Dashboard (no local Wrangler)
 
-Secrets (each command prompts for the value):
+**Workers & Pages → Create → Import a repository** (Workers Builds). Authorise the Cloudflare GitHub app for `hussainhabeebi/zamarabooking` if asked. Settings:
+- **Worker name:** `zamra-api-staging` (must match the config)
+- **Branch:** `feature/phonepe-pg-v2` (this Worker's deploy branch only)
+- **Root directory:** `/`
+- **Build command:** `pnpm install --frozen-lockfile --ignore-scripts`
+- **Deploy command:** `cd apps/api && npx wrangler deploy --config wrangler.staging.toml`
+- Turn **off** builds for other branches / pull requests if offered.
 
-```bash
-wrangler secret put DATABASE_URL --config wrangler.staging.toml
-```
+The first deploy has no secrets, so database routes return 503. That is expected and harmless.
 
-Use the **phonepe-staging branch** connection string with the `phonepe_staging` role, never production. Then set a new staging-only `JWT_SECRET` and the PhonePe **sandbox** values:
+## 4. Staging API secrets (Dashboard → `zamra-api-staging` → Settings → Variables and Secrets)
 
-```bash
-wrangler secret put JWT_SECRET --config wrangler.staging.toml
-```
+Add each as type **Secret**. Paste values straight from your password manager; never into chat or files.
 
-```bash
-wrangler secret put PHONEPE_CLIENT_ID --config wrangler.staging.toml
-```
+| Name | Value |
+|---|---|
+| `DATABASE_URL` | Neon connection string for branch **`phonepe-staging`**, role **`phonepe_staging`** (Neon → Connect). Check the host is the staging branch endpoint, not production's |
+| `JWT_SECRET` | New random 64+ characters, staging only |
+| `ADMIN_SERVICE_TOKEN` | New random 40+ characters, staging only. Used as `STAGING_ADMIN_TOKEN` by the acceptance script (no admin users exist on the schema-only branch) |
+| `PHONEPE_CLIENT_ID`, `PHONEPE_CLIENT_SECRET`, `PHONEPE_CLIENT_VERSION`, `PHONEPE_MERCHANT_ID` | PhonePe **sandbox** values only (direct merchant, Standard Checkout PG V2) |
+| `PHONEPE_WEBHOOK_USERNAME`, `PHONEPE_WEBHOOK_PASSWORD` | New values you generate for staging; the same pair goes into PhonePe's sandbox webhook settings |
 
-```bash
-wrangler secret put PHONEPE_CLIENT_SECRET --config wrangler.staging.toml
-```
+Do **not** add `RESEND_*`, `LEADVYNE_*`, `RIYA_*`, `TRIPJACK_*`, `AKBAR_*`, `NOMOD_*` or `RAZORPAY_*`. `PHONEPE_TENANT_ID` (`5e7acd7c-d40f-4ac3-ae93-a23a27f56d9d`) and `PHONEPE_ENVIRONMENT=sandbox` are already in `wrangler.staging.toml`. Dashboard variables and secrets survive redeploys (`keep_vars = true`).
 
-```bash
-wrangler secret put PHONEPE_CLIENT_VERSION --config wrangler.staging.toml
-```
-
-```bash
-wrangler secret put PHONEPE_MERCHANT_ID --config wrangler.staging.toml
-```
-
-```bash
-wrangler secret put PHONEPE_WEBHOOK_USERNAME --config wrangler.staging.toml
-```
-
-```bash
-wrangler secret put PHONEPE_WEBHOOK_PASSWORD --config wrangler.staging.toml
-```
-
-Do **not** set email, WhatsApp, supplier, Nomod or Razorpay secrets on staging.
-
-In `wrangler.staging.toml` `[vars]`, set `PHONEPE_TENANT_ID` (the tenant id above) and `PHONEPE_RETURN_ORIGIN` (the staging web origin, step 4). Leave the release gates commented until step 5.
-
-## 4. Deploy staging Workers
-
-```bash
-wrangler deploy --config wrangler.staging.toml
-```
-
-Note the `https://zamra-api-staging.<subdomain>.workers.dev` URL. Check it reports staging:
+Check (no secrets in the output):
 
 ```bash
 curl -s https://zamra-api-staging.<subdomain>.workers.dev/health
 ```
 
-Staging website (return page). From `apps/web`, build against the staging API and deploy under a separate name:
+Expected: `"env":"staging"`.
 
 ```bash
-NEXT_PUBLIC_API_URL=https://zamra-api-staging.<subdomain>.workers.dev pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+curl -s https://zamra-api-staging.<subdomain>.workers.dev/api/admin/settings/phonepe -H "Authorization: Bearer $STAGING_ADMIN_TOKEN" -H 'x-tenant-slug: zamra'
 ```
 
-```bash
-pnpm exec wrangler deploy --config wrangler.jsonc --name zamra-web-staging --var NEXT_PUBLIC_API_URL:https://zamra-api-staging.<subdomain>.workers.dev
-```
+Expected: `"configured":true`, `"gatesReady":false`, `"enabled":false`, `"environment":"sandbox"`, `"ledger":"NEON"`. Resolving the `zamra` tenant proves the staging API reaches the Neon staging branch, and PhonePe stays disabled. `configured` is `false` until `PHONEPE_RETURN_ORIGIN` is set in step 4b. A 503 "Database connection is not configured" means `DATABASE_URL` is missing.
 
-Its workers.dev URL is `PHONEPE_RETURN_ORIGIN`.
+## 4b. Deploy the staging website (return page)
 
-Staging Admin. From `apps/admin`, build against the staging API and deploy under a separate name:
+A second Workers Builds project, same repository and branch:
+- **Worker name:** `zamra-web-staging`
+- **Root directory:** `/`
+- **Build variable:** `STAGING_API_URL` = `https://zamra-api-staging.<subdomain>.workers.dev`
+- **Build command:** `pnpm install --frozen-lockfile && node scripts/staging-worker-config.mjs web && cd apps/web && NEXT_PUBLIC_API_URL="$STAGING_API_URL" pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion`
+- **Deploy command:** `cd apps/web && npx wrangler deploy --config wrangler.staging.generated.jsonc`
 
-```bash
-NEXT_PUBLIC_API_URL=https://zamra-api-staging.<subdomain>.workers.dev API_BASE_URL=https://zamra-api-staging.<subdomain>.workers.dev pnpm exec opennextjs-cloudflare build
-```
+`scripts/staging-worker-config.mjs` refuses any URL that isn't `https://zamra-api-staging.<subdomain>.workers.dev`. The apps fall back to the production API when the URL is missing, so this guard prevents a staging site that talks to production.
 
-```bash
-pnpm exec wrangler deploy --config wrangler.jsonc --name zamra-admin-staging
-```
+Then, on **`zamra-api-staging`**, add the Text variable `PHONEPE_RETURN_ORIGIN` = `https://zamra-web-staging.<subdomain>.workers.dev` and redeploy (**Deployments → Retry/Deploy**, or push any commit).
 
-Log in with a staging-branch admin account. Copy the `zamra_admin_token` cookie value: that is `STAGING_ADMIN_TOKEN` for step 6.
+A staging Admin UI is optional. The acceptance script uses the API and the Neon checks in step 7. If wanted, it's the same pattern with `staging-worker-config.mjs admin`, `apps/admin` and Worker name `zamra-admin-staging`.
 
 ## 5. PhonePe sandbox dashboard
 
 - Confirm **direct merchant** Standard Checkout (PG V2) sandbox credentials.
 - Webhook: URL `https://zamra-api-staging.<subdomain>.workers.dev/webhooks/phonepe`, **SHA256 (username/password)** mode, the same username/password as the staging secrets, events `checkout.order.completed`, `checkout.order.failed`, `pg.refund.completed`, `pg.refund.failed`.
 
-Then turn on the staging gates in `wrangler.staging.toml` (`PHONEPE_SCHEMA_READY`, `PHONEPE_MERCHANT_ACTIVE`, `PHONEPE_RELEASE_APPROVED` = `"true"`), redeploy staging, and in **staging** Admin enable PhonePe (Settings → PhonePe).
+Then, on **`zamra-api-staging`** only, add Text variables `PHONEPE_SCHEMA_READY`, `PHONEPE_MERCHANT_ACTIVE` and `PHONEPE_RELEASE_APPROVED`, each = `true`, and redeploy. Enable PhonePe for the staging tenant (the Admin opt-in):
+
+```bash
+curl -s -X PUT https://zamra-api-staging.<subdomain>.workers.dev/api/admin/settings/phonepe -H "Authorization: Bearer $STAGING_ADMIN_TOKEN" -H 'x-tenant-slug: zamra' -H 'content-type: application/json' -d '{"enabled":true}'
+```
+
+Expected: `{"ok":true}`. Re-running the readiness check above now shows `"gatesReady":true` and `"enabled":true`. To switch PhonePe off again, send `{"enabled":false}` or remove a gate variable.
 
 ## 6. Run the sandbox acceptance
 
-From the repo root, in a shell where you export the staging values (`STAGING_API_URL`, `STAGING_JWT_SECRET`, `STAGING_ADMIN_TOKEN` from a staging Admin login, `STAGING_WEBHOOK_USERNAME`, `STAGING_WEBHOOK_PASSWORD`, `TENANT_ID`):
+From the repo root, in a shell where you export the staging values without echoing them (for example `read -rs STAGING_JWT_SECRET && export STAGING_JWT_SECRET`):
+- `STAGING_API_URL`
+- `STAGING_JWT_SECRET`: the staging `JWT_SECRET`
+- `STAGING_ADMIN_TOKEN`: the staging `ADMIN_SERVICE_TOKEN`
+- `STAGING_WEBHOOK_USERNAME`, `STAGING_WEBHOOK_PASSWORD`
+- `TENANT_ID=5e7acd7c-d40f-4ac3-ae93-a23a27f56d9d`
 
 ```bash
 node scripts/phonepe-sandbox-acceptance.mjs preflight
@@ -172,10 +160,15 @@ Expected:
 - 0002: order `FAILED`, payments `FAILED`.
 - Each test booking has exactly one claim (`PHONEPE`) and **one** payments row.
 
-In staging Admin, open each booking:
-- the Payments tab shows the `PHONEPE` payment once;
-- the bookings list shows the PhonePe badge;
-- Finance shows the sandbox receipts separately from revenue;
-- "Retry airline booking" is not offered for the paid booking.
+Admin view through the API (same data the Admin pages show):
+
+```bash
+curl -s https://zamra-api-staging.<subdomain>.workers.dev/api/admin/bookings/phonepe-sbx-0001 -H "Authorization: Bearer $STAGING_ADMIN_TOKEN" -H 'x-tenant-slug: zamra'
+```
+
+Expected:
+- `payments` has one `PHONEPE` row;
+- `phonePePaid` is `true` and `paymentConfirmed` is `false`;
+- `POST …/api/admin/bookings/phonepe-sbx-0001/retry-booking` returns 409.
 
 Send me `phonepe-sandbox-report.json` and the four query outputs. They contain no secrets.
