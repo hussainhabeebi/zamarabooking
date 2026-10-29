@@ -1,3 +1,7 @@
+import { claimCheckoutGateway } from "../lib/phonepe/store.js";
+import { phonePeReadiness } from "../lib/phonepe/config.js";
+import { phonePeCheckout } from "../lib/phonepe/http.js";
+import { PhonePeError } from "../lib/phonepe/client.js";
 // POST /api/payments/checkout  — create Razorpay order or NoMod payment link
 // POST /api/payments/verify    — verify Razorpay signature and confirm booking
 // GET  /api/payments/checkout/:bookingId — poll payment status (used by queue-based flow)
@@ -49,7 +53,7 @@ paymentRoutes.get("/config", async (c) => {
     : razorpayConfigured ? "RAZORPAY" : nomodConfigured ? "NOMOD" : null;
   const aedRate = await getAedRate(c.env, tenantId, c.executionCtx);
   return c.json({
-    defaultGateway: preferred, gateways: { RAZORPAY: razorpayConfigured, NOMOD: nomodConfigured },
+    defaultGateway: preferred, gateways: { RAZORPAY: razorpayConfigured, NOMOD: nomodConfigured, PHONEPE: (await phonePeReadiness(c.env, tenantId)).enabled },
     // Card payments can be made in INR, or in AED at the admin-set rate (INR per 1 AED).
     currencies: { INR: true, AED: Boolean(nomodConfigured && aedRate) }, aedRate,
   });
@@ -59,12 +63,17 @@ paymentRoutes.get("/config", async (c) => {
 
 const checkoutSchema = z.object({
   bookingId: z.string(),
-  gateway:   z.enum(["RAZORPAY", "NOMOD"]).default("NOMOD"),
+  gateway:   z.enum(["RAZORPAY", "NOMOD", "PHONEPE"]).default("NOMOD"),
   currency:  z.enum(["INR", "AED", "USD"]).optional(),
 });
 
 paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) => {
   const { bookingId, gateway, currency } = c.req.valid("json");
+  if (gateway === "PHONEPE") {
+    try { return c.json(await phonePeCheckout(c, bookingId, currency)); }
+    catch (e) { return c.json({ error: e instanceof PhonePeError ? e.message : "PhonePe checkout unavailable" }, 503); }
+  }
+
   if (c.get("userRole") === "CHECKOUT" && c.get("checkoutBookingId") !== bookingId) {
     throw new HTTPException(403, { message: "Checkout session does not match this booking" });
   }
@@ -114,6 +123,14 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
 
   if (gateway === "RAZORPAY" && cur !== booking.currency) {
     throw new HTTPException(400, { message: "Currency conversion is only available for Nomod payments" });
+  }
+
+  if (c.env.PHONEPE_SCHEMA_READY === "true") {
+    // Only active after the separately approved PhonePe schema release.
+    const paid = await db.select().from(payments).where(eq(payments.bookingId, bookingId));
+    if (paid.some((p) => p.gateway === "PHONEPE" && p.status !== "FAILED")) throw new HTTPException(409, { message: "This booking already has a PhonePe payment; reconcile it before paying again" });
+    try { await claimCheckoutGateway(db, tenantId, bookingId, gateway); }
+    catch { throw new HTTPException(409, { message: "A different payment gateway is reserved for this booking" }); }
   }
 
   if (gateway === "RAZORPAY") {

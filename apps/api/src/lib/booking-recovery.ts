@@ -7,7 +7,7 @@
 
 import { payments } from "@zamrabooking/db/schema";
 import type { Db } from "@zamrabooking/db";
-import { and, desc, eq } from "drizzle-orm";
+import { sql, and, desc, eq } from "drizzle-orm";
 import type { Env } from "../types.js";
 
 const ERROR_TTL = 60 * 60 * 24 * 14;
@@ -86,7 +86,7 @@ export async function paidBookingMessage(db: Db, bookingId: string) {
   const [payment] = await db
     .select({ gatewayOrderId: payments.gatewayOrderId, gatewayPaymentId: payments.gatewayPaymentId, amount: payments.amount })
     .from(payments)
-    .where(and(eq(payments.bookingId, bookingId), eq(payments.status, "SUCCESS")))
+    .where(and(eq(payments.bookingId, bookingId), eq(payments.status, "SUCCESS"), sql`${payments.gateway}::text <> 'PHONEPE'`))
     .orderBy(desc(payments.createdAt))
     .limit(1);
   if (!payment?.gatewayOrderId) return null;

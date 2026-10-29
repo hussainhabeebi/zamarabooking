@@ -1,4 +1,5 @@
 "use client";
+import { PhonePeSettings } from "./PhonePeSettings";
 import { useState, useEffect } from "react";
 import { API, apiHeaders } from "../../../lib/api";
 import EmailSettings from "./EmailSettings";
@@ -125,9 +126,10 @@ function PaymentSettings() {
   return (
     <form onSubmit={save}>
       <div style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: "rgba(124,58,237,.12)", border: "1px solid #5b21b6", color: "#c4b5fd", fontSize: 13 }}>
-        Nomod is the only active payment gateway. Razorpay is disabled for new payments; refunds on earlier Razorpay payments still work.
+        Nomod remains available as configured. Razorpay is disabled for new payments; refunds on earlier Razorpay payments still work. PhonePe requires a separate approved release.
       </div>
 
+      <PhonePeSettings />
       {/* Nomod */}
       <div style={{ background: "#0f172a", borderRadius: 10, padding: 16, marginBottom: 16 }}>
         <Toggle label="Enable Nomod" description="Fast hosted checkout with cards, Apple Pay, Google Pay, Tabby and Tamara"

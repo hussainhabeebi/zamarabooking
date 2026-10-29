@@ -1,3 +1,4 @@
+import { phonePeRoutes } from "./routes/phonepe.js";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -99,6 +100,7 @@ app.use("/api/whatsapp/*", authMiddleware);
 
 app.route("/api/session",  sessionRoutes);
 app.route("/api/bookings", bookingRoutes);
+app.route("/api/payments/phonepe", phonePeRoutes);
 app.route("/api/payments", paymentRoutes);
 app.route("/api/eticket",  eticketRoutes);
 app.route("/api/agents",   agentRoutes);

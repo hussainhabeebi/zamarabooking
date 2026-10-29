@@ -1,0 +1,45 @@
+name: PhonePe PG V2 mock safety checks
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "apps/admin/**"
+      - "apps/web/app/checkout/**"
+      - "packages/db/**"
+      - "scripts/phonepe-test-network.mjs"
+      - ".github/workflows/phonepe-safety-ci.yml"
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+      API_BASE_URL: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: TypeScript
+        run: |
+          node node_modules/typescript/bin/tsc --noEmit -p apps/api/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p apps/admin/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p apps/web/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p packages/db/tsconfig.json
+      - name: Mock payment and supplier regression tests
+        run: |
+          node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/fx.test.ts apps/api/test/tripjack-reviewed-total.test.ts
+          node --import ./scripts/phonepe-test-network.mjs --test packages/suppliers/test/*.test.cjs
+      - name: Admin validation build (never deployed)
+        run: node apps/admin/node_modules/next/dist/bin/next build apps/admin

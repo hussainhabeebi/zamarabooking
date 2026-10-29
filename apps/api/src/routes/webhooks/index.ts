@@ -1,3 +1,4 @@
+import { phonePeWebhook } from "./phonepe.js";
 import { Hono } from "hono";
 import type { Env, Variables } from "../../types.js";
 import { razorpayWebhook }  from "./razorpay.js";
@@ -7,6 +8,7 @@ import { leadvyneWebhook }  from "./leadvyne.js";
 export const webhookRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Payment gateway webhooks — signature-verified, not JWT-authenticated
+webhookRoutes.post("/phonepe", phonePeWebhook);
 webhookRoutes.post("/razorpay",  razorpayWebhook);
 webhookRoutes.post("/nomod",     nomodWebhook);
 webhookRoutes.post("/leadvyne",  leadvyneWebhook);

@@ -1,3 +1,7 @@
+import { PhonePeError } from "./lib/phonepe/client.js";
+import { phonePeClient, phonePeReadiness } from "./lib/phonepe/config.js";
+import { PhonePeService } from "./lib/phonepe/service.js";
+import { claimCheckoutGateway, PhonePeDbStore } from "./lib/phonepe/store.js";
 // CF Queue consumer — processes BOOKING_QUEUE and NOTIFY_QUEUE messages
 // Handles: INITIATE_PAYMENT, PAYMENT_CAPTURED, NOTIFY_BOOKING_CONFIRMATION
 
@@ -59,7 +63,8 @@ interface NotifyOtpMsg {
   tenantId: string;
 }
 
-type BookingQueueMsg   = InitiatePaymentMsg | PaymentCapturedMsg;
+interface PhonePeReconcileMsg { type: "PHONEPE_RECONCILE"; tenantId: string; merchantOrderId: string; merchantRefundId?: string }
+type BookingQueueMsg = InitiatePaymentMsg | PaymentCapturedMsg | PhonePeReconcileMsg;
 type NotifyQueueMsg    = NotifyBookingMsg | NotifyOtpMsg;
 
 // ── Booking Queue consumer ────────────────────────────────────────
@@ -85,7 +90,12 @@ export async function handleBookingQueue(
     try {
       const data = msg.body;
 
-      if (data.type === "INITIATE_PAYMENT") {
+      if (data.type === "PHONEPE_RECONCILE") {
+        const r = await phonePeReadiness(env, data.tenantId);
+        const service = new PhonePeService(new PhonePeDbStore(db), await phonePeClient(env, data.tenantId, true), data.tenantId, r.environment);
+        if (data.merchantRefundId) await service.reconcileRefund(data.merchantRefundId);
+        else await service.reconcile(data.merchantOrderId);
+      } else if (data.type === "INITIATE_PAYMENT") {
         await handleInitiatePayment(db, env, data);
       } else if (data.type === "PAYMENT_CAPTURED") {
         await recordQueueReceipt(env, data.orderId, msg.attempts);
@@ -125,6 +135,15 @@ async function handleInitiatePayment(
   if (booking.status !== "HELD") {
     console.warn(`Booking ${data.bookingId} is ${booking.status}, skipping payment initiation`);
     return;
+  }
+
+  if (env.PHONEPE_SCHEMA_READY === "true") {
+    const selected = data.method === "WALLET" && data.agentId ? "WALLET" : RAZORPAY_ENABLED && booking.currency === "INR" ? "RAZORPAY" : "NOMOD";
+    try { await claimCheckoutGateway(db, data.tenantId, booking.id, selected); }
+    catch (e) {
+      if (e instanceof PhonePeError && e.code === "CHECKOUT_GATEWAY_ALREADY_RESERVED") return;
+      throw e;
+    }
   }
 
   const total   = Number(booking.totalAmount);
@@ -409,7 +428,7 @@ async function handlePaymentCaptured(
 ): Promise<void> {
   // Find the booking from the payment record
   const [payment] = await db
-    .select({ bookingId: payments.bookingId })
+    .select({ bookingId: payments.bookingId, gateway: payments.gateway })
     .from(payments)
     .where(eq(payments.gatewayOrderId, data.orderId))
     .limit(1);
@@ -417,6 +436,7 @@ async function handlePaymentCaptured(
   if (!payment) {
     throw new Error(`Payment for order ${data.orderId} not found`);
   }
+  if (payment.gateway === "PHONEPE") return; // PhonePe capture never authorizes supplier booking.
 
   const [booking] = await db
     .select()

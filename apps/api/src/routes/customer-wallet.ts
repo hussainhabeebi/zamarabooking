@@ -1,3 +1,4 @@
+import { claimCheckoutGateway } from "../lib/phonepe/store.js";
 // Customer wallet (mounted at /api/profile/wallet, customer JWT required)
 //
 // GET  /                      balance + recent transactions
@@ -79,6 +80,11 @@ customerWalletRoutes.post("/pay", zValidator("json", z.object({ bookingId: z.str
 
   const amount = roundMoney(Number(booking.totalAmount));
   const wallet = await getOrCreateCustomerWallet(db, tenantId, userId);
+
+  if (c.env.PHONEPE_SCHEMA_READY === "true") {
+    try { await claimCheckoutGateway(db, tenantId, bookingId, "WALLET"); }
+    catch { throw new HTTPException(409, { message: "Another payment gateway is reserved for this booking" }); }
+  }
 
   // Claim the single wallet-payment slot for this booking before touching the balance.
   const orderId = `wallet_${bookingId}`;
