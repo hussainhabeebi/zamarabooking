@@ -30,7 +30,9 @@ interface Booking {
   createdAt:   string;
 }
 
-async function getBookings(searchParams: Record<string, string>): Promise<{ bookings: Booking[]; total: number }> {
+type BookingsResponse = { bookings: Booking[]; total: number; phonePe?: Record<string, string>; phonePeLedgerError?: boolean };
+
+async function getBookings(searchParams: Record<string, string>): Promise<BookingsResponse> {
   try {
     const params = new URLSearchParams(searchParams).toString();
     const res = await fetch(`${SERVER_API}/api/admin/bookings?${params}`, {
@@ -50,7 +52,7 @@ export default async function AdminBookingsPage({
   searchParams: Promise<Record<string, string>>;
 }) {
   const sp = await searchParams;
-  const { bookings, total } = await getBookings(sp);
+  const { bookings, total, phonePe = {}, phonePeLedgerError } = await getBookings(sp);
   const statusFilter = sp.status ?? "";
 
   const currSym = (c: string) =>
@@ -100,6 +102,9 @@ export default async function AdminBookingsPage({
         </button>
       </form>
 
+      {phonePeLedgerError && (
+        <p style={{ color: "#fca5a5", fontSize: 13, marginBottom: 12 }}>PhonePe ledger (D1) could not be read — PhonePe payment badges are missing.</p>
+      )}
       {/* Table */}
       <div style={{ background: "#1e293b", borderRadius: 12, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -131,6 +136,12 @@ export default async function AdminBookingsPage({
                     <span style={{ background: sc.bg, color: sc.color, borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>
                       {b.status.replace(/_/g, " ")}
                     </span>
+                    {/* PhonePe payment from the D1 ledger; supplier booking is confirmed separately */}
+                    {phonePe[b.id] && (
+                      <span style={{ display: "block", marginTop: 4, color: ["SUCCESS", "PARTIAL_REFUND", "REFUNDED"].includes(phonePe[b.id]) ? "#4ade80" : "#94a3b8", fontSize: 11, fontWeight: 700 }}>
+                        PhonePe {phonePe[b.id].replace(/_/g, " ").toLowerCase()}
+                      </span>
+                    )}
                     {/* Poomas / manual fare paid, ticket not issued by staff yet */}
                     {b.status === "CONFIRMED" && ["POOMAS", "AKBAR", "MANUAL"].includes(b.supplier) && (
                       <span style={{ display: "block", marginTop: 4, color: "#fde047", fontSize: 11, fontWeight: 700 }}>Needs ticket</span>

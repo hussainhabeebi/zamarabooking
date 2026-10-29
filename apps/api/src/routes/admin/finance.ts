@@ -4,6 +4,7 @@ import { bookings, payments, cancellationRequests } from "@zamrabooking/db/schem
 import { sum, count, eq, and, gte, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";
+import { phonePeLedger, phonePeReceipts } from "../../lib/phonepe/store.js";
 
 export const financeAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -62,7 +63,16 @@ financeAdminRoutes.get("/summary", async (c) => {
     .from(bookings)
     .where(sql`status IN ('TICKETED', 'CONFIRMED')`);
 
+  // Gateway receipts from the PhonePe D1 ledger. Reported separately: revenue above is
+  // booking-based, so these amounts are never added to it (no double counting).
+  let phonePe: Awaited<ReturnType<typeof phonePeReceipts>> | { error: true } | undefined;
+  if (phonePeLedger(c.env)) {
+    try { phonePe = await phonePeReceipts(c.env.PHONEPE_DB!, c.env.PHONEPE_ENVIRONMENT === "production" ? "production" : "sandbox"); }
+    catch { phonePe = { error: true }; }
+  }
+
   return c.json({
+    phonePe,
     totalRevenue:      Number(revRow?.total    ?? 0),
     totalMarkup:       Number(markupRow?.total ?? 0),
     totalPlatformFees: Number(pfRow?.total     ?? 0),

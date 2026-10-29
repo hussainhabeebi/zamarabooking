@@ -49,9 +49,21 @@ Release gates (all default off; every one required):
 - `apps/api/test/phonepe.test.ts` (mocked provider): gates incl. D1 binding, Admin secrecy, exact paise, OAuth, SHA webhook, evidence checks, unknown outcomes, refunds, queue exclusion, D1 status endpoint, unchanged Nomod/Razorpay checkout.
 - Local D1 is Cloudflare's workerd engine, not the hosted service; staging validates the hosted D1.
 
+## Admin reporting
+
+PhonePe payments exist once, in D1. Admin merges them at read time when `PHONEPE_SCHEMA_READY=true`; nothing is copied into Neon.
+- **Bookings list:** a "PhonePe <status>" badge.
+- **Booking detail:**
+  - the Payments tab shows `PHONEPE (D1)` rows beside Neon gateway rows;
+  - a banner for paid PhonePe bookings says supplier booking is manual;
+  - "Retry airline booking" is refused (409) for PhonePe-paid bookings.
+- **Finance:** PhonePe receipts/refunds for the configured environment are shown separately from booking-based revenue and never added to it.
+
+If D1 can't be read, the pages say so instead of hiding payments silently. While the gate is off, no D1 read happens.
+
 ## Cloudflare staging (sandbox only)
 
-`apps/api/wrangler.staging.toml` defines `zamra-api-staging` on workers.dev with its own KV, queues and D1 `zamra-phonepe-staging`, no custom domain and no cron. `DATABASE_URL` must point at the Neon `phonepe-staging` branch. That branch contains copies of real customer data: give staging NO email, WhatsApp, supplier, Nomod or Razorpay credentials. A staging web Worker (separate name, `NEXT_PUBLIC_API_URL` = staging API URL) serves `PHONEPE_RETURN_ORIGIN`.
+Step-by-step commands and the sandbox acceptance script: `docs/phonepe-sandbox-staging.md`, `scripts/phonepe-sandbox-acceptance.mjs`. `apps/api/wrangler.staging.toml` defines `zamra-api-staging` on workers.dev with its own KV, queues and D1 `zamra-phonepe-staging`, no custom domain and no cron. `DATABASE_URL` must point at the Neon `phonepe-staging` branch. That branch contains copies of real customer data: give staging NO email, WhatsApp, supplier, Nomod or Razorpay credentials. A staging web Worker (separate name, `NEXT_PUBLIC_API_URL` = staging API URL) serves `PHONEPE_RETURN_ORIGIN`.
 
 ## Release and rollback
 

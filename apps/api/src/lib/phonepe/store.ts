@@ -273,3 +273,72 @@ export async function claimLegacyGateway(
   if (existing && existing.state !== "FAILED") throw new PhonePeError("PHONEPE_PAYMENT_EXISTS");
   await claimCheckoutGateway(env.PHONEPE_DB, tenantId, bookingId, gateway);
 }
+
+// ── Read-only reporting overlay ──────────────────────────────────────────────
+// Admin/booking reports merge these D1 rows at read time. Nothing is copied into
+// Neon, so each PhonePe payment exists exactly once (in D1).
+
+/** The D1 ledger when the PhonePe schema gate is set, otherwise null (no D1 access). */
+export function phonePeLedger(env: Env) {
+  return env.PHONEPE_SCHEMA_READY === "true" && env.PHONEPE_DB
+    ? new PhonePeD1Store(env.PHONEPE_DB)
+    : null;
+}
+
+/** A D1 order in the shape of a Neon `payments` row, tagged with its source. */
+export function phonePePaymentRow(o: Order) {
+  return {
+    id: o.merchantOrderId,
+    bookingId: o.bookingId,
+    gateway: "PHONEPE",
+    gatewayOrderId: o.merchantOrderId,
+    gatewayPaymentId: o.transactionId,
+    amount: (o.amountMinor / 100).toFixed(2),
+    currency: "INR",
+    status: phonePeLedgerStatus(o),
+    refundedAmount: o.refundedMinor ? (o.refundedMinor / 100).toFixed(2) : null,
+    refundGatewayRef: null,
+    environment: o.environment,
+    ledger: "D1" as const,
+    createdAt: o.updatedAt,
+    updatedAt: o.updatedAt,
+  };
+}
+
+export async function ordersForBookings(
+  db: D1Database,
+  bookings: { id: string; tenantId: string }[],
+) {
+  const tenantOf = new Map(bookings.map((b) => [b.id, b.tenantId]));
+  const ids = [...tenantOf.keys()];
+  const found: Order[] = [];
+  // D1 allows at most 100 bound parameters per statement.
+  for (let i = 0; i < ids.length; i += 90) {
+    const chunk = ids.slice(i, i + 90);
+    const { results } = await db
+      .prepare(`SELECT * FROM phonepe_orders WHERE booking_id IN (${chunk.map((_, j) => `?${j + 1}`).join(",")})`)
+      .bind(...chunk)
+      .all<Record<string, unknown>>();
+    found.push(...results.map(toOrder));
+  }
+  // A booking's order must belong to the booking's own tenant.
+  return found.filter((o) => tenantOf.get(o.bookingId) === o.tenantId);
+}
+
+/** Gateway receipts for one PhonePe environment, in paise. */
+export async function phonePeReceipts(db: D1Database, environment: "sandbox" | "production") {
+  const r = await db
+    .prepare(
+      `SELECT COUNT(*) AS payments, COALESCE(SUM(amount_minor), 0) AS received_minor,
+         COALESCE(SUM(refunded_minor), 0) AS refunded_minor
+       FROM phonepe_orders WHERE state = 'COMPLETED' AND environment = ?1`,
+    )
+    .bind(environment)
+    .first<{ payments: number; received_minor: number; refunded_minor: number }>();
+  return {
+    environment,
+    payments: Number(r?.payments ?? 0),
+    receivedMinor: Number(r?.received_minor ?? 0),
+    refundedMinor: Number(r?.refunded_minor ?? 0),
+  };
+}
