@@ -49,7 +49,7 @@ max_batch_timeout = 2
 [[d1_databases]]
 binding        = "PHONEPE_DB"
 database_name  = "zamra-phonepe-staging"
-database_id    = "<id printed by wrangler d1 create zamra-phonepe-staging>"
+database_id    = "271aeba6-ace1-4102-aba2-dbcf0ec0a766"
 migrations_dir = "migrations/phonepe-d1"
 
 [vars]
