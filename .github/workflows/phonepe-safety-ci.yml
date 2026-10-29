@@ -103,6 +103,26 @@ jobs:
           # A second run must fail and roll back without partial changes.
           if psql -d phonepe_chain -v ON_ERROR_STOP=1 -q -1 -f docs/migrations/phonepe-pg-v2-proposed.sql; then exit 1; fi
           pg_dump -d phonepe_chain -s | grep -v '^\\\(un\)\?restrict' | diff -q after.sql -
+      - name: Neon staging scripts match the reviewed proposal and refuse a branch with data
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: phonepe_test
+          PGPASSWORD: disposable-ci-fixture
+        run: |
+          set -euo pipefail
+          grep -v '^\s*--' docs/migrations/phonepe-pg-v2-proposed.sql | sed '/^\s*$/d' > proposed.sql
+          sed -n '/^-- BEGIN proposed migration$/,/^-- END proposed migration$/p' docs/migrations/phonepe-staging-2-apply.sql | grep -v '^\s*--' | sed '/^\s*$/d' > staged.sql
+          diff proposed.sql staged.sql
+          psql -d phonepe_test -v ON_ERROR_STOP=1 -c "CREATE DATABASE phonepe_seeded"
+          for f in packages/db/drizzle/migrations/*.sql; do psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -1 -f "$f"; done
+          for f in docs/migrations/phonepe-staging-2-apply.sql docs/migrations/phonepe-staging-4-grants-if-needed.sql docs/migrations/phonepe-staging-5-seed-sandbox.sql; do
+            if psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -f "$f" 2> err.txt; then echo "$f ran on a seeded database"; exit 1; fi
+            grep -q "Refusing: this branch contains" err.txt
+          done
+          test "$(psql -d phonepe_seeded -tAc "SELECT to_regclass('phonepe_orders') IS NULL AND NOT ('PHONEPE' = ANY(enum_range(NULL::payment_gateway)::text[]))")" = t
+          psql -d phonepe_test -v ON_ERROR_STOP=1 -c "CREATE ROLE phonepe_staging LOGIN"
+          psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -f docs/migrations/phonepe-staging-1-preflight.sql > /dev/null
+          psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -f docs/migrations/phonepe-staging-3-verify.sql > /dev/null 2>&1 && exit 1 || true  # tables absent: verify must fail here
   d1:
     name: D1 sandbox harness and store on local workerd D1
     runs-on: ubuntu-latest

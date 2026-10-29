@@ -8,37 +8,21 @@ Never paste secrets into chat, files or the repo.
 
 These already exist: KV `zamra-staging-sessions`, `zamra-staging-tenant-cache`, `zamra-staging-fare-cache`, and queues `zamra-bookings-staging`, `zamra-notifications-staging`. Their ids are in `apps/api/wrangler.staging.toml`. The staging API has no D1 binding.
 
-## 2. Neon staging branch and test bookings
+## 2. Neon `phonepe-staging` branch: schema, permissions, sandbox data
 
-In the Neon Console create branch `phonepe-staging` from production (current point in time). With **that branch selected** in the SQL editor, look up the tenant id:
+`phonepe-staging` is a **schema-only** branch: production's structure, no data. Open **Neon Console → SQL Editor** and set the **branch selector to `phonepe-staging`** before every script. The scripts are in `docs/migrations/`; open each on GitHub (PR #26 branch), copy the whole file, paste and **Run**.
 
-```sql
-SELECT id FROM tenants WHERE slug = 'zamra';
-```
+| Step | Script | Writes? | Safety |
+|---|---|---|---|
+| 1 | `phonepe-staging-1-preflight.sql` | No | Shows role, row counts (all 0), dependencies, `phonepe_staging` privileges, schema fingerprint |
+| 2 | `phonepe-staging-2-apply.sql` | Yes, once | One transaction; refuses on any branch containing tenants, bookings or payments; body is exactly `phonepe-pg-v2-proposed.sql` (CI-checked) |
+| 3 | `phonepe-staging-3-verify.sql` | No | `PHONEPE` value, 3 empty tables, constraints/indexes, existing-schema fingerprint, app-role privileges |
+| 4 | `phonepe-staging-4-grants-if-needed.sql` | Only if step 3 shows `false` | Grants the staging API role table access; refuses once any data exists |
+| 5 | `phonepe-staging-5-seed-sandbox.sql` | Yes | `zamra` tenant (same insert as migration 0002) + 3 test bookings with no customer/contact/supplier booking; refuses any non-sandbox data |
 
-Create three ₹2 test bookings (MANUAL supplier, no contact details, so nothing can email a customer or book a supplier):
+The schema fingerprint lines from step 1 (`tables`, `columns`, `columns_md5`, `indexes`, `indexes_md5`) must be **identical** in step 3. That proves no existing table, column or index changed. If step 2 fails it rolls back completely; send me the error. Never run any of these on the production branch: steps 2, 4 and 5 refuse a branch with data, but select the branch carefully anyway.
 
-```sql
-INSERT INTO bookings (id, tenant_id, channel, status, trip_type, origin, destination, departure_date,
-  flight_data, base_fare, taxes, total_amount, currency, supplier)
-SELECT 'phonepe-sbx-000' || n, t.id, 'B2C_WEB', 'PAYMENT_PENDING', 'ONEWAY', 'COK', 'DXB',
-  now() + interval '30 days', '{"phonepeSandboxTest": true}', 2.00, 0, 2.00, 'INR', 'MANUAL'
-FROM tenants t, generate_series(1, 3) AS n WHERE t.slug = 'zamra';
-```
-
-Apply the approved PhonePe schema to **this branch only**. Paste the whole of `docs/migrations/phonepe-pg-v2-proposed.sql` into the SQL editor, with `phonepe-staging` selected, and run it once. Then check:
-
-```sql
-SELECT unnest(enum_range(NULL::payment_gateway));
-```
-
-```sql
-SELECT to_regclass('phonepe_orders'), to_regclass('phonepe_refunds'), to_regclass('payment_checkout_claims');
-```
-
-Expected: `PHONEPE` is listed and all three tables exist. Never run it on the production branch without separate approval.
-
-Bookings: `phonepe-sbx-0001` (successful payment + refunds), `phonepe-sbx-0002` (failed/cancelled payment), `phonepe-sbx-0003` (spare, e.g. expiry). Delete the branch after acceptance.
+Keep the `tenant_id` printed by step 5 for `PHONEPE_TENANT_ID`. Delete the branch after acceptance.
 
 ## 3. Staging secrets and settings
 
@@ -48,7 +32,7 @@ Secrets (each command prompts for the value):
 wrangler secret put DATABASE_URL --config wrangler.staging.toml
 ```
 
-Use the **phonepe-staging branch** connection string here, never production. Then set a new staging-only `JWT_SECRET` and the PhonePe **sandbox** values:
+Use the **phonepe-staging branch** connection string with the `phonepe_staging` role, never production. Then set a new staging-only `JWT_SECRET` and the PhonePe **sandbox** values:
 
 ```bash
 wrangler secret put JWT_SECRET --config wrangler.staging.toml
