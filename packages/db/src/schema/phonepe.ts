@@ -5,6 +5,7 @@ import {
   timestamp,
   uniqueIndex,
   check,
+  foreignKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { tenants } from "./tenant.js";
@@ -41,6 +42,19 @@ export const phonepeOrders = pgTable(
       t.tenantId,
       t.bookingId,
     ),
+    payment: uniqueIndex("phonepe_order_payment_idx").on(t.paymentId),
+    tenantRef: uniqueIndex("phonepe_order_tenant_ref_idx").on(
+      t.tenantId,
+      t.merchantOrderId,
+    ),
+    environment: check(
+      "phonepe_order_environment_check",
+      sql`${t.environment} IN ('sandbox','production')`,
+    ),
+    state: check(
+      "phonepe_order_state_check",
+      sql`${t.state} IN ('INITIATED','UNKNOWN','PENDING','COMPLETED','FAILED')`,
+    ),
     amount: check(
       "phonepe_order_amount_check",
       sql`${t.amountMinor} >= 100 AND ${t.refundReservedMinor} >= 0 AND ${t.refundReservedMinor} <= ${t.amountMinor}`,
@@ -51,9 +65,7 @@ export const phonepeRefunds = pgTable(
   "phonepe_refunds",
   {
     merchantRefundId: text("merchant_refund_id").primaryKey(),
-    merchantOrderId: text("merchant_order_id")
-      .notNull()
-      .references(() => phonepeOrders.merchantOrderId),
+    merchantOrderId: text("merchant_order_id").notNull(),
     tenantId: text("tenant_id")
       .notNull()
       .references(() => tenants.id),
@@ -65,6 +77,15 @@ export const phonepeRefunds = pgTable(
       .defaultNow(),
   },
   (t) => ({
+    orderTenant: foreignKey({
+      name: "phonepe_refund_order_tenant_fk",
+      columns: [t.tenantId, t.merchantOrderId],
+      foreignColumns: [phonepeOrders.tenantId, phonepeOrders.merchantOrderId],
+    }),
+    state: check(
+      "phonepe_refund_state_check",
+      sql`${t.state} IN ('INITIATED','UNKNOWN','PENDING','COMPLETED','FAILED')`,
+    ),
     amount: check("phonepe_refund_amount_check", sql`${t.amountMinor} >= 100`),
   }),
 );
@@ -83,6 +104,10 @@ export const paymentCheckoutClaims = pgTable(
     gateway: text("gateway").notNull(),
   },
   (t) => ({
+    gateway: check(
+      "payment_checkout_claim_gateway_check",
+      sql`${t.gateway} IN ('PHONEPE','NOMOD','RAZORPAY','WALLET')`,
+    ),
     booking: uniqueIndex("payment_checkout_claim_booking_idx").on(
       t.tenantId,
       t.bookingId,

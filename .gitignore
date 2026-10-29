@@ -13,3 +13,7 @@ coverage/
 prisma/generated/
 *.tsbuildinfo
 .open-next/
+
+# Local/CI rendered PhonePe test output (never a deployable build)
+test-results/
+phonepe-qa-report/

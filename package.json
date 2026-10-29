@@ -21,6 +21,8 @@
     "clean":          "turbo run clean && find . -name 'node_modules' -type d -prune -exec rm -rf '{}' +"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "pg": "8.16.3",
     "turbo": "^2.3.0",
     "typescript": "^5.6.0",
     "@types/node": "^22.0.0",

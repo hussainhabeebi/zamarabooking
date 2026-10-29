@@ -176,6 +176,8 @@ export class PhonePeDbStore implements PhonePeStore {
     );
   }
   async reserveRefund(o: Order, id: string, amount: number) {
+    if (!Number.isSafeInteger(amount) || amount < 100 || amount > o.amountMinor)
+      throw new PhonePeError("INVALID_REFUND_AMOUNT");
     const existing = await this.refund(o.tenantId, id);
     if (existing) return { owner: false, refund: existing };
     let inserted = false;
@@ -186,7 +188,7 @@ export class PhonePeDbStore implements PhonePeStore {
       const result = await this.db.execute(sql`WITH reserved AS (
         UPDATE phonepe_orders SET refund_reserved_minor = refund_reserved_minor + ${amount}
         WHERE merchant_order_id = ${o.merchantOrderId} AND tenant_id = ${o.tenantId}
-          AND state = 'COMPLETED' AND refund_reserved_minor + ${amount} <= amount_minor
+          AND state = 'COMPLETED' AND refund_reserved_minor <= amount_minor - ${amount}
         RETURNING merchant_order_id, tenant_id
       ) INSERT INTO phonepe_refunds (merchant_refund_id, merchant_order_id, tenant_id, amount_minor, state)
         SELECT ${id}, merchant_order_id, tenant_id, ${amount}, 'INITIATED' FROM reserved RETURNING merchant_refund_id`);
@@ -202,6 +204,10 @@ export class PhonePeDbStore implements PhonePeStore {
   }
   async applyRefund(r: Refund, state: string, providerId: string | null) {
     await this.db.batch([
+      // Serialize refund transitions and ledger aggregation on the same order.
+      // Each following statement then observes all earlier committed completions.
+      this.db.execute(sql`SELECT merchant_order_id FROM phonepe_orders
+        WHERE merchant_order_id = ${r.merchantOrderId} AND tenant_id = ${r.tenantId} FOR UPDATE`),
       this.db
         .update(phonepeRefunds)
         .set({

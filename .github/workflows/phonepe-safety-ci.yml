@@ -1,4 +1,4 @@
-name: PhonePe PG V2 mock safety checks
+name: PhonePe PG V2 isolated release checks
 on:
   pull_request:
     branches: [main]
@@ -8,6 +8,9 @@ on:
       - "apps/web/app/checkout/**"
       - "packages/db/**"
       - "scripts/phonepe-test-network.mjs"
+      - "tests/phonepe/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/phonepe-safety-ci.yml"
 permissions:
   contents: read
@@ -43,3 +46,60 @@ jobs:
           node --import ./scripts/phonepe-test-network.mjs --test packages/suppliers/test/*.test.cjs
       - name: Admin validation build (never deployed)
         run: node apps/admin/node_modules/next/dist/bin/next build apps/admin
+
+  postgres:
+    name: Disposable PostgreSQL 16 concurrency fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: phonepe_test
+          POSTGRES_USER: phonepe_test
+          POSTGRES_PASSWORD: disposable-ci-fixture
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U phonepe_test -d phonepe_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PHONEPE_TEST_DATABASE_URL: postgresql://phonepe_test:disposable-ci-fixture@127.0.0.1:5432/phonepe_test
+      PHONEPE_TEST_DISPOSABLE: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.12.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Test production store SQL on isolated fixture tables (no migrations)
+        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-postgres.test.ts
+  rendered-admin:
+    name: Rendered Admin QA with local mocked APIs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+      API_BASE_URL: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.12.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: node apps/admin/node_modules/next/dist/bin/next build apps/admin
+      - name: Render mock-only Admin and test controls at five widths
+        run: pnpm exec playwright test --config tests/phonepe/playwright.config.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phonepe-admin-local-fixture-qa
+          path: |
+            test-results/
+            phonepe-qa-report/
+          retention-days: 7

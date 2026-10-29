@@ -85,10 +85,8 @@ export class PhonePeService {
       row.providerOrderId,
     );
     await this.store.applyOrder(row, e);
-    return {
-      ...this.view((await this.store.order(this.tenant, id))!),
-      paymentState: e.state,
-    };
+    const persisted = (await this.store.order(this.tenant, id))!;
+    return { ...this.view(persisted), paymentState: persisted.state };
   }
   async refund(orderId: string, requestId: string, amount: number) {
     const o = await this.store.order(this.tenant, orderId);
