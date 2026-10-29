@@ -63,6 +63,19 @@ max_batch_timeout = 2
 binding = "HYPERDRIVE"
 id      = "32010b9cdbcb4d788b90ed32bd23ae76"
 
+# ── D1: PhonePe ledger (orders, refunds, gateway claims) ───────────
+# Neon remains the booking database; PhonePe writes only to this D1 database.
+# Left commented until the production D1 database exists and its migration is
+# approved: without the binding PhonePe stays disabled and legacy gateways are
+# unchanged. Create it, then uncomment with the real id:
+#   wrangler d1 create zamra-phonepe
+#   wrangler d1 migrations apply zamra-phonepe --remote   (separate approval)
+# [[d1_databases]]
+# binding        = "PHONEPE_DB"
+# database_name  = "zamra-phonepe"
+# database_id    = "<id printed by wrangler d1 create>"
+# migrations_dir = "migrations/phonepe-d1"
+
 # ── Durable Objects (per-tenant rate limiter) ─────────────────────
 [[durable_objects.bindings]]
 name       = "TENANT_RATE_LIMITER"
@@ -90,5 +103,8 @@ PLATFORM_TENANT_SLUG = "zamra"
 # NOMOD_API_KEY, NOMOD_API_SECRET, NOMOD_WEBHOOK_SECRET,
 # RESEND_API_KEY,
 # LEADVYNE_API_KEY, LEADVYNE_API_SECRET, LEADVYNE_BASE_URL,
-# LEADVYNE_INSTANCE_ID, LEADVYNE_WEBHOOK_SECRET
+# LEADVYNE_INSTANCE_ID, LEADVYNE_WEBHOOK_SECRET,
+# PHONEPE_CLIENT_ID, PHONEPE_CLIENT_SECRET, PHONEPE_CLIENT_VERSION, PHONEPE_MERCHANT_ID,
+# PHONEPE_WEBHOOK_USERNAME, PHONEPE_WEBHOOK_PASSWORD (see docs/phonepe-pg-v2.md for
+# PHONEPE_* settings and release gates; all default off)
 

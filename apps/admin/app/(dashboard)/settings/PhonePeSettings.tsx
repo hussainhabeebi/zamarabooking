@@ -9,11 +9,30 @@ type Readiness = {
   environment: string;
   connectionHealth: string;
 };
+type LedgerOrder = {
+  merchantOrderId: string;
+  bookingId: string;
+  environment: string;
+  amountMinor: number;
+  refundedMinor: number;
+  ledgerStatus: string;
+  transactionId: string | null;
+  updatedAt: string;
+};
+const rupees = (minor: number) => `₹${(minor / 100).toFixed(2)}`;
 export function PhonePeSettings() {
   const [data, setData] = useState<Readiness | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [orders, setOrders] = useState<LedgerOrder[]>([]);
+  useEffect(() => {
+    // Read-only D1 ledger; empty until the PhonePe D1 schema gate is set.
+    fetch(`${API}/api/admin/settings/phonepe/orders`, { headers: apiHeaders() })
+      .then((r) => (r.ok ? r.json() : { orders: [] }))
+      .then((d) => setOrders(d.orders ?? []))
+      .catch(() => setOrders([]));
+  }, []);
   useEffect(() => {
     fetch(`${API}/api/admin/settings/phonepe`, { headers: apiHeaders() })
       .then(async (r) => {
@@ -104,6 +123,45 @@ export function PhonePeSettings() {
         <p role="status" style={{ color: "#cbd5e1", marginTop: 10 }}>
           {notice}
         </p>
+      )}
+      {orders.length > 0 && (
+        <div style={{ overflowX: "auto", marginTop: 14 }}>
+          <table
+            aria-label="PhonePe payments"
+            style={{ width: "100%", fontSize: 12, color: "#cbd5e1", borderCollapse: "collapse" }}
+          >
+            <thead>
+              <tr style={{ textAlign: "left", color: "#94a3b8" }}>
+                <th>Booking</th>
+                <th>Order</th>
+                <th>Amount</th>
+                <th>Refunded</th>
+                <th>Status</th>
+                <th>Transaction</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.merchantOrderId} style={{ borderTop: "1px solid #334155" }}>
+                  <td>{o.bookingId.slice(0, 8)}</td>
+                  <td>{o.merchantOrderId.slice(0, 12)}…</td>
+                  <td>{rupees(o.amountMinor)}</td>
+                  <td>{rupees(o.refundedMinor)}</td>
+                  <td>
+                    {o.ledgerStatus}
+                    {o.environment === "sandbox" ? " (sandbox)" : ""}
+                  </td>
+                  <td>{o.transactionId ?? "—"}</td>
+                  <td>{new Date(o.updatedAt).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>
+            Supplier booking stays pending until confirmed separately.
+          </p>
+        </div>
       )}
     </section>
   );

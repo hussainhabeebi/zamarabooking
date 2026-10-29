@@ -1,0 +1,62 @@
+# PhonePe SANDBOX staging Worker. Separate from production: own name, own
+# workers.dev HTTPS URL, own KV/queues/D1, no custom domain, no cron.
+# Deploy only with: wrangler deploy --config wrangler.staging.toml
+# Replace every <...> with resources created for staging (see docs/phonepe-pg-v2.md).
+#
+# DATABASE_URL secret must point at the Neon `phonepe-staging` branch, never at
+# production. That branch holds copies of real customer data, so do NOT give this
+# Worker email/WhatsApp/supplier credentials (RESEND_*, LEADVYNE_*, RIYA_*,
+# TRIPJACK_*, AKBAR_*, NOMOD_*, RAZORPAY_*): staging must not contact customers,
+# book suppliers or take real payments.
+name = "zamra-api-staging"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "f098f93799dd7203d996a8cb1a982ce1"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "SESSIONS_KV"
+id      = "<staging sessions KV id>"
+
+[[kv_namespaces]]
+binding = "TENANT_CACHE_KV"
+id      = "<staging tenant-cache KV id>"
+
+[[kv_namespaces]]
+binding = "FARE_CACHE_KV"
+id      = "<staging fare-cache KV id>"
+
+[[queues.producers]]
+binding = "BOOKING_QUEUE"
+queue   = "zamra-bookings-staging"
+
+[[queues.producers]]
+binding = "NOTIFY_QUEUE"
+queue   = "zamra-notifications-staging"
+
+[[queues.consumers]]
+queue             = "zamra-bookings-staging"
+max_batch_size    = 10
+max_batch_timeout = 5
+max_retries       = 3
+
+[[queues.consumers]]
+queue             = "zamra-notifications-staging"
+max_batch_size    = 50
+max_batch_timeout = 2
+
+[[d1_databases]]
+binding        = "PHONEPE_DB"
+database_name  = "zamra-phonepe-staging"
+database_id    = "<id printed by wrangler d1 create zamra-phonepe-staging>"
+migrations_dir = "migrations/phonepe-d1"
+
+[vars]
+ENVIRONMENT          = "staging"
+PLATFORM_TENANT_SLUG = "zamra"
+PHONEPE_ENVIRONMENT  = "sandbox"
+# PHONEPE_RETURN_ORIGIN = "https://<staging web origin>"   (HTTPS origin only)
+# PHONEPE_TENANT_ID     = "<zamra tenant id from the staging Neon branch>"
+# Release gates stay off until each check passes:
+# PHONEPE_SCHEMA_READY / PHONEPE_MERCHANT_ACTIVE / PHONEPE_RELEASE_APPROVED = "true"

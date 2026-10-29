@@ -1,4 +1,4 @@
-import { claimCheckoutGateway } from "../lib/phonepe/store.js";
+import { claimLegacyGateway } from "../lib/phonepe/store.js";
 // B2B agency portal API.
 //
 // Public  /api/agent-public/*  agency sign-up, invite acceptance, shared quotes,
@@ -637,7 +637,7 @@ agentPortalRoutes.post("/bookings/:id/pay", async (c) => {
 
   const amount = roundMoney(Number(b.totalAmount));
   if (c.env.PHONEPE_SCHEMA_READY === "true") {
-    try { await claimCheckoutGateway(db, tenantId, id, "WALLET"); }
+    try { await claimLegacyGateway(c.env, tenantId, id, "WALLET"); }
     catch { return c.json({ error: "Another payment gateway is reserved for this booking" }, 409); }
   }
   const orderId = `agentwallet_${id}`;

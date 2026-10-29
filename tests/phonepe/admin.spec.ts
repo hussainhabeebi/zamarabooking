@@ -44,6 +44,25 @@ async function fixtures(
                 connectionHealth: "NOT_VERIFIED",
               },
         });
+      if (path === "/api/admin/settings/phonepe/orders")
+        return route.fulfill({
+          json: {
+            orders: ready
+              ? [
+                  {
+                    merchantOrderId: "ZPfixtureorder000000000000",
+                    bookingId: "fixture-booking-id",
+                    environment: "sandbox",
+                    amountMinor: 100,
+                    refundedMinor: 0,
+                    ledgerStatus: "SUCCESS",
+                    transactionId: "fixture-transaction",
+                    updatedAt: "2026-10-29T00:00:00.000Z",
+                  },
+                ]
+              : [],
+          },
+        });
       if (path === "/api/admin/settings/payments")
         return route.fulfill({
           json: {
@@ -133,6 +152,9 @@ test("fixture-only enabled controls submit metadata only, without submitting the
   await page.goto("/settings");
   const r = page.getByRole("region", { name: "PhonePe settings" });
   await expect(r.getByRole("checkbox")).toBeEnabled();
+  const ledger = r.getByRole("table", { name: "PhonePe payments" });
+  await expect(ledger.getByText("SUCCESS (sandbox)")).toBeVisible();
+  await expect(ledger.getByText("₹1.00")).toBeVisible();
   await r.getByRole("checkbox").check();
   await r.getByRole("button", { name: "Save PhonePe setting" }).click();
   await expect(r.getByRole("status")).toHaveText("PhonePe setting saved");

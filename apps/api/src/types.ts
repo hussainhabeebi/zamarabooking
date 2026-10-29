@@ -1,4 +1,4 @@
-import type { KVNamespace, R2Bucket, Queue, Hyperdrive, DurableObjectNamespace } from "@cloudflare/workers-types";
+import type { KVNamespace, R2Bucket, Queue, Hyperdrive, DurableObjectNamespace, D1Database } from "@cloudflare/workers-types";
 import type { Db } from "@zamrabooking/db";
 
 export interface Env {
@@ -38,6 +38,8 @@ export interface Env {
   RAZORPAY_KEY_ID:        string;
   RAZORPAY_KEY_SECRET:    string;
   RAZORPAY_WEBHOOK_SECRET: string;
+  /** PhonePe ledger (orders/refunds/gateway claims). Optional: absent keeps PhonePe disabled. */
+  PHONEPE_DB?: D1Database;
   PHONEPE_CLIENT_ID?: string;
   PHONEPE_CLIENT_SECRET?: string;
   PHONEPE_CLIENT_VERSION?: string;

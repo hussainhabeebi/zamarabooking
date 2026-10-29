@@ -1,7 +1,7 @@
 import { PhonePeError } from "./lib/phonepe/client.js";
 import { phonePeClient, phonePeReadiness } from "./lib/phonepe/config.js";
 import { PhonePeService } from "./lib/phonepe/service.js";
-import { claimCheckoutGateway, PhonePeDbStore } from "./lib/phonepe/store.js";
+import { claimLegacyGateway, PhonePeD1Store } from "./lib/phonepe/store.js";
 // CF Queue consumer — processes BOOKING_QUEUE and NOTIFY_QUEUE messages
 // Handles: INITIATE_PAYMENT, PAYMENT_CAPTURED, NOTIFY_BOOKING_CONFIRMATION
 
@@ -92,7 +92,8 @@ export async function handleBookingQueue(
 
       if (data.type === "PHONEPE_RECONCILE") {
         const r = await phonePeReadiness(env, data.tenantId);
-        const service = new PhonePeService(new PhonePeDbStore(db), await phonePeClient(env, data.tenantId, true), data.tenantId, r.environment);
+        const client = await phonePeClient(env, data.tenantId, true); // Gates (incl. D1 binding) first.
+        const service = new PhonePeService(new PhonePeD1Store(env.PHONEPE_DB!), client, data.tenantId, r.environment);
         if (data.merchantRefundId) await service.reconcileRefund(data.merchantRefundId);
         else await service.reconcile(data.merchantOrderId);
       } else if (data.type === "INITIATE_PAYMENT") {
@@ -139,9 +140,9 @@ async function handleInitiatePayment(
 
   if (env.PHONEPE_SCHEMA_READY === "true") {
     const selected = data.method === "WALLET" && data.agentId ? "WALLET" : RAZORPAY_ENABLED && booking.currency === "INR" ? "RAZORPAY" : "NOMOD";
-    try { await claimCheckoutGateway(db, data.tenantId, booking.id, selected); }
+    try { await claimLegacyGateway(env, data.tenantId, booking.id, selected); }
     catch (e) {
-      if (e instanceof PhonePeError && e.code === "CHECKOUT_GATEWAY_ALREADY_RESERVED") return;
+      if (e instanceof PhonePeError && ["CHECKOUT_GATEWAY_ALREADY_RESERVED", "PHONEPE_PAYMENT_EXISTS"].includes(e.code)) return;
       throw e;
     }
   }
@@ -436,7 +437,9 @@ async function handlePaymentCaptured(
   if (!payment) {
     throw new Error(`Payment for order ${data.orderId} not found`);
   }
-  if (payment.gateway === "PHONEPE") return; // PhonePe capture never authorizes supplier booking.
+  // PhonePe never writes Neon payments; defensive guard so a PhonePe capture can
+  // never authorize a supplier booking.
+  if (String(payment.gateway) === "PHONEPE") return;
 
   const [booking] = await db
     .select()

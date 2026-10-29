@@ -47,60 +47,22 @@ jobs:
       - name: Admin validation build (never deployed)
         run: node apps/admin/node_modules/next/dist/bin/next build apps/admin
 
-  postgres:
-    name: Disposable PostgreSQL 16 concurrency fixtures
+  d1:
+    name: Local D1 ledger concurrency and migration tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: phonepe_test
-          POSTGRES_USER: phonepe_test
-          POSTGRES_PASSWORD: disposable-ci-fixture
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U phonepe_test -d phonepe_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      PHONEPE_TEST_DATABASE_URL: postgresql://phonepe_test:disposable-ci-fixture@127.0.0.1:5432/phonepe_test
-      PHONEPE_TEST_DISPOSABLE: "true"
     steps:
       - uses: actions/checkout@v4
-        with: { persist-credentials: false }
+        with: { persist-credentials: false, fetch-depth: 0 }
       - uses: pnpm/action-setup@v4
         with: { version: 9.12.0 }
       - uses: actions/setup-node@v4
         with: { node-version: "22", cache: pnpm }
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Test production store SQL on isolated fixture tables (no migrations)
-        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-postgres.test.ts
-      - name: Same store tests through the production drizzle-orm/neon-http client (in-process shim)
-        env:
-          NODE_ENV: production
-          PHONEPE_TEST_DRIVER: neon-http
-        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-postgres.test.ts
-      - name: Proposed DDL applies additively on top of the committed migration chain (disposable database)
-        env:
-          PGHOST: 127.0.0.1
-          PGUSER: phonepe_test
-          PGPASSWORD: disposable-ci-fixture
-        run: |
-          set -euo pipefail
-          psql -d phonepe_test -v ON_ERROR_STOP=1 -c "CREATE DATABASE phonepe_chain"
-          for f in packages/db/drizzle/migrations/*.sql; do
-            psql -d phonepe_chain -v ON_ERROR_STOP=1 -q -1 -f "$f"
-          done
-          pg_dump -d phonepe_chain -s | grep -v '^\\\(un\)\?restrict' > before.sql
-          psql -d phonepe_chain -v ON_ERROR_STOP=1 -q -1 -f docs/migrations/phonepe-pg-v2-proposed.sql
-          pg_dump -d phonepe_chain -s | grep -v '^\\\(un\)\?restrict' > after.sql
-          # Only additions are allowed; the sole changed line is the extended enum list.
-          removed=$(diff before.sql after.sql | grep '^<' || true)
-          test "$removed" = "<     'MANUAL'" || { echo "Unexpected change to existing objects:"; echo "$removed"; exit 1; }
-          psql -d phonepe_chain -tAc "SELECT 'PHONEPE' = ANY(enum_range(NULL::payment_gateway)::text[])" | grep -qx t
-          # A second run must fail and roll back without partial changes.
-          if psql -d phonepe_chain -v ON_ERROR_STOP=1 -q -1 -f docs/migrations/phonepe-pg-v2-proposed.sql; then exit 1; fi
-          pg_dump -d phonepe_chain -s | grep -v '^\\\(un\)\?restrict' | diff -q after.sql -
+      - name: Neon schema and migrations are unchanged by the PhonePe release
+        run: git diff --exit-code "origin/${{ github.base_ref }}" -- packages/db
+      - name: PhonePe store against local workerd D1 with the production migration (no account, no network)
+        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-d1.test.ts
   rendered-admin:
     name: Rendered Admin QA with local mocked APIs
     runs-on: ubuntu-latest

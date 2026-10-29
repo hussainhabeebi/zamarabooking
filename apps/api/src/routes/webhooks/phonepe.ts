@@ -1,7 +1,7 @@
 import type { PhonePeContext } from "../../lib/phonepe/http.js";
 import { phonePeReadiness } from "../../lib/phonepe/config.js";
 import { limitedText, verifyPhonePeWebhook } from "../../lib/phonepe/client.js";
-import { PhonePeDbStore } from "../../lib/phonepe/store.js";
+import { PhonePeD1Store } from "../../lib/phonepe/store.js";
 export async function phonePeWebhook(c: PhonePeContext) {
   const readiness = await phonePeReadiness(c.env, c.get("tenantId"));
   if (!readiness.gatesReady) return c.json({ error: "PhonePe disabled" }, 503);
@@ -36,7 +36,7 @@ export async function phonePeWebhook(c: PhonePeContext) {
     ].includes(event)
   )
     return c.json({ ignored: true });
-  const store = new PhonePeDbStore(c.get("db"));
+  const store = new PhonePeD1Store(c.env.PHONEPE_DB!); // gatesReady requires the binding.
   if (
     typeof orderId !== "string" ||
     !(await store.order(c.get("tenantId"), orderId))

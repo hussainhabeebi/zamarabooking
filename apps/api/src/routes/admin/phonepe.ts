@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../../types.js";
 import { phonePeReadiness } from "../../lib/phonepe/config.js";
 import { phonePeService } from "../../lib/phonepe/http.js";
+import { PhonePeD1Store, phonePeLedgerStatus } from "../../lib/phonepe/store.js";
 import { PhonePeError } from "../../lib/phonepe/client.js";
 export const phonePeAdminRoutes = new Hono<{
   Bindings: Env;
@@ -48,6 +49,19 @@ phonePeAdminRoutes.put(
     return c.json({ ok: true });
   },
 );
+// Read-only D1 ledger view for Admin reconciliation (no provider call, no secrets).
+phonePeAdminRoutes.get("/orders", async (c) => {
+  if (c.env.PHONEPE_SCHEMA_READY !== "true" || !c.env.PHONEPE_DB) return c.json({ orders: [] });
+  const orders = await new PhonePeD1Store(c.env.PHONEPE_DB).recentOrders(c.get("tenantId"));
+  return c.json({
+    orders: orders.map((o) => ({
+      merchantOrderId: o.merchantOrderId, bookingId: o.bookingId, environment: o.environment,
+      amountMinor: o.amountMinor, refundedMinor: o.refundedMinor, state: o.state,
+      ledgerStatus: phonePeLedgerStatus(o), transactionId: o.transactionId,
+      updatedAt: o.updatedAt.toISOString(), supplierConfirmed: false,
+    })),
+  });
+});
 phonePeAdminRoutes.post(
   "/refunds",
   zValidator(
