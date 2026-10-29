@@ -88,6 +88,22 @@ A staging Admin UI is optional. The acceptance script uses the API and the Neon 
 - Confirm **direct merchant** Standard Checkout (PG V2) sandbox credentials.
 - Webhook: URL `https://zamra-api-staging.<subdomain>.workers.dev/webhooks/phonepe`, **SHA256 (username/password)** mode, the same username/password as the staging secrets, events `checkout.order.completed`, `checkout.order.failed`, `pg.refund.completed`, `pg.refund.failed`.
 
+**Connection check (before turning on any gate).** This asks the PhonePe sandbox for an OAuth token with the staging secrets and reports only whether it worked. It creates no order, payment or refund, writes nothing and works while every gate is off.
+- Only the exact `ADMIN_SERVICE_TOKEN` is accepted; an Admin login is refused (403).
+- It answers 404 `STAGING_SANDBOX_ONLY` on production or when `PHONEPE_ENVIRONMENT` isn't `sandbox`.
+
+```bash
+curl -s -X POST https://zamra-api-staging.<subdomain>.workers.dev/api/admin/settings/phonepe/connection-test -H "Authorization: Bearer $STAGING_ADMIN_TOKEN"
+```
+
+Expected: `{"ok":true,"environment":"sandbox","checkedAt":"…"}`. On failure the reply has only `error` (and `httpStatus` for a PhonePe HTTP error):
+- `CREDENTIALS_MISSING` (503): a client id/secret/version secret or `PHONEPE_TENANT_ID` is missing, or the version isn't a number.
+- `HTTP_ERROR` with `httpStatus` 400/401/403: PhonePe rejected the client id, secret or version. Check that they are the **sandbox** values.
+- `INVALID_AUTH_RESPONSE` / `INVALID_RESPONSE`: PhonePe answered with an unexpected token reply.
+- `TRANSPORT_UNKNOWN`: PhonePe couldn't be reached within 10 seconds; try again later.
+
+The readiness check's `connectionHealth` stays `NOT_VERIFIED`; this check doesn't store its result.
+
 Then, on **`zamra-api-staging`** only, add Text variables `PHONEPE_SCHEMA_READY`, `PHONEPE_MERCHANT_ACTIVE` and `PHONEPE_RELEASE_APPROVED`, each = `true`, and redeploy. Enable PhonePe for the staging tenant (the Admin opt-in):
 
 ```bash
