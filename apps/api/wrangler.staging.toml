@@ -1,7 +1,7 @@
 # PhonePe SANDBOX staging Worker. Separate from production: own name, own
 # workers.dev HTTPS URL, own KV/queues/D1, no custom domain, no cron.
 # Deploy only with: wrangler deploy --config wrangler.staging.toml
-# Replace every <...> with resources created for staging (see docs/phonepe-pg-v2.md).
+# KV/D1 ids below are the staging resources created on 29 Oct 2026 (never production ids).
 #
 # DATABASE_URL secret must point at the Neon `phonepe-staging` branch, never at
 # production. That branch holds copies of real customer data, so do NOT give this
@@ -17,15 +17,15 @@ workers_dev = true
 
 [[kv_namespaces]]
 binding = "SESSIONS_KV"
-id      = "<staging sessions KV id>"
+id      = "7d5d7dae5fb94fd9bcdcc6f064a636f9"
 
 [[kv_namespaces]]
 binding = "TENANT_CACHE_KV"
-id      = "<staging tenant-cache KV id>"
+id      = "cb43850335334e279b7f00c0c7b59ff1"
 
 [[kv_namespaces]]
 binding = "FARE_CACHE_KV"
-id      = "<staging fare-cache KV id>"
+id      = "d279e631964f4fe499c8b4cb0d842fa2"
 
 [[queues.producers]]
 binding = "BOOKING_QUEUE"
