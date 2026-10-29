@@ -309,7 +309,8 @@ test("reconciliation is monotonic and never confirms a supplier or dispatches bo
   const confirmed = await service.reconcile(first.orderId);
   assert.equal(confirmed.supplierConfirmed, false);
   state = "FAILED";
-  await service.reconcile(first.orderId);
+  const stale = await service.reconcile(first.orderId);
+  assert.equal(stale.paymentState, "COMPLETED");
   assert.equal([...store.ledger.values()][0], "SUCCESS");
 });
 test("partial refunds reserve atomically, cannot over-refund or replay a lost refund", async () => {
@@ -621,7 +622,8 @@ test("a refund is not completed until its exact order, amount and provider ID re
   assert.equal(r.state, "COMPLETED");
 });
 
-test("legacy Nomod hosted checkout remains unchanged while PhonePe is disabled", async (t) => {
+for (const gateway of ["NOMOD", "RAZORPAY"] as const) {
+test(`legacy ${gateway} checkout behavior remains unchanged while PhonePe is disabled`, async (t) => {
   const { paymentRoutes } = await import("../src/routes/payments.js");
   const old = globalThis.fetch;
   const sent: any[] = [];
@@ -688,12 +690,19 @@ test("legacy Nomod hosted checkout remains unchanged while PhonePe is disabled",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         bookingId: "booking",
-        gateway: "NOMOD",
+        gateway,
         currency: "INR",
       }),
     },
     e,
   );
+  if (gateway === "RAZORPAY") {
+    assert.equal(response.status, 400);
+    assert.match(await response.text(), /Razorpay is disabled/);
+    assert.equal(sent.length, 0);
+    assert.equal(inserted.length, 0);
+    return;
+  }
   assert.equal(response.status, 200);
   assert.equal(
     (await response.json()).paymentUrl,
@@ -705,3 +714,5 @@ test("legacy Nomod hosted checkout remains unchanged while PhonePe is disabled",
   assert.equal(inserted[0].gateway, "NOMOD");
   assert.equal(inserted[0].status, "PENDING");
 });
+
+}

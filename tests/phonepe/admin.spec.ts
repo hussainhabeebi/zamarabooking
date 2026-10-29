@@ -82,6 +82,9 @@ async function fixtures(
       return route.fulfill({ json: {} });
     }
     if (u.origin === base) return route.continue();
+    // Existing Admin font stylesheet is mocked locally, never fetched externally.
+    if (u.origin === "https://fonts.googleapis.com")
+      return route.fulfill({ contentType: "text/css", body: "/* local QA fallback fonts */" });
     external.push(u.origin);
     return route.abort(); // never contact a real API/provider
   });
