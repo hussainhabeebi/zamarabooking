@@ -3,7 +3,7 @@
 The production PhonePe ledger is Neon (`docs/phonepe-pg-v2.md`). This harness exists only to exercise the real PhonePe sandbox without the booking database. Its D1 tables hold synthetic data and are never production records.
 
 `zamra-phonepe-sandbox` is a separate Worker (`apps/api/src/sandbox-harness.ts`, config `apps/api/wrangler.sandbox-harness.toml`). It runs the **production PhonePe code** against the **PhonePe sandbox**, using synthetic bookings stored in the staging D1 database `zamra-phonepe-staging`:
-- same code: `PhonePeService`, `PhonePeClient`, the webhook verifier (`phonePeWebhookWith`), `reconcilePhonePe` and the release gates, with the sandbox `PhonePeD1Store` behind the shared `PhonePeStore` contract;
+- same code: `PhonePeService`, `PhonePeClient`, the webhook handler (`phonePeWebhook`), `reconcilePhonePe` and the release gates, with the sandbox `PhonePeD1Store` behind the shared `PhonePeStore` contract;
 - no Neon, supplier, email, Nomod/Razorpay or production bindings;
 - workers.dev only, with no custom domain, cron or queues.
 

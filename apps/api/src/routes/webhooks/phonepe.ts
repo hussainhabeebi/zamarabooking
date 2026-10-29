@@ -1,22 +1,36 @@
 import type { PhonePeContext } from "../../lib/phonepe/http.js";
-import { phonePeReadiness } from "../../lib/phonepe/config.js";
-import { limitedText, verifyPhonePeWebhook } from "../../lib/phonepe/client.js";
-import { PhonePeNeonStore } from "../../lib/phonepe/store-neon.js";
-import type { PhonePeStore } from "../../lib/phonepe/store.js";
-type WebhookStore = Pick<PhonePeStore, "order" | "refund">;
-// Production handler: the Neon ledger. The D1 sandbox harness builds its own
-// handler with phonePeWebhookWith (same verification and queueing code).
-export const phonePeWebhook = (c: PhonePeContext) => phonePeWebhookWith(c, new PhonePeNeonStore(c.get("db")));
-export async function phonePeWebhookWith(c: PhonePeContext, store: WebhookStore) {
-  const readiness = await phonePeReadiness(c.env, c.get("tenantId"));
-  if (!readiness.gatesReady) return c.json({ error: "PhonePe disabled" }, 503);
-  if (
-    !(await verifyPhonePeWebhook(
-      c.req.header("authorization"),
-      c.env.PHONEPE_WEBHOOK_USERNAME!,
-      c.env.PHONEPE_WEBHOOK_PASSWORD!,
-    ))
-  )
+import { limitedText, merchantId, verifyPhonePeWebhook } from "../../lib/phonepe/client.js";
+
+const EVENTS = [
+  "checkout.order.completed",
+  "checkout.order.failed",
+  "pg.refund.completed",
+  "pg.refund.failed",
+];
+const reference = (v: unknown) => {
+  try {
+    return typeof v === "string" ? merchantId(v) : null;
+  } catch {
+    return null;
+  }
+};
+
+// PhonePe webhook (SHA username/password mode). PhonePe expects a 2xx within a few
+// seconds, including for the request it sends when a webhook is registered, so this
+// handler does no database or provider I/O: it is mounted before tenant resolution
+// (src/index.ts) and uses the configured PHONEPE_TENANT_ID.
+//
+// Order of checks: SHA authentication, then merchant, then event. Unauthenticated or
+// wrong-merchant requests are rejected and never queue anything. An authenticated
+// event is only queued for a server-authenticated status read (reconcilePhonePe);
+// the payload's state/amount is never settlement evidence. Release gates, order and
+// refund existence are enforced by that reconciliation, which refuses to run while
+// PhonePe is disabled. A 200 means "received for verification", never "paid".
+export async function phonePeWebhook(c: PhonePeContext) {
+  const tenantId = c.env.PHONEPE_TENANT_ID;
+  if (!tenantId || !c.env.PHONEPE_MERCHANT_ID || !c.env.PHONEPE_WEBHOOK_USERNAME || !c.env.PHONEPE_WEBHOOK_PASSWORD)
+    return c.json({ error: "PhonePe webhook not configured" }, 503);
+  if (!(await verifyPhonePeWebhook(c.req.header("authorization"), c.env.PHONEPE_WEBHOOK_USERNAME, c.env.PHONEPE_WEBHOOK_PASSWORD)))
     return c.json({ error: "Invalid webhook authorization" }, 401);
   let d: any;
   try {
@@ -28,41 +42,15 @@ export async function phonePeWebhookWith(c: PhonePeContext, store: WebhookStore)
   if (!p || p.merchantId !== c.env.PHONEPE_MERCHANT_ID)
     return c.json({ error: "Webhook merchant mismatch" }, 400);
   const event = d.event;
-  const orderId =
-    event === "checkout.order.completed" || event === "checkout.order.failed"
-      ? p.merchantOrderId
-      : p.originalMerchantOrderId;
-  if (
-    ![
-      "checkout.order.completed",
-      "checkout.order.failed",
-      "pg.refund.completed",
-      "pg.refund.failed",
-    ].includes(event)
-  )
-    return c.json({ ignored: true });
-  if (
-    typeof orderId !== "string" ||
-    !(await store.order(c.get("tenantId"), orderId))
-  )
-    return c.json({ error: "Unrecognized order" }, 400);
-  const refundId = event.startsWith("pg.refund.")
-    ? p.merchantRefundId
-    : undefined;
-  if (
-    event.startsWith("pg.refund.") &&
-    (typeof refundId !== "string" ||
-      !(await store.refund(c.get("tenantId"), refundId)))
-  )
-    return c.json(
-      { error: "Refund correlation missing; reconcile through Admin" },
-      400,
-    );
-  // SHA authenticates the sender, not the body. Never trust payload state/amount to
-  // settle funds. Queue a server-authenticated GET; duplicated messages are safe.
+  if (!EVENTS.includes(event)) return c.json({ ignored: true });
+  const refund = event.startsWith("pg.refund.");
+  const orderId = reference(refund ? p.originalMerchantOrderId : p.merchantOrderId);
+  const refundId = refund ? reference(p.merchantRefundId) : null;
+  // Authenticated but nothing we could reconcile (e.g. a registration test payload).
+  if (!orderId || (refund && !refundId)) return c.json({ ignored: true });
   await c.env.BOOKING_QUEUE.send({
     type: "PHONEPE_RECONCILE",
-    tenantId: c.get("tenantId"),
+    tenantId,
     merchantOrderId: orderId,
     ...(refundId ? { merchantRefundId: refundId } : {}),
   });

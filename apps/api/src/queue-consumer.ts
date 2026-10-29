@@ -68,6 +68,8 @@ export interface PhonePeReconcileMsg { type: "PHONEPE_RECONCILE"; tenantId: stri
 type BookingQueueMsg = InitiatePaymentMsg | PaymentCapturedMsg | PhonePeReconcileMsg;
 type NotifyQueueMsg    = NotifyBookingMsg | NotifyOtpMsg;
 
+const PHONEPE_FINAL = ["DISABLED", "ORDER_NOT_FOUND", "REFUND_NOT_FOUND"];
+
 // Authenticated PhonePe status read queued by the webhook. Shared with the
 // D1 sandbox harness (which injects its D1 store); production uses Neon.
 export async function reconcilePhonePe(env: Env, data: PhonePeReconcileMsg, store?: PhonePeStore) {
@@ -102,7 +104,14 @@ export async function handleBookingQueue(
       const data = msg.body;
 
       if (data.type === "PHONEPE_RECONCILE") {
-        await reconcilePhonePe(env, data);
+        try {
+          await reconcilePhonePe(env, data);
+        } catch (e) {
+          // Final outcomes: retrying cannot change them. Admin reconciliation and
+          // customer status polling remain available once PhonePe is enabled.
+          if (!(e instanceof PhonePeError && PHONEPE_FINAL.includes(e.code))) throw e;
+          console.warn(`[BookingQueue] PhonePe reconcile skipped (${e.code}) for ${data.merchantRefundId ?? data.merchantOrderId}`);
+        }
       } else if (data.type === "INITIATE_PAYMENT") {
         await handleInitiatePayment(db, env, data);
       } else if (data.type === "PAYMENT_CAPTURED") {
