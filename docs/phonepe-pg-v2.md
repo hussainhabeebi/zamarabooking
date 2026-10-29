@@ -67,6 +67,7 @@ Release gates (all default off; every one required):
   - `GET/PUT /api/admin/settings/phonepe` and `GET /api/admin/settings/phonepe/orders`;
   - `POST /api/admin/settings/phonepe/refunds` `{merchantOrderId, requestId (UUID), amountMinor}`;
   - `POST /api/admin/settings/phonepe/refunds/:merchantRefundId/reconcile`.
+- **`POST /api/admin/settings/phonepe/connection-test`:** staging sandbox only (404 elsewhere), and only the exact `ADMIN_SERVICE_TOKEN` (an Admin login gets 403). It requests a sandbox OAuth token and returns only `ok`, `environment`, `checkedAt` and a sanitized `error` code. No order, payment, refund or storage writes; works with the gates off.
 
 Admin reporting reads only Neon:
 - the bookings list shows a "PhonePe <status>" badge;
@@ -86,6 +87,7 @@ Admin reporting reads only Neon:
   - legacy manual refunds unchanged;
   - Admin list/detail/retry and Finance from Neon.
 - **`phonepe.test.ts`** (mocked provider): gates, Admin secrecy, exact paise, OAuth, SHA webhook, evidence, unknown outcomes, refunds, queue exclusion, unchanged Nomod/Razorpay checkout.
+- **`phonepe-connection-test.test.ts`:** the connection check through the real Worker: service token only, staging sandbox only, one OAuth request, no writes, and no token, credential or provider body in any reply.
 - **`phonepe-d1.test.ts`, `phonepe-sandbox-harness.test.ts`:** the sandbox store and harness on local workerd D1.
 
 ## Sandbox and staging

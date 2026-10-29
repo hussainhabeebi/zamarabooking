@@ -44,7 +44,7 @@ jobs:
           node node_modules/typescript/bin/tsc --noEmit -p packages/db/tsconfig.json
       - name: Mock payment and supplier regression tests
         run: |
-          node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/fx.test.ts apps/api/test/tripjack-reviewed-total.test.ts apps/api/test/phonepe-sandbox-script.test.ts apps/api/test/phonepe-refund-guards.test.ts apps/api/test/phonepe-webhook.test.ts
+          node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/fx.test.ts apps/api/test/tripjack-reviewed-total.test.ts apps/api/test/phonepe-sandbox-script.test.ts apps/api/test/phonepe-refund-guards.test.ts apps/api/test/phonepe-webhook.test.ts apps/api/test/phonepe-connection-test.test.ts
           node --import ./scripts/phonepe-test-network.mjs --test packages/suppliers/test/*.test.cjs
       - name: Admin validation build (never deployed)
         run: node apps/admin/node_modules/next/dist/bin/next build apps/admin

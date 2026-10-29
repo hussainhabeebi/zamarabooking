@@ -165,6 +165,10 @@ export class PhonePeClient {
       `${this.c.environment}\0${this.c.tenantId}\0${this.c.clientId}`,
     );
   }
+  /** Connection diagnostic: obtains a fresh OAuth token; it is never returned to the caller. */
+  async verifyAuthentication(): Promise<void> {
+    await this.token(true);
+  }
   private async token(fresh = false): Promise<string> {
     const key = await digest(
       `${await this.accountKey()}\0${this.c.clientVersion}\0${this.c.clientSecret}`,
