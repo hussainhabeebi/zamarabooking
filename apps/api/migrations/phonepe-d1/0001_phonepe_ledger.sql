@@ -1,7 +1,7 @@
--- PhonePe PG V2 ledger in Cloudflare D1 (binding PHONEPE_DB).
--- Applied only with `wrangler d1 migrations apply` against the PhonePe D1 database.
--- Additive, PhonePe-only: Neon bookings/payments are never written by PhonePe code.
--- tenant_id/booking_id reference Neon rows; the API validates them before writing.
+-- PhonePe SANDBOX HARNESS tables in Cloudflare D1 (staging `zamra-phonepe-staging`,
+-- binding PHONEPE_DB of zamra-phonepe-sandbox). Synthetic bookings only.
+-- The PRODUCTION PhonePe ledger is Neon (docs/migrations/phonepe-pg-v2-proposed.sql);
+-- never apply this file to a production database.
 CREATE TABLE phonepe_orders (
   merchant_order_id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,

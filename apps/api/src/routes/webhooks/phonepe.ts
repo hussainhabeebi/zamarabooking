@@ -1,8 +1,13 @@
 import type { PhonePeContext } from "../../lib/phonepe/http.js";
 import { phonePeReadiness } from "../../lib/phonepe/config.js";
 import { limitedText, verifyPhonePeWebhook } from "../../lib/phonepe/client.js";
-import { PhonePeD1Store } from "../../lib/phonepe/store.js";
-export async function phonePeWebhook(c: PhonePeContext) {
+import { PhonePeNeonStore } from "../../lib/phonepe/store-neon.js";
+import type { PhonePeStore } from "../../lib/phonepe/store.js";
+type WebhookStore = Pick<PhonePeStore, "order" | "refund">;
+// Production handler: the Neon ledger. The D1 sandbox harness builds its own
+// handler with phonePeWebhookWith (same verification and queueing code).
+export const phonePeWebhook = (c: PhonePeContext) => phonePeWebhookWith(c, new PhonePeNeonStore(c.get("db")));
+export async function phonePeWebhookWith(c: PhonePeContext, store: WebhookStore) {
   const readiness = await phonePeReadiness(c.env, c.get("tenantId"));
   if (!readiness.gatesReady) return c.json({ error: "PhonePe disabled" }, 503);
   if (
@@ -36,7 +41,6 @@ export async function phonePeWebhook(c: PhonePeContext) {
     ].includes(event)
   )
     return c.json({ ignored: true });
-  const store = new PhonePeD1Store(c.env.PHONEPE_DB!); // gatesReady requires the binding.
   if (
     typeof orderId !== "string" ||
     !(await store.order(c.get("tenantId"), orderId))

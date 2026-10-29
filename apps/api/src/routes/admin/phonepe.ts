@@ -4,7 +4,8 @@ import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../../types.js";
 import { phonePeReadiness } from "../../lib/phonepe/config.js";
 import { phonePeService } from "../../lib/phonepe/http.js";
-import { PhonePeD1Store, phonePeLedgerStatus } from "../../lib/phonepe/store.js";
+import { desc, eq } from "drizzle-orm";
+import { payments, phonepeOrders } from "@zamrabooking/db/schema";
 import { PhonePeError } from "../../lib/phonepe/client.js";
 export const phonePeAdminRoutes = new Hono<{
   Bindings: Env;
@@ -49,15 +50,21 @@ phonePeAdminRoutes.put(
     return c.json({ ok: true });
   },
 );
-// Read-only D1 ledger view for Admin reconciliation (no provider call, no secrets).
+// Read-only ledger view for Admin reconciliation (no provider call, no secrets).
 phonePeAdminRoutes.get("/orders", async (c) => {
-  if (c.env.PHONEPE_SCHEMA_READY !== "true" || !c.env.PHONEPE_DB) return c.json({ orders: [] });
-  const orders = await new PhonePeD1Store(c.env.PHONEPE_DB).recentOrders(c.get("tenantId"));
+  if (c.env.PHONEPE_SCHEMA_READY !== "true") return c.json({ orders: [] });
+  const rows = await c.get("db")
+    .select({ o: phonepeOrders, status: payments.status, refunded: payments.refundedAmount })
+    .from(phonepeOrders)
+    .innerJoin(payments, eq(payments.id, phonepeOrders.paymentId))
+    .where(eq(phonepeOrders.tenantId, c.get("tenantId")))
+    .orderBy(desc(phonepeOrders.updatedAt))
+    .limit(50);
   return c.json({
-    orders: orders.map((o) => ({
+    orders: rows.map(({ o, status, refunded }) => ({
       merchantOrderId: o.merchantOrderId, bookingId: o.bookingId, environment: o.environment,
-      amountMinor: o.amountMinor, refundedMinor: o.refundedMinor, state: o.state,
-      ledgerStatus: phonePeLedgerStatus(o), transactionId: o.transactionId,
+      amountMinor: o.amountMinor, refundedMinor: Math.round(Number(refunded ?? 0) * 100), state: o.state,
+      ledgerStatus: status, transactionId: o.transactionId,
       updatedAt: o.updatedAt.toISOString(), supplierConfirmed: false,
     })),
   });

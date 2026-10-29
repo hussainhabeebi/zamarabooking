@@ -44,8 +44,6 @@ export async function phonePeReadiness(env: Env, tenantId: string) {
     ["sandbox", "production"].includes(env.PHONEPE_ENVIRONMENT ?? "sandbox") &&
     configured &&
     env.PHONEPE_RELEASE_APPROVED === "true" &&
-    // D1 ledger binding present and its migrations applied/verified.
-    Boolean(env.PHONEPE_DB) &&
     env.PHONEPE_SCHEMA_READY === "true" &&
     env.PHONEPE_MERCHANT_ACTIVE === "true" &&
     (environment !== "production" ||
@@ -60,7 +58,7 @@ export async function phonePeReadiness(env: Env, tenantId: string) {
     currency: "INR",
     webhookMode: "SHA256",
     supplierConfirmation: "SEPARATE",
-    ledger: "D1",
+    ledger: "NEON",
   } as const;
 }
 export async function phonePeClient(

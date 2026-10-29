@@ -1,83 +1,99 @@
 # PhonePe PG V2 Standard Checkout — disabled release preparation
 
-No merchant credentials were used, provisioned, printed or committed. No provider requests, payments, refunds, production data/schema/configuration changes, merges or deployments were executed. Tests use local fixtures, mocks and a local in-memory D1 only.
+No merchant credentials were used, provisioned, printed or committed. No provider requests, payments, refunds, production data/schema/configuration changes, merges or deployments were executed. Tests use mocks, disposable PostgreSQL and in-memory D1 only.
 
-## Architecture: PhonePe ledger in Cloudflare D1, bookings stay in Neon
+## Architecture (approved Phase 1): Neon is the single production ledger; D1 is sandbox-only
 
-| Data | Store | PhonePe access |
+| Data | Store | Notes |
 |---|---|---|
-| Bookings, users, Nomod/Razorpay/wallet payments, suppliers | Neon PostgreSQL (unchanged) | Read only (ownership, status, INR amount) |
-| PhonePe orders, refunds, refund reservations/totals | D1 `PHONEPE_DB` | Read/write |
-| Shared one-gateway-per-booking claims | D1 `PHONEPE_DB` | Read/write (legacy gateways too, only when `PHONEPE_SCHEMA_READY=true`) |
+| Bookings, Nomod/Razorpay/wallet payments, suppliers | Neon (unchanged) | Existing rows are never modified by the PhonePe schema |
+| PhonePe payment | Neon `payments` (gateway `PHONEPE`) | **Exactly one row per PhonePe order**; cancellations, trips, Admin and finance see it with no special path |
+| PhonePe provider state and idempotency | Neon `phonepe_orders` (1:1 with that payments row) | Provider ids/state only; the money figure is the payments row |
+| PhonePe refunds | Neon `phonepe_refunds` | Refund caps and `payments.refunded_amount` updated in the **same transaction** |
+| One gateway per booking | Neon `payment_checkout_claims` | Same database as legacy payment rows; no extra dependency for Nomod/Razorpay/wallet |
+| Sandbox harness, synthetic bookings | D1 `zamra-phonepe-staging` | `zamra-phonepe-sandbox` Worker only; never production data |
 
-- **No Neon schema change, migration or backfill.** `packages/db` is identical to `main`; CI fails if it changes. PhonePe never writes Neon, so there is no cross-database write to reconcile and no Neon enum value is needed.
-- D1 migration: `apps/api/migrations/phonepe-d1/0001_phonepe_ledger.sql` (new tables only). Applied with `wrangler d1 migrations apply`, which runs it as one transaction.
-- Atomicity: D1 runs each `batch()` as one transaction on a single writer. Refund reservation inserts only while the bound fits and adds exactly that amount in the same batch; a duplicate refund ID aborts the batch. CHECK constraints (`refund_reserved_minor <= amount_minor`, `refunded_minor <= refund_reserved_minor`) and a tenant-consistent refund foreign key back this up.
-- Idempotency: one order per tenant/booking (`UNIQUE`), deterministic merchant order/refund IDs, `INSERT OR IGNORE … RETURNING` picks a single owner who may call PhonePe; unknown outcomes stay `UNKNOWN` and are never blindly retried.
-- Reconciliation is monotonic: late `PENDING`/`FAILED` evidence never downgrades `COMPLETED`. Webhooks only queue an authenticated status read (`PHONEPE_RECONCILE`); webhook state/amount is never settlement evidence.
-- Customer status: `GET /api/payments/:bookingId` returns the D1 ledger status (`SUCCESS`/`PARTIAL_REFUND`/`REFUNDED`/`FAILED`/`PENDING`) when Neon has no payment row and the schema gate is set. Admin → Settings → PhonePe lists recent D1 orders (read-only).
-- **Payment never confirms a supplier booking.** No Neon booking update, supplier call, reward, confirmation notification or `PAYMENT_CAPTURED` message. Captured PhonePe bookings remain pending for a separately reviewed supplier operation. Akbar PhonePe checkout stays blocked.
-- Legacy Nomod/Razorpay/wallet flows are unchanged while `PHONEPE_SCHEMA_READY` is unset. Once set, they first take the D1 gateway claim and fail closed (503) if the D1 binding is missing.
+One code path, two stores: `PhonePeService`, `PhonePeClient`, the webhook verifier and `reconcilePhonePe` are shared. Behind the `PhonePeStore` contract (`lib/phonepe/store.ts`):
+- the production API constructs only `PhonePeNeonStore` (`store-neon.ts`);
+- the harness constructs only `PhonePeD1Store` (`store-d1.ts`).
 
-Official references reviewed 29 October 2026 (Standard Checkout website API): authorization, create-payment, order-status, webhook and refund pages under https://developer.phonepe.com/payment-gateway/website-integration/standard-checkout/api-integration/api-reference/. SHA username/password webhook mode only (not HMAC); direct merchant credentials only (no partner `X-MERCHANT-ID`).
+Nothing is written to both stores, and production has no D1 binding.
+
+- **Atomicity:** every PhonePe write is one Neon batch, which is one transaction with the neon-http driver. Refund completion locks the order row first, so concurrent completions can't lose an aggregate.
+- **Idempotency:** stable merchant order/refund IDs and one order per booking. `INSERT … ON CONFLICT DO NOTHING RETURNING` picks a single owner who may call PhonePe. Unknown outcomes stay `UNKNOWN` and are never blindly retried.
+- **Reconciliation:** monotonic, so late `PENDING`/`FAILED` evidence never downgrades `COMPLETED`. Webhooks only queue an authenticated status read (`PHONEPE_RECONCILE`), and the webhook payload is never settlement evidence.
+- **Supplier separation:** a PhonePe payment never confirms a booking or starts a supplier booking. The generic `PAYMENT_CAPTURED` path, paid-booking recovery and the Admin "Retry airline booking" action all refuse PhonePe payments. Akbar PhonePe checkout stays blocked.
+
+### Double-refund protections
+- A cancellation of a PhonePe-paid booking gets refund method `PHONEPE` and `MANUAL_REQUIRED`: "refund it in Admin → Settings → PhonePe refunds". It is never a wallet credit or an untracked manual refund. This also holds for an already partly refunded payment (status `PARTIAL_REFUND`).
+- Admin "Mark refunded manually" is refused (409) for a PhonePe payment unless PhonePe-confirmed refunds (`phonepe_refunds` `COMPLETED`) already cover the amount. Once allowed, it does not touch the PhonePe `payments` row, which only confirmed PhonePe refunds update.
+- PhonePe refunds are capped at the captured amount by a row-serialized reservation, use stable IDs, and are completed only from PhonePe's status response.
+- Refunds made outside ZamraBooking (for example directly in the PhonePe dashboard) can't be seen here; operate refunds only through Admin.
+
+## Neon schema (development and staging only until separately approved)
+
+`docs/migrations/phonepe-pg-v2-proposed.sql` adds `PHONEPE` to `payment_gateway` and creates the three tables above. It is deliberately outside `packages/db/drizzle/migrations`, so no automatic migration can apply it; CI fails if an automatic migration is added. CI applies it on top of migrations 0001–0012 in a disposable database. It must change only the enum list, it is atomic, and a second run fails without changes. **Approved for development and Neon staging validation, not production.** Before production:
+- take a Neon restore point;
+- get separate approval.
+
+`ALTER TYPE … ADD VALUE` can't be removed. Rollback keeps the schema and disables PhonePe.
 
 ## Configuration (names only)
 
-Worker secrets (`wrangler secret put`, per environment, fresh values): `PHONEPE_CLIENT_ID`, `PHONEPE_CLIENT_SECRET`, `PHONEPE_CLIENT_VERSION`, `PHONEPE_MERCHANT_ID`, `PHONEPE_WEBHOOK_USERNAME`, `PHONEPE_WEBHOOK_PASSWORD`.
+Worker secrets (fresh per environment): `PHONEPE_CLIENT_ID`, `PHONEPE_CLIENT_SECRET`, `PHONEPE_CLIENT_VERSION`, `PHONEPE_MERCHANT_ID`, `PHONEPE_WEBHOOK_USERNAME`, `PHONEPE_WEBHOOK_PASSWORD`.
 
-Worker settings: `PHONEPE_TENANT_ID` (exact tenant ID), `PHONEPE_ENVIRONMENT` (`sandbox`|`production`), `PHONEPE_RETURN_ORIGIN` (HTTPS origin only; production defaults to https://zamrabooking.com).
-
-Binding: `PHONEPE_DB` (D1). Absent → PhonePe disabled.
+Settings:
+- `PHONEPE_TENANT_ID` (exact tenant ID);
+- `PHONEPE_ENVIRONMENT` (`sandbox`|`production`);
+- `PHONEPE_RETURN_ORIGIN` (HTTPS origin only; production defaults to https://zamrabooking.com).
 
 Release gates (all default off; every one required):
-- `PHONEPE_SCHEMA_READY=true` after the D1 migration is applied and verified for that environment.
-- `PHONEPE_MERCHANT_ACTIVE=true` after PhonePe confirms activation for that environment.
-- `PHONEPE_RELEASE_APPROVED=true` after release approval and sandbox acceptance.
-- `PHONEPE_PRODUCTION_APPROVED=true` additionally for production. A production Worker cannot expose sandbox checkout.
-- Admin must then enable PhonePe. Disabling it stops new checkout/refunds; reconciliation of existing orders continues.
+- `PHONEPE_SCHEMA_READY=true`: the Neon schema above is applied and verified for that environment. Until then, Nomod/Razorpay/wallet behave exactly as before and touch no new table.
+- `PHONEPE_MERCHANT_ACTIVE`, `PHONEPE_RELEASE_APPROVED`, and `PHONEPE_PRODUCTION_APPROVED` (production).
+- Then Admin opt-in. A production Worker can't expose sandbox checkout.
 
 ## Routes
+- **`POST /api/payments/checkout` with `gateway=PHONEPE`:** checkout for the booking.
+- **`POST /api/payments/phonepe/reconcile` `{bookingId}`:** status check for the booking owner.
+- **`POST /webhooks/phonepe`:** PhonePe webhook (SHA username/password).
+- **Admin, full admins only:**
+  - `GET/PUT /api/admin/settings/phonepe` and `GET /api/admin/settings/phonepe/orders`;
+  - `POST /api/admin/settings/phonepe/refunds` `{merchantOrderId, requestId (UUID), amountMinor}`;
+  - `POST /api/admin/settings/phonepe/refunds/:merchantRefundId/reconcile`.
 
-- `POST /api/payments/checkout` with `gateway=PHONEPE` (signed checkout token; server-owned INR amount).
-- `POST /api/payments/phonepe/reconcile` `{bookingId}` (owner/checkout scope).
-- `POST /webhooks/phonepe` (exact merchant + SHA authorization; queues status reads only).
-- `GET/PUT /api/admin/settings/phonepe`, `GET /api/admin/settings/phonepe/orders`, `POST /api/admin/settings/phonepe/refunds` `{merchantOrderId, requestId (UUID), amountMinor}`, `POST /api/admin/settings/phonepe/refunds/:merchantRefundId/reconcile` (full admins).
+Admin reporting reads only Neon:
+- the bookings list shows a "PhonePe <status>" badge;
+- booking detail shows the single PhonePe payments row and a "paid with PhonePe — supplier booking is manual" banner;
+- Finance shows PhonePe receipts/refunds separately and never adds them to booking revenue.
 
 ## Tests (CI: `.github/workflows/phonepe-safety-ci.yml`, Node 22)
+- **`phonepe-postgres.test.ts`:** production Neon store on disposable PostgreSQL 16, run twice (node-postgres, then the production `drizzle-orm/neon-http` client through an in-process shim). Covers:
+  - concurrent checkouts → one owner/order/payments row, and atomic rollback;
+  - competing gateway claims, and the legacy claim (no-op when off, blocks a live PhonePe payment);
+  - duplicate and partial refunds, concurrent completions and stale events;
+  - monotonic events, overflow limits, tenant constraints;
+  - the one-payments-row invariant, and the completed-refund total used by the guard.
+- **Migration chain check:** the additive DDL on 0001–0012.
+- **`phonepe-refund-guards.test.ts`:**
+  - the PhonePe cancellation refund method, and the "mark refunded manually" guard;
+  - legacy manual refunds unchanged;
+  - Admin list/detail/retry and Finance from Neon.
+- **`phonepe.test.ts`** (mocked provider): gates, Admin secrecy, exact paise, OAuth, SHA webhook, evidence, unknown outcomes, refunds, queue exclusion, unchanged Nomod/Razorpay checkout.
+- **`phonepe-d1.test.ts`, `phonepe-sandbox-harness.test.ts`:** the sandbox store and harness on local workerd D1.
 
-- `apps/api/test/phonepe-d1.test.ts`: production store against local workerd D1 (wrangler `getPlatformProxy`, in memory) with the production migration: atomic re-apply refusal, 16 concurrent checkouts → one owner, second order per booking refused, competing gateway claims, legacy claim no-op/fail-closed, 20 duplicate refunds → one debit, partial refunds bounded, refunds refused before completion, concurrent completions + stale events, monotonic payment events, overflow-safe limits, cross-tenant FK and CHECK constraints.
-- `apps/api/test/phonepe.test.ts` (mocked provider): gates incl. D1 binding, Admin secrecy, exact paise, OAuth, SHA webhook, evidence checks, unknown outcomes, refunds, queue exclusion, D1 status endpoint, unchanged Nomod/Razorpay checkout.
-- Local D1 is Cloudflare's workerd engine, not the hosted service; staging validates the hosted D1.
+## Sandbox and staging
+- **D1-only sandbox harness, no Neon:** `docs/phonepe-d1-sandbox-harness.md`. Genuine PhonePe sandbox payments, webhooks, reconciliation, refunds and claims with synthetic bookings.
+- **Full staging with real booking checks:** `docs/phonepe-sandbox-staging.md`. Neon branch `phonepe-staging` with the schema applied, a staging API (`wrangler.staging.toml`, no D1), staging web/Admin, and `scripts/phonepe-sandbox-acceptance.mjs`. The branch holds copies of real customer data: give staging no email, WhatsApp, supplier, Nomod or Razorpay credentials.
 
-## Admin reporting
-
-PhonePe payments exist once, in D1. Admin merges them at read time when `PHONEPE_SCHEMA_READY=true`; nothing is copied into Neon.
-- **Bookings list:** a "PhonePe <status>" badge.
-- **Booking detail:**
-  - the Payments tab shows `PHONEPE (D1)` rows beside Neon gateway rows;
-  - a banner for paid PhonePe bookings says supplier booking is manual;
-  - "Retry airline booking" is refused (409) for PhonePe-paid bookings.
-- **Finance:** PhonePe receipts/refunds for the configured environment are shown separately from booking-based revenue and never added to it.
-
-If D1 can't be read, the pages say so instead of hiding payments silently. While the gate is off, no D1 read happens.
-
-## D1-only sandbox harness
-
-Without Neon access, `docs/phonepe-d1-sandbox-harness.md` runs the real PhonePe sandbox through the production PhonePe code with synthetic D1 bookings (separate `zamra-phonepe-sandbox` Worker), and lists what still needs the booking database.
-
-## Cloudflare staging (sandbox only)
-
-Step-by-step commands and the sandbox acceptance script: `docs/phonepe-sandbox-staging.md`, `scripts/phonepe-sandbox-acceptance.mjs`. `apps/api/wrangler.staging.toml` defines `zamra-api-staging` on workers.dev with its own KV, queues and D1 `zamra-phonepe-staging`, no custom domain and no cron. `DATABASE_URL` must point at the Neon `phonepe-staging` branch. That branch contains copies of real customer data: give staging NO email, WhatsApp, supplier, Nomod or Razorpay credentials. A staging web Worker (separate name, `NEXT_PUBLIC_API_URL` = staging API URL) serves `PHONEPE_RETURN_ORIGIN`.
-
-## Release and rollback
-
-1. Sandbox acceptance on staging (payment success/failure/expiry, webhook retry/replay, reconciliation, partial/full refunds, unknown-outcome recovery).
-2. Protect `main` (required checks, deployment approval). Merging triggers the automatic `zamra-web` deploy; the web change is backward compatible (PhonePe shows only when the API enables it).
+## Release and rollback (each step needs separate approval)
+1. Pass sandbox acceptance on staging, and agree the pending-supplier-fulfillment and reconciliation-alert process.
+2. Protect `main` (required checks, deployment approval). Merging auto-deploys `zamra-web`, which is backward compatible.
 3. Record current `zamra-api`/`zamra-admin`/`zamra-web` versions.
-4. Create production D1 `zamra-phonepe`, apply its migration (separate approval), uncomment the binding in `wrangler.toml`.
-5. Deploy API with all PhonePe gates off; verify Nomod/existing flows. Then Admin.
-6. Set production secrets/gates after merchant activation; Admin opt-in; one approved small live transaction verified in the PhonePe dashboard, D1 (`wrangler d1 execute zamra-phonepe --remote --command "SELECT …"`) and Admin.
+4. Take a Neon restore point, then apply the additive schema in production.
+5. Deploy the API with PhonePe gates off and verify existing gateways. Then deploy Admin.
+6. Merchant activation, production secrets/gates, Admin opt-in.
+7. One approved small live transaction, verified in the PhonePe dashboard, Neon `payments`/`phonepe_orders`, and Admin.
 
-Rollback: disable PhonePe in Admin (or unset `PHONEPE_RELEASE_APPROVED`); reconciliation continues while the binding and secrets remain. Never delete the D1 database or ledger rows. Rolling the API back to a build without PhonePe is safe for Neon (PhonePe never wrote Neon) but stops reconciliation, so reconcile or record outstanding D1 orders/refunds first. Do not remove the D1 binding while orders are unsettled.
+**Rollback:** disable PhonePe in Admin (or unset `PHONEPE_RELEASE_APPROVED`). Reconciliation continues while secrets remain. Never drop the PhonePe tables or delete ledger rows. Never roll the API back to a build that lacks the PhonePe exclusions while PhonePe payments exist.
 
-Outstanding before activation: Cloudflare staging resources, Neon staging branch, sandbox credentials and acceptance, merchant activation, branch protection, production D1 creation/migration approval, release approvals, and an approved pending-supplier-fulfillment and reconciliation-alert process. Production remains NO-GO until these pass.
+Production remains NO-GO until these pass.

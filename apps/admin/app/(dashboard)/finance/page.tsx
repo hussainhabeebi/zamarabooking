@@ -11,8 +11,8 @@ interface FinanceSummary {
   bookingsThisMonth:   number;
   avgBookingValue:     number;
   currency:            string;
-  // PhonePe gateway receipts from the D1 ledger (paise); not part of totalRevenue.
-  phonePe?: { environment: string; payments: number; receivedMinor: number; refundedMinor: number } | { error: true };
+  // PhonePe gateway receipts (paise); not part of totalRevenue.
+  phonePe?: { environment: string; payments: number; receivedMinor: number; refundedMinor: number };
 }
 
 async function getFinanceSummary(): Promise<FinanceSummary | null> {
@@ -49,21 +49,15 @@ export default async function FinancePage() {
 
       {summary?.phonePe && (
         <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 12 }}>PhonePe receipts (D1 ledger)</h2>
-          {"error" in summary.phonePe ? (
-            <p style={{ color: "#fca5a5", fontSize: 13 }}>PhonePe ledger could not be read.</p>
-          ) : (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-                <MetricCard label="PhonePe received" value={`${sym}${(summary.phonePe.receivedMinor / 100).toLocaleString("en-IN")}`} color="#16a34a" />
-                <MetricCard label="PhonePe refunded" value={`${sym}${(summary.phonePe.refundedMinor / 100).toLocaleString("en-IN")}`} color="#dc2626" />
-                <MetricCard label="PhonePe payments" value={summary.phonePe.payments.toString()} color="#0ea5e9" />
-              </div>
-              <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>
-                {summary.phonePe.environment === "sandbox" ? "Sandbox test payments. " : ""}Gateway receipts only — not added to Total Revenue, which counts confirmed and ticketed bookings.
-              </p>
-            </>
-          )}
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 12 }}>PhonePe receipts</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+            <MetricCard label="PhonePe received" value={`${sym}${(summary.phonePe.receivedMinor / 100).toLocaleString("en-IN")}`} color="#16a34a" />
+            <MetricCard label="PhonePe refunded" value={`${sym}${(summary.phonePe.refundedMinor / 100).toLocaleString("en-IN")}`} color="#dc2626" />
+            <MetricCard label="PhonePe payments" value={summary.phonePe.payments.toString()} color="#0ea5e9" />
+          </div>
+          <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>
+            {summary.phonePe.environment === "sandbox" ? "Sandbox test payments. " : ""}Gateway receipts only — not added to Total Revenue, which counts confirmed and ticketed bookings.
+          </p>
         </div>
       )}
 

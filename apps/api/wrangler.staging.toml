@@ -1,7 +1,10 @@
 # PhonePe SANDBOX staging Worker. Separate from production: own name, own
-# workers.dev HTTPS URL, own KV/queues/D1, no custom domain, no cron.
+# workers.dev HTTPS URL, own KV/queues, no custom domain, no cron.
 # Deploy only with: wrangler deploy --config wrangler.staging.toml
-# KV/D1 ids below are the staging resources created on 29 Oct 2026 (never production ids).
+# KV ids below are the staging resources created on 29 Oct 2026 (never production ids).
+# PhonePe ledger = the Neon staging branch (DATABASE_URL) with
+# docs/migrations/phonepe-pg-v2-proposed.sql applied there. The D1 database
+# zamra-phonepe-staging belongs to the separate sandbox harness Worker only.
 #
 # DATABASE_URL secret must point at the Neon `phonepe-staging` branch, never at
 # production. That branch holds copies of real customer data, so do NOT give this
@@ -45,12 +48,6 @@ max_retries       = 3
 queue             = "zamra-notifications-staging"
 max_batch_size    = 50
 max_batch_timeout = 2
-
-[[d1_databases]]
-binding        = "PHONEPE_DB"
-database_name  = "zamra-phonepe-staging"
-database_id    = "271aeba6-ace1-4102-aba2-dbcf0ec0a766"
-migrations_dir = "migrations/phonepe-d1"
 
 [vars]
 ENVIRONMENT          = "staging"

@@ -8,7 +8,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { isOfflineSupplier } from "../../lib/flight-sources.js";
 import { renderETicketHtml, storeETicket } from "../../lib/eticket.js";
-import { eq, and, asc, desc, or } from "drizzle-orm";
+import { eq, and, asc, desc, or, inArray, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { tripjackClientFor, parseBookingDetails } from "../../lib/trips.js";
 import { buildZip } from "../../lib/zip.js";
@@ -19,7 +19,11 @@ import {
   readBookingError, readBookingEvents, readQueueReceipt,
 } from "../../lib/booking-recovery.js";
 import { processPaidBooking } from "../../queue-consumer.js";
-import { ordersForBookings, phonePeLedger, phonePeLedgerStatus, phonePePaymentRow } from "../../lib/phonepe/store.js";
+
+// PhonePe payments are ordinary Neon `payments` rows (gateway PHONEPE). They never
+// start a supplier booking, so the paid-booking retry path ignores them.
+const PHONEPE_PAID = ["SUCCESS", "PARTIAL_REFUND", "REFUNDED"];
+const isPhonePe = (p: { gateway: string }) => String(p.gateway) === "PHONEPE";
 
 export const bookingsAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -50,17 +54,15 @@ bookingsAdminRoutes.get("/", async (c) => {
     .limit(limit)
     .offset(offset);
 
-  // PhonePe status from the D1 ledger (read-only; never copied into Neon).
-  const ledger = phonePeLedger(c.env);
+  // PhonePe status for the listed bookings (only once the PhonePe schema is live).
   let phonePe: Record<string, string> | undefined;
-  let phonePeLedgerError: true | undefined;
-  if (ledger && rows.length) {
-    try {
-      phonePe = Object.fromEntries((await ordersForBookings(c.env.PHONEPE_DB!, rows)).map((o) => [o.bookingId, phonePeLedgerStatus(o)]));
-    } catch { phonePeLedgerError = true; }
+  if (c.env.PHONEPE_SCHEMA_READY === "true" && rows.length) {
+    const paid = await db.select({ bookingId: payments.bookingId, status: payments.status }).from(payments)
+      .where(and(inArray(payments.bookingId, rows.map((r) => r.id)), sql`${payments.gateway}::text = 'PHONEPE'`));
+    phonePe = Object.fromEntries(paid.map((p) => [p.bookingId, p.status]));
   }
 
-  return c.json({ bookings: rows, total: rows.length, phonePe, phonePeLedgerError });
+  return c.json({ bookings: rows, total: rows.length, phonePe });
 });
 
 // Force status override (admin only, audit-logged)
@@ -129,23 +131,16 @@ bookingsAdminRoutes.get("/:id", async (c) => {
     db.select().from(supplierExchanges).where(exchangeFilter(b)).orderBy(asc(supplierExchanges.startedAt)),
     b.userId ? db.select({ id: users.id, name: users.name, email: users.email, phone: users.phone }).from(users).where(eq(users.id, b.userId)).limit(1) : Promise.resolve([]),
   ]);
-  // PhonePe payments live only in D1; show them alongside Neon rows (no duplicate records).
-  let phonePeRows: ReturnType<typeof phonePePaymentRow>[] = [];
-  let phonePeLedgerError: true | undefined;
-  if (phonePeLedger(c.env)) {
-    try { phonePeRows = (await ordersForBookings(c.env.PHONEPE_DB!, [b])).map(phonePePaymentRow); }
-    catch { phonePeLedgerError = true; }
-  }
-  const phonePePaid = phonePeRows.some((p) => ["SUCCESS", "PARTIAL_REFUND", "REFUNDED"].includes(p.status));
+  const phonePePaid = paymentRows.some((p) => isPhonePe(p) && PHONEPE_PAID.includes(p.status));
   const waiting = ["PAYMENT_PENDING", "PAYMENT_FAILED"].includes(b.status);
   const queueError = waiting ? await readBookingError(c.env, b.id) : null;
-  const paidOrder = paymentRows.find((p) => p.status === "SUCCESS")?.gatewayOrderId;
+  const paidOrder = paymentRows.find((p) => p.status === "SUCCESS" && !isPhonePe(p))?.gatewayOrderId;
   const queueReceipt = waiting && paidOrder ? await readQueueReceipt(c.env, paidOrder) : null;
   const paymentConfirmed = Boolean(paidOrder);
   return c.json({
-    booking: b, queueError, queueReceipt, paymentConfirmed, events: await readBookingEvents(c.env, b.id), customer: customer[0] ?? null, passengers, payments: [...paymentRows, ...phonePeRows], cancellations: amendments,
+    booking: b, queueError, queueReceipt, paymentConfirmed, events: await readBookingEvents(c.env, b.id), customer: customer[0] ?? null, passengers, payments: paymentRows, cancellations: amendments,
     // PhonePe funds never start supplier booking automatically.
-    phonePePaid, phonePeLedgerError,
+    phonePePaid,
     supportRequests: support, walletTransactions: walletTx,
     exchanges: exchanges.map((x) => ({ ...x, requestKey: undefined, responseKey: undefined, hasResponse: Boolean(x.responseKey) })),
     ...(b.supplier === "TRIPJACK" ? { certification: await certificationCoverage(c.env, db, b, exchanges).catch(() => null) } : {}),
@@ -202,8 +197,9 @@ bookingsAdminRoutes.get("/:id/exchanges.zip", async (c) => {
 bookingsAdminRoutes.post("/:id/retry-booking", async (c) => {
   const b = await loadBooking(c, c.req.param("id"));
   if (b.status !== "PAYMENT_PENDING") throw new HTTPException(400, { message: `Booking is ${b.status} — only paid bookings waiting for the airline can be retried` });
-  const ledger = phonePeLedger(c.env);
-  if (ledger && await ledger.bookingOrder(b.tenantId, b.id)) {
+  const phonePeRows = c.env.PHONEPE_SCHEMA_READY !== "true" ? [] : await c.get("db").select({ gateway: payments.gateway, status: payments.status }).from(payments)
+    .where(and(eq(payments.bookingId, b.id), sql`${payments.gateway}::text = 'PHONEPE'`));
+  if (phonePeRows.some((p) => PHONEPE_PAID.includes(p.status))) {
     throw new HTTPException(409, { message: "This booking was paid with PhonePe. Supplier booking is not automatic for PhonePe payments — confirm it with the supplier separately." });
   }
   const message = await paidBookingMessage(c.get("db"), b.id);

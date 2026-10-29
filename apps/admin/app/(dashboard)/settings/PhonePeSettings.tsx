@@ -27,7 +27,7 @@ export function PhonePeSettings() {
   const [busy, setBusy] = useState(false);
   const [orders, setOrders] = useState<LedgerOrder[]>([]);
   useEffect(() => {
-    // Read-only D1 ledger; empty until the PhonePe D1 schema gate is set.
+    // Read-only ledger view; empty until the PhonePe schema gate is set.
     fetch(`${API}/api/admin/settings/phonepe/orders`, { headers: apiHeaders() })
       .then((r) => (r.ok ? r.json() : { orders: [] }))
       .then((d) => setOrders(d.orders ?? []))

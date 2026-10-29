@@ -1,44 +1,12 @@
-# PhonePe sandbox on isolated Cloudflare D1 staging
+# PhonePe sandbox on isolated staging (Neon staging branch ledger)
 
-Everything here is **staging + PhonePe sandbox only**. Production Workers, the production Neon branch, production D1 and the production PhonePe account are not touched. Run commands from `apps/api` on your own machine, logged in with `wrangler login`. Never paste secrets into chat, files or the repo: `wrangler secret put` prompts for them.
+Everything here is **staging + PhonePe sandbox only**. Production Workers, the production Neon branch and the production PhonePe account are not touched. The staging API keeps its PhonePe ledger in the Neon `phonepe-staging` branch, exactly like production will. The D1 database `zamra-phonepe-staging` belongs only to the separate sandbox harness (`docs/phonepe-d1-sandbox-harness.md`).
 
-## 1. Cloudflare staging resources
+Never paste secrets into chat, files or the repo.
 
-```bash
-wrangler d1 create zamra-phonepe-staging
-```
+## 1. Cloudflare staging resources (already created)
 
-```bash
-wrangler kv namespace create zamra-staging-sessions
-```
-
-```bash
-wrangler kv namespace create zamra-staging-tenant-cache
-```
-
-```bash
-wrangler kv namespace create zamra-staging-fare-cache
-```
-
-```bash
-wrangler queues create zamra-bookings-staging
-```
-
-```bash
-wrangler queues create zamra-notifications-staging
-```
-
-Put the printed D1 and KV ids into `wrangler.staging.toml` (replace each `<...>`). Then apply the D1 migration to the **staging** database and confirm the tables:
-
-```bash
-wrangler d1 migrations apply zamra-phonepe-staging --remote --config wrangler.staging.toml
-```
-
-```bash
-wrangler d1 execute zamra-phonepe-staging --remote --config wrangler.staging.toml --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-```
-
-Expected: `d1_migrations`, `payment_checkout_claims`, `phonepe_orders`, `phonepe_refunds`.
+These already exist: KV `zamra-staging-sessions`, `zamra-staging-tenant-cache`, `zamra-staging-fare-cache`, and queues `zamra-bookings-staging`, `zamra-notifications-staging`. Their ids are in `apps/api/wrangler.staging.toml`. The staging API has no D1 binding.
 
 ## 2. Neon staging branch and test bookings
 
@@ -57,6 +25,18 @@ SELECT 'phonepe-sbx-000' || n, t.id, 'B2C_WEB', 'PAYMENT_PENDING', 'ONEWAY', 'CO
   now() + interval '30 days', '{"phonepeSandboxTest": true}', 2.00, 0, 2.00, 'INR', 'MANUAL'
 FROM tenants t, generate_series(1, 3) AS n WHERE t.slug = 'zamra';
 ```
+
+Apply the approved PhonePe schema to **this branch only**. Paste the whole of `docs/migrations/phonepe-pg-v2-proposed.sql` into the SQL editor, with `phonepe-staging` selected, and run it once. Then check:
+
+```sql
+SELECT unnest(enum_range(NULL::payment_gateway));
+```
+
+```sql
+SELECT to_regclass('phonepe_orders'), to_regclass('phonepe_refunds'), to_regclass('payment_checkout_claims');
+```
+
+Expected: `PHONEPE` is listed and all three tables exist. Never run it on the production branch without separate approval.
 
 Bookings: `phonepe-sbx-0001` (successful payment + refunds), `phonepe-sbx-0002` (failed/cancelled payment), `phonepe-sbx-0003` (spare, e.g. expiry). Delete the branch after acceptance.
 
@@ -176,36 +156,42 @@ On the sandbox page for 0002, cancel or fail the payment.
 The script checks:
 - checkout idempotency (a repeat returns the same order);
 - one gateway per booking (Nomod refused before and after the outcome);
-- reconciled state, and the D1 status shown to the customer;
+- reconciled state, and the ledger status shown to the customer;
 - that the supplier booking is **not** auto-confirmed;
 - partial refund, replay of the same refund request (no second debit), over-refund refusal, full refund;
 - webhook authentication and that a forged payload can't change the ledger.
 
 Results go to `phonepe-sandbox-report.json` (ids and pass/fail only). Also confirm, in the PhonePe sandbox dashboard webhook log, that genuine deliveries for these orders returned HTTP 200.
 
-## 7. Verify the ledger directly (D1) and in Admin
+## 7. Verify the ledger directly (Neon staging branch) and in Admin
 
-```bash
-wrangler d1 execute zamra-phonepe-staging --remote --config wrangler.staging.toml --command "SELECT booking_id, state, amount_minor, refund_reserved_minor, refunded_minor, transaction_id FROM phonepe_orders ORDER BY updated_at"
+In the Neon SQL editor with `phonepe-staging` selected:
+
+```sql
+SELECT o.booking_id, o.state, o.amount_minor, o.refund_reserved_minor, p.status, p.refunded_amount, o.transaction_id FROM phonepe_orders o JOIN payments p ON p.id = o.payment_id ORDER BY o.updated_at;
 ```
 
-```bash
-wrangler d1 execute zamra-phonepe-staging --remote --config wrangler.staging.toml --command "SELECT merchant_order_id, amount_minor, state, provider_refund_id FROM phonepe_refunds"
+```sql
+SELECT merchant_order_id, amount_minor, state, provider_refund_id FROM phonepe_refunds;
 ```
 
-```bash
-wrangler d1 execute zamra-phonepe-staging --remote --config wrangler.staging.toml --command "SELECT booking_id, gateway FROM payment_checkout_claims"
+```sql
+SELECT booking_id, gateway FROM payment_checkout_claims WHERE booking_id LIKE 'phonepe-sbx-%';
+```
+
+```sql
+SELECT booking_id, count(*) FROM payments WHERE booking_id LIKE 'phonepe-sbx-%' GROUP BY booking_id;
 ```
 
 Expected:
-- 0001: `COMPLETED`, 200 reserved, 200 refunded, two `COMPLETED` refunds.
-- 0002: `FAILED`.
-- Each test booking has exactly one claim, and it is `PHONEPE`.
+- 0001: order `COMPLETED`, payments `REFUNDED`, refunded `2.00`, two `COMPLETED` refunds.
+- 0002: order `FAILED`, payments `FAILED`.
+- Each test booking has exactly one claim (`PHONEPE`) and **one** payments row.
 
 In staging Admin, open each booking:
-- the Payments tab shows `PHONEPE (D1, sandbox)` once;
+- the Payments tab shows the `PHONEPE` payment once;
 - the bookings list shows the PhonePe badge;
 - Finance shows the sandbox receipts separately from revenue;
 - "Retry airline booking" is not offered for the paid booking.
 
-Send me `phonepe-sandbox-report.json` and the three query outputs. They contain no secrets.
+Send me `phonepe-sandbox-report.json` and the four query outputs. They contain no secrets.

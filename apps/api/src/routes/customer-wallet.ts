@@ -1,4 +1,4 @@
-import { claimLegacyGateway } from "../lib/phonepe/store.js";
+import { claimLegacyGateway } from "../lib/phonepe/store-neon.js";
 // Customer wallet (mounted at /api/profile/wallet, customer JWT required)
 //
 // GET  /                      balance + recent transactions
@@ -82,7 +82,7 @@ customerWalletRoutes.post("/pay", zValidator("json", z.object({ bookingId: z.str
   const wallet = await getOrCreateCustomerWallet(db, tenantId, userId);
 
   if (c.env.PHONEPE_SCHEMA_READY === "true") {
-    try { await claimLegacyGateway(c.env, tenantId, bookingId, "WALLET"); }
+    try { await claimLegacyGateway(c.env, db, tenantId, bookingId, "WALLET"); }
     catch { throw new HTTPException(409, { message: "Another payment gateway is reserved for this booking" }); }
   }
 

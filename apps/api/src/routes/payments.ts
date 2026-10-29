@@ -1,4 +1,4 @@
-import { claimLegacyGateway, PhonePeD1Store, phonePeLedgerStatus } from "../lib/phonepe/store.js";
+import { claimLegacyGateway } from "../lib/phonepe/store-neon.js";
 import { phonePeReadiness } from "../lib/phonepe/config.js";
 import { phonePeCheckout } from "../lib/phonepe/http.js";
 import { PhonePeError } from "../lib/phonepe/client.js";
@@ -125,8 +125,8 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
     throw new HTTPException(400, { message: "Currency conversion is only available for Nomod payments" });
   }
 
-  // No-op unless PHONEPE_SCHEMA_READY=true (D1 ledger approved); then one gateway per booking.
-  try { await claimLegacyGateway(c.env, tenantId, bookingId, gateway); }
+  // No-op unless PHONEPE_SCHEMA_READY=true (Neon PhonePe schema approved); then one gateway per booking.
+  try { await claimLegacyGateway(c.env, db, tenantId, bookingId, gateway); }
   catch (e) {
     if (e instanceof PhonePeError && e.code === "PHONEPE_PAYMENT_EXISTS") throw new HTTPException(409, { message: "This booking already has a PhonePe payment; reconcile it before paying again" });
     if (e instanceof PhonePeError && e.code === "CHECKOUT_GATEWAY_ALREADY_RESERVED") throw new HTTPException(409, { message: "A different payment gateway is reserved for this booking" });
@@ -327,7 +327,7 @@ paymentRoutes.get("/:bookingId", async (c) => {
 
   if (!booking) throw new HTTPException(404, { message: "Booking not found" });
 
-  let [payment] = await db
+  const [payment] = await db
     .select({
       id:               payments.id,
       gateway:          payments.gateway,
@@ -341,15 +341,6 @@ paymentRoutes.get("/:bookingId", async (c) => {
     .from(payments)
     .where(eq(payments.bookingId, bookingId))
     .limit(1);
-  // PhonePe funds are recorded only in the D1 ledger (never in Neon payments).
-  if (!payment && c.env.PHONEPE_SCHEMA_READY === "true" && c.env.PHONEPE_DB) {
-    const o = await new PhonePeD1Store(c.env.PHONEPE_DB).bookingOrder(tenantId, bookingId);
-    if (o) payment = {
-      id: o.merchantOrderId, gateway: "PHONEPE", gatewayOrderId: o.merchantOrderId,
-      gatewayPaymentId: o.transactionId, amount: (o.amountMinor / 100).toFixed(2), currency: "INR",
-      status: phonePeLedgerStatus(o), createdAt: o.updatedAt,
-    } as unknown as typeof payment;
-  }
 
   // Once paid, hand the browser a read-only trip token so it can move on to the
   // itinerary confirmation page (the checkout token expires after 20 minutes).

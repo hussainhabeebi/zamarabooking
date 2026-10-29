@@ -26,6 +26,7 @@ export class PhonePeService {
       merchantOrderId: id,
       tenantId: this.tenant,
       bookingId: booking.id,
+      paymentId: `PP_${id}`,
       environment: this.environment,
       accountKey: await this.client.accountKey(),
       amountMinor: amount,

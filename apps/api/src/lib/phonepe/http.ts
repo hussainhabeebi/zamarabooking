@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { and, eq } from "drizzle-orm";
 import { bookings, payments } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../../types.js";
-import { claimCheckoutGateway, PhonePeD1Store } from "./store.js";
+import { claimCheckoutGateway, PhonePeNeonStore } from "./store-neon.js";
 import { PhonePeService } from "./service.js";
 import {
   phonePeClient,
@@ -15,9 +15,9 @@ export type PhonePeContext = Context<{ Bindings: Env; Variables: Variables }>;
 export async function phonePeService(c: PhonePeContext, reconcile = false) {
   const tenantId = c.get("tenantId");
   const r = await phonePeReadiness(c.env, tenantId);
-  const client = await phonePeClient(c.env, tenantId, reconcile); // Gates (incl. D1 binding) first.
+  const client = await phonePeClient(c.env, tenantId, reconcile); // Gates first.
   return new PhonePeService(
-    new PhonePeD1Store(c.env.PHONEPE_DB!),
+    new PhonePeNeonStore(c.get("db")),
     client,
     tenantId,
     r.environment,
@@ -64,14 +64,14 @@ export async function phonePeCheckout(
     .where(eq(payments.bookingId, bookingId));
   if (
     others.some(
-      // Every Neon payment row is a non-PhonePe gateway (PhonePe uses D1 only).
       (p) =>
+        String(p.gateway) !== "PHONEPE" &&
         ["PENDING", "SUCCESS", "REFUNDED", "PARTIAL_REFUND"].includes(p.status),
     )
   )
     throw new PhonePeError("OTHER_PAYMENT_EXISTS");
   await claimCheckoutGateway(
-    c.env.PHONEPE_DB!,
+    c.get("db"),
     c.get("tenantId"),
     bookingId,
     "PHONEPE",

@@ -123,10 +123,9 @@ export default function BookingDetailPage() {
       </div>
 
       {error && <div style={errBox}>{error}</div>}
-      {data.phonePeLedgerError && <div style={errBox}>PhonePe ledger (D1) could not be read — PhonePe payments for this booking may be missing below.</div>}
       {b.status === "PAYMENT_PENDING" && data.phonePePaid && (
         <div style={errBox}>
-          Paid with PhonePe (recorded in the PhonePe D1 ledger, see Payments &amp; refunds). Supplier booking is not automatic for PhonePe payments — confirm it with the supplier separately.
+          Paid with PhonePe (see Payments &amp; refunds). Supplier booking is not automatic for PhonePe payments — confirm it with the supplier separately.
         </div>
       )}
       {b.status === "PAYMENT_PENDING" && !data.phonePePaid && (
@@ -195,7 +194,7 @@ export default function BookingDetailPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Card title="Payments">
             <Table head={["Created", "Gateway", "Amount", "Status", "Order / payment ref", "Refunded"]}
-              rows={data.payments.map((p: any) => [fmtDate(p.createdAt), p.ledger === "D1" ? `${p.gateway} (D1${p.environment === "sandbox" ? ", sandbox" : ""})` : p.gateway, money(p.amount, p.currency), p.status,
+              rows={data.payments.map((p: any) => [fmtDate(p.createdAt), p.gateway, money(p.amount, p.currency), p.status,
                 `${p.gatewayOrderId ?? "—"} / ${p.gatewayPaymentId ?? "—"}`, p.refundedAmount ? `${money(p.refundedAmount, p.currency)} ${p.refundGatewayRef ?? ""}` : "—"])} />
           </Card>
           <Card title="Cancellations">

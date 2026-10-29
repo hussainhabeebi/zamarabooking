@@ -11,12 +11,8 @@ import {
 } from "../src/lib/phonepe/client.js";
 import { phonePeReadiness, phonePeClient } from "../src/lib/phonepe/config.js";
 import { PhonePeService } from "../src/lib/phonepe/service.js";
-import {
-  PhonePeD1Store,
-  type PhonePeStore,
-  type Order,
-  type Refund,
-} from "../src/lib/phonepe/store.js";
+import { PhonePeNeonStore } from "../src/lib/phonepe/store-neon.js";
+import type { PhonePeStore, Order, Refund } from "../src/lib/phonepe/store.js";
 import { phonePeAdminRoutes } from "../src/routes/admin/phonepe.js";
 import { phonePeWebhook } from "../src/routes/webhooks/phonepe.js";
 
@@ -73,7 +69,7 @@ class MemoryStore implements PhonePeStore {
         providerOrderId: e.orderId,
         transactionId: e.transactionId ?? o.transactionId,
       });
-    this.ledger.set(o.merchantOrderId, o.state === "COMPLETED" ? "SUCCESS" : o.state);
+    this.ledger.set(o.paymentId, o.state === "COMPLETED" ? "SUCCESS" : o.state);
   }
   async refund(t: string, id: string) {
     const r = this.refunds.get(id);
@@ -121,9 +117,6 @@ test("PhonePe stays disabled until every backend gate, tenant and Admin setting 
     PHONEPE_SCHEMA_READY: "true",
     PHONEPE_MERCHANT_ACTIVE: "true",
   });
-  // Every flag set but no D1 ledger binding: still disabled.
-  assert.equal((await phonePeReadiness(e, "tenant")).enabled, false);
-  e.PHONEPE_DB = {};
   assert.equal((await phonePeReadiness(e, "tenant")).enabled, true);
   assert.equal((await phonePeReadiness(e, "other")).enabled, false);
   e.PHONEPE_ENVIRONMENT = "production";
@@ -329,6 +322,7 @@ test("partial refunds reserve atomically, cannot over-refund or replay a lost re
     merchantOrderId: "fixture-order",
     tenantId: creds.tenantId,
     bookingId: "b",
+    paymentId: "p",
     environment: "sandbox",
     accountKey: await client.accountKey(),
     amountMinor: 1000,
@@ -367,23 +361,16 @@ test("a zero-insert racing refund reservation is not considered its owner", asyn
     providerRefundId: null,
     updatedAt: new Date(),
   };
-  // Minimal D1 double: the refund row appears only after a zero-change batch.
   let reads = 0;
-  const row = {
-    merchant_refund_id: "refund",
-    merchant_order_id: "order",
-    tenant_id: "tenant",
-    amount_minor: 100,
-    state: "PENDING",
-    provider_refund_id: null,
-    updated_at: Date.now(),
-  };
-  const statement = { bind: () => statement, first: async () => (++reads === 1 ? null : row) };
   const db: any = {
-    prepare: () => statement,
-    batch: async () => [{ meta: { changes: 0 } }, { meta: { changes: 0 } }],
+    select: () => ({
+      from: () => ({
+        where: () => ({ limit: async () => (++reads === 1 ? [] : [refund]) }),
+      }),
+    }),
+    execute: async () => ({ rows: [] }),
   };
-  const r = await new PhonePeD1Store(db).reserveRefund(
+  const r = await new PhonePeNeonStore(db).reserveRefund(
     { tenantId: "tenant", merchantOrderId: "order" } as Order,
     "refund",
     100,
@@ -407,7 +394,6 @@ test("an invalid webhook never parses data, changes ledger or queues reconciliat
     PHONEPE_MERCHANT_ID: "fixture",
     PHONEPE_WEBHOOK_USERNAME: "fixture",
     PHONEPE_WEBHOOK_PASSWORD: "fixture",
-    PHONEPE_DB: {},
     PHONEPE_SCHEMA_READY: "true",
     PHONEPE_MERCHANT_ACTIVE: "true",
     PHONEPE_RELEASE_APPROVED: "true",
@@ -444,13 +430,38 @@ test("disabling new checkout still permits existing-order reconciliation after r
     PHONEPE_MERCHANT_ID: "fixture",
     PHONEPE_WEBHOOK_USERNAME: "fixture",
     PHONEPE_WEBHOOK_PASSWORD: "fixture",
-    PHONEPE_DB: {},
     PHONEPE_SCHEMA_READY: "true",
     PHONEPE_MERCHANT_ACTIVE: "true",
     PHONEPE_RELEASE_APPROVED: "true",
   };
   await assert.rejects(phonePeClient(e, "tenant"));
   assert.ok(await phonePeClient(e, "tenant", true));
+});
+test("shared checkout claims cannot switch payment providers for the same booking", async () => {
+  const { claimCheckoutGateway } = await import("../src/lib/phonepe/store-neon.js");
+  let selected: string | null = null;
+  const db: any = {
+    insert: () => ({
+      values: (v: any) => ({
+        onConflictDoNothing: async () => {
+          selected ??= v.gateway;
+        },
+      }),
+    }),
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => (selected ? [{ gateway: selected }] : []),
+        }),
+      }),
+    }),
+  };
+  await Promise.all([
+    claimCheckoutGateway(db, "tenant", "booking", "PHONEPE"),
+    claimCheckoutGateway(db, "tenant", "booking", "PHONEPE"),
+  ]);
+  await assert.rejects(claimCheckoutGateway(db, "tenant", "booking", "NOMOD"));
+  assert.equal(selected, "PHONEPE");
 });
 test("the generic supplier booking queue refuses a PhonePe payment before any supplier operation", async (t) => {
   const { processPaidBooking } = await import("../src/queue-consumer.js");
@@ -491,6 +502,22 @@ test("an authenticated webhook queues only a status read and ignores claimed pay
   const app = new Hono();
   app.use("*", async (c, next) => {
     c.set("tenantId" as never, "tenant" as never);
+    c.set(
+      "db" as never,
+      {
+        select: () => ({
+          from: () => ({
+            leftJoin: () => ({
+              where: () => ({
+                limit: async () => [
+                  { o: { merchantOrderId: "order", tenantId: "tenant" }, refunded: null },
+                ],
+              }),
+            }),
+          }),
+        }),
+      } as never,
+    );
     await next();
   });
   app.post("/hook", phonePeWebhook);
@@ -504,15 +531,6 @@ test("an authenticated webhook queues only a status read and ignores claimed pay
     PHONEPE_MERCHANT_ID: "fixture",
     PHONEPE_WEBHOOK_USERNAME: "fixture",
     PHONEPE_WEBHOOK_PASSWORD: "password",
-    PHONEPE_DB: {
-      prepare: () => {
-        const st: any = {
-          bind: () => st,
-          first: async () => ({ merchant_order_id: "order", tenant_id: "tenant", updated_at: Date.now() }),
-        };
-        return st;
-      },
-    },
     PHONEPE_SCHEMA_READY: "true",
     PHONEPE_MERCHANT_ACTIVE: "true",
     PHONEPE_RELEASE_APPROVED: "true",
@@ -571,6 +589,7 @@ test("a refund is not completed until its exact order, amount and provider ID re
     merchantOrderId: "order",
     tenantId: c.tenantId,
     bookingId: "b",
+    paymentId: "p",
     environment: "sandbox",
     accountKey: await client.accountKey(),
     amountMinor: 1000,
@@ -697,72 +716,3 @@ test(`legacy ${gateway} checkout behavior remains unchanged while PhonePe is dis
 });
 
 }
-test("payment status reads PhonePe from the D1 ledger only when the schema gate is set", async () => {
-  const { paymentRoutes } = await import("../src/routes/payments.js");
-  const app = new Hono();
-  app.use("*", async (c, next) => {
-    c.set("tenantId" as never, "tenant" as never);
-    c.set("userRole" as never, "CHECKOUT" as never);
-    c.set("checkoutBookingId" as never, "booking" as never);
-    let reads = 0;
-    c.set(
-      "db" as never,
-      {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              // Neon: the booking, then no payments row (PhonePe never writes Neon).
-              limit: async () =>
-                ++reads === 1
-                  ? [{ id: "booking", status: "PAYMENT_PENDING", pnr: null, userId: null }]
-                  : [],
-            }),
-          }),
-        }),
-      } as never,
-    );
-    await next();
-  });
-  app.route("/payments", paymentRoutes);
-  const row = {
-    merchant_order_id: "ZPorder",
-    tenant_id: "tenant",
-    booking_id: "booking",
-    environment: "sandbox",
-    account_key: "fixture",
-    amount_minor: 100,
-    refund_reserved_minor: 0,
-    refunded_minor: 0,
-    state: "COMPLETED",
-    transaction_id: "transaction-fixture",
-    updated_at: Date.now(),
-  };
-  const d1 = (touched: { n: number }) => ({
-    prepare: () => {
-      touched.n++;
-      const st: any = { bind: () => st, first: async () => row };
-      return st;
-    },
-  });
-  const off = { n: 0 };
-  const disabled = await app.request(
-    "/payments/booking",
-    {},
-    { JWT_SECRET: "local-test-only", PHONEPE_DB: d1(off) } as any,
-  );
-  assert.equal((await disabled.json()).payment, null);
-  assert.equal(off.n, 0);
-  const on = { n: 0 };
-  const res = await app.request(
-    "/payments/booking",
-    {},
-    { JWT_SECRET: "local-test-only", PHONEPE_SCHEMA_READY: "true", PHONEPE_DB: d1(on) } as any,
-  );
-  const body = await res.json();
-  assert.equal(body.payment.gateway, "PHONEPE");
-  assert.equal(body.payment.status, "SUCCESS");
-  assert.equal(body.payment.amount, "1.00");
-  // Funds recorded; the supplier booking is untouched and still pending.
-  assert.equal(body.booking.status, "PAYMENT_PENDING");
-  assert.equal(body.booking.pnr, null);
-});

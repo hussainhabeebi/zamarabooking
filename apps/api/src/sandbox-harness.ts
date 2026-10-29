@@ -12,13 +12,9 @@ import type { Env, Variables } from "./types.js";
 import { digest, PhonePeError } from "./lib/phonepe/client.js";
 import { phonePeClient, phonePeReadiness, phonePeReturnOrigin } from "./lib/phonepe/config.js";
 import { PhonePeService } from "./lib/phonepe/service.js";
-import {
-  claimCheckoutGateway,
-  claimLegacyGateway,
-  PhonePeD1Store,
-  phonePeLedgerStatus,
-} from "./lib/phonepe/store.js";
-import { phonePeWebhook } from "./routes/webhooks/phonepe.js";
+import { claimCheckoutGatewayD1, claimLegacyGatewayD1, PhonePeD1Store } from "./lib/phonepe/store-d1.js";
+import { phonePeLedgerStatus } from "./lib/phonepe/store.js";
+import { phonePeWebhookWith } from "./routes/webhooks/phonepe.js";
 import { reconcilePhonePe, type PhonePeReconcileMsg } from "./queue-consumer.js";
 
 export const HARNESS_ENVIRONMENT = "phonepe-sandbox-harness";
@@ -72,12 +68,12 @@ harness.use("*", async (c, next) => {
   // The webhook queues status reads; the harness runs them after responding with
   // the same reconcilePhonePe used by the API's queue consumer.
   const ctx = c.executionCtx as ExecutionContext;
-  c.env = { ...c.env, BOOKING_QUEUE: { send: async (m: PhonePeReconcileMsg) => ctx.waitUntil(reconcilePhonePe(c.env, m)) } } as never;
+  c.env = { ...c.env, BOOKING_QUEUE: { send: async (m: PhonePeReconcileMsg) => ctx.waitUntil(reconcilePhonePe(c.env, m, new PhonePeD1Store(c.env.PHONEPE_DB!))) } } as never;
   return next();
 });
 
 // Public: webhook (PhonePe SHA authentication inside) and the return page.
-harness.post("/webhooks/phonepe", (c) => phonePeWebhook(c as never));
+harness.post("/webhooks/phonepe", (c) => phonePeWebhookWith(c as never, new PhonePeD1Store(c.env.PHONEPE_DB!)));
 harness.get("/return", (c) =>
   c.html("<!doctype html><title>PhonePe sandbox return</title><p>Returned from PhonePe sandbox. The result is only confirmed by the authenticated status check, not by this page.</p>"),
 );
@@ -121,7 +117,7 @@ harness.post("/bookings/:id/checkout", async (c) => {
   if (!b) return c.json({ error: "Synthetic booking not found" }, 404);
   const s = await service(c.env, tenant); // Gates and Admin opt-in first.
   if (b.status !== "PAYMENT_PENDING") return c.json({ error: "Booking not payable" }, 409);
-  await claimCheckoutGateway(c.env.PHONEPE_DB!, tenant, b.id, "PHONEPE");
+  await claimCheckoutGatewayD1(c.env.PHONEPE_DB!, tenant, b.id, "PHONEPE");
   const origin = phonePeReturnOrigin(c.env);
   if (!origin) throw new PhonePeError("RETURN_ORIGIN_REQUIRED");
   return c.json(await s.checkout({ id: b.id, totalAmount: (b.amount_minor / 100).toFixed(2), currency: "INR" }, `${origin}/return?bookingId=${encodeURIComponent(b.id)}`));
@@ -133,7 +129,7 @@ harness.post("/bookings/:id/claim/:gateway", async (c) => {
   if (!["NOMOD", "RAZORPAY", "WALLET"].includes(gateway)) return c.json({ error: "gateway must be NOMOD, RAZORPAY or WALLET" }, 400);
   const b = await booking(c.env.PHONEPE_DB!, c.get("tenantId"), c.req.param("id"));
   if (!b) return c.json({ error: "Synthetic booking not found" }, 404);
-  await claimLegacyGateway(c.env, c.get("tenantId"), b.id, gateway as "NOMOD");
+  await claimLegacyGatewayD1(c.env.PHONEPE_DB!, c.get("tenantId"), b.id, gateway as "NOMOD");
   return c.json({ claimed: gateway });
 });
 

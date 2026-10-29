@@ -38,7 +38,7 @@ export interface Env {
   RAZORPAY_KEY_ID:        string;
   RAZORPAY_KEY_SECRET:    string;
   RAZORPAY_WEBHOOK_SECRET: string;
-  /** PhonePe ledger (orders/refunds/gateway claims). Optional: absent keeps PhonePe disabled. */
+  /** D1 used only by the PhonePe sandbox harness (src/sandbox-harness.ts); production ledger is Neon. */
   PHONEPE_DB?: D1Database;
   PHONEPE_CLIENT_ID?: string;
   PHONEPE_CLIENT_SECRET?: string;

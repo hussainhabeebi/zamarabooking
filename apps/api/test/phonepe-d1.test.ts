@@ -1,22 +1,17 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { Hono } from "hono";
 import { getPlatformProxy } from "wrangler";
 import type { D1Database } from "@cloudflare/workers-types";
 import {
   PhonePeD1Store,
-  claimCheckoutGateway,
-  claimLegacyGateway,
-  phonePeLedgerStatus,
-  ordersForBookings,
-  phonePeReceipts,
-  type Order,
-} from "../src/lib/phonepe/store.js";
-import { bookingsAdminRoutes } from "../src/routes/admin/bookings.js";
-import { financeAdminRoutes } from "../src/routes/admin/finance.js";
+  claimCheckoutGatewayD1,
+  claimLegacyGatewayD1,
+} from "../src/lib/phonepe/store-d1.js";
+import { phonePeLedgerStatus, type Order } from "../src/lib/phonepe/store.js";
 
-// Local workerd D1 (in memory, persist: false) with the production migration.
+// SANDBOX HARNESS store (production uses the Neon ledger, see phonepe-postgres.test.ts).
+// Local workerd D1 (in memory, persist: false) with the harness migration.
 // No Cloudflare account, remote database, credentials or provider requests.
 const migration = new URL(
   "../migrations/phonepe-d1/0001_phonepe_ledger.sql",
@@ -61,6 +56,7 @@ function draft(amount = 1000, tenantId = "fixture-tenant"): Order {
     merchantOrderId: `ZP_${id}`,
     tenantId,
     bookingId: id,
+    paymentId: `PP_ZP_${id}`,
     environment: "sandbox",
     accountKey: "fixture-account",
     amountMinor: amount,
@@ -124,7 +120,7 @@ test("competing hosted/wallet gateways cannot both claim a booking", async () =>
   const gateways = ["PHONEPE", "NOMOD", "RAZORPAY", "WALLET"] as const;
   const rows = await Promise.allSettled(
     Array.from({ length: 16 }, async (_, i) => {
-      await claimCheckoutGateway(db, "fixture-tenant", booking, gateways[i % 4]);
+      await claimCheckoutGatewayD1(db, "fixture-tenant", booking, gateways[i % 4]);
       return gateways[i % 4];
     }),
   );
@@ -135,31 +131,13 @@ test("competing hosted/wallet gateways cannot both claim a booking", async () =>
   assert.equal(new Set(winners.map((r) => r.value)).size, 1);
   assert.equal(winners.length, 4);
 });
-test("legacy gateway claim is a no-op while the flag is off and fails closed once on", async () => {
-  // Flag off: D1 is never touched (binding deliberately absent).
-  await claimLegacyGateway({} as any, "fixture-tenant", "legacy_off", "NOMOD");
-  await assert.rejects(
-    claimLegacyGateway(
-      { PHONEPE_SCHEMA_READY: "true" } as any,
-      "fixture-tenant",
-      "legacy_missing_binding",
-      "NOMOD",
-    ),
-    /PHONEPE_DB_MISSING/,
-  );
-  const env = { PHONEPE_SCHEMA_READY: "true", PHONEPE_DB: db } as any;
+test("sandbox legacy-gateway claim is refused after a PhonePe order and is exclusive", async () => {
   const o = draft();
   await store().reserve(o);
-  await assert.rejects(
-    claimLegacyGateway(env, o.tenantId, o.bookingId, "NOMOD"),
-    /PHONEPE_PAYMENT_EXISTS/,
-  );
-  await claimLegacyGateway(env, o.tenantId, "legacy_on", "RAZORPAY");
-  await claimLegacyGateway(env, o.tenantId, "legacy_on", "RAZORPAY");
-  await assert.rejects(
-    claimLegacyGateway(env, o.tenantId, "legacy_on", "WALLET"),
-    /CHECKOUT_GATEWAY_ALREADY_RESERVED/,
-  );
+  await assert.rejects(claimLegacyGatewayD1(db, o.tenantId, o.bookingId, "NOMOD"), /PHONEPE_PAYMENT_EXISTS/);
+  await claimLegacyGatewayD1(db, o.tenantId, "legacy_on", "RAZORPAY");
+  await claimLegacyGatewayD1(db, o.tenantId, "legacy_on", "RAZORPAY");
+  await assert.rejects(claimLegacyGatewayD1(db, o.tenantId, "legacy_on", "WALLET"), /CHECKOUT_GATEWAY_ALREADY_RESERVED/);
 });
 test("20 duplicate full-refund reservations have exactly one owner and one debit", async () => {
   const o = await paid();
@@ -276,100 +254,4 @@ test("database constraints prevent cross-tenant refund links and invalid amounts
       .run(),
   );
   await assert.rejects(store().reserve({ ...draft(99) }));
-});
-
-// ── Admin reports: D1 rows merged at read time, Neon mocked ──────────────────
-// Each awaited Neon query returns the next fixture result; any write would throw.
-function neon(results: unknown[][]) {
-  let i = 0;
-  const chain: any = new Proxy(function () {}, {
-    get: (_t, prop) => {
-      if (prop === "then")
-        return (ok: any, fail: any) => Promise.resolve(results[i++] ?? []).then(ok, fail);
-      if (["insert", "update", "delete", "execute", "batch"].includes(String(prop)))
-        throw new Error(`Neon ${String(prop)} attempted by a report`);
-      return chain;
-    },
-    apply: () => chain,
-  });
-  return chain;
-}
-function adminApp(results: unknown[][], env: Record<string, unknown>, role = "TENANT_ADMIN") {
-  const app = new Hono();
-  app.use("*", async (c, next) => {
-    c.set("tenantId" as never, "fixture-tenant" as never);
-    c.set("userRole" as never, role as never);
-    c.set("db" as never, neon(results) as never);
-    await next();
-  });
-  app.route("/bookings", bookingsAdminRoutes);
-  app.route("/finance", financeAdminRoutes);
-  const kv = { get: async () => null, put: async () => {} };
-  return (path: string, init?: RequestInit) =>
-    app.request(path, init, { TENANT_CACHE_KV: kv, ...env } as any);
-}
-const gateOn = () => ({ PHONEPE_SCHEMA_READY: "true", PHONEPE_DB: db });
-const neonBooking = (id: string, tenantId = "fixture-tenant") => ({
-  id, tenantId, status: "PAYMENT_PENDING", supplier: "MANUAL", userId: null, flightData: {},
-  totalAmount: "10.00", currency: "INR", pnr: null,
-});
-
-test("ledger lookup is tenant-scoped and handles more than 100 bookings", async () => {
-  const o = await paid();
-  const many = Array.from({ length: 150 }, (_, i) => ({ id: `none_${i}`, tenantId: "fixture-tenant" }));
-  const found = await ordersForBookings(db, [...many, { id: o.bookingId, tenantId: o.tenantId }]);
-  assert.deepEqual(found.map((x) => x.merchantOrderId), [o.merchantOrderId]);
-  assert.equal((await ordersForBookings(db, [{ id: o.bookingId, tenantId: "other-tenant" }])).length, 0);
-});
-test("Admin booking list and detail show a D1 PhonePe payment once, beside Neon payments", async () => {
-  const o = await paid();
-  const nomod = { id: "neon-pay", bookingId: o.bookingId, gateway: "NOMOD", status: "FAILED", amount: "10.00", currency: "INR", createdAt: new Date() };
-  const list = await (await adminApp([[neonBooking(o.bookingId), neonBooking("legacy-only")]], gateOn())("/bookings")).json();
-  assert.equal(list.phonePe[o.bookingId], "SUCCESS");
-  assert.equal(list.phonePe["legacy-only"], undefined);
-  // Detail: loadBooking, then passengers, payments, amendments, support, wallet, exchanges.
-  const detail = await (await adminApp([[neonBooking(o.bookingId)], [], [nomod], [], [], [], []], gateOn())(`/bookings/${o.bookingId}`)).json();
-  assert.deepEqual(detail.payments.map((p: any) => `${p.gateway}:${p.status}`), ["NOMOD:FAILED", "PHONEPE:SUCCESS"]);
-  const phonePeRow = detail.payments.find((p: any) => p.gateway === "PHONEPE");
-  assert.equal(phonePeRow.ledger, "D1");
-  assert.equal(phonePeRow.amount, "10.00");
-  assert.equal(phonePeRow.gatewayPaymentId, `transaction_${o.bookingId}`);
-  assert.equal(detail.phonePePaid, true);
-  // Legacy "paid → retry airline booking" path is not triggered by PhonePe funds.
-  assert.equal(detail.paymentConfirmed, false);
-  assert.equal(detail.booking.status, "PAYMENT_PENDING");
-});
-test("Admin retry refuses to start a supplier booking from a PhonePe payment", async () => {
-  const o = await paid();
-  const res = await adminApp([[neonBooking(o.bookingId)]], gateOn())(`/bookings/${o.bookingId}/retry-booking`, { method: "POST" });
-  assert.equal(res.status, 409);
-  assert.match(await res.text(), /paid with PhonePe/);
-});
-test("Admin reports never read D1 while the PhonePe schema gate is off", async () => {
-  const o = await paid();
-  const touched = { n: 0 };
-  const spy = { prepare: () => { touched.n++; throw new Error("D1 read while gate off"); } };
-  const list = await (await adminApp([[neonBooking(o.bookingId)]], { PHONEPE_DB: spy })("/bookings")).json();
-  assert.equal(list.phonePe, undefined);
-  const detail = await (await adminApp([[neonBooking(o.bookingId)], [], [], [], [], [], []], { PHONEPE_DB: spy })(`/bookings/${o.bookingId}`)).json();
-  assert.deepEqual(detail.payments, []);
-  assert.equal(touched.n, 0);
-});
-test("finance reports PhonePe receipts separately from booking revenue, per environment", async () => {
-  const before = await phonePeReceipts(db, "sandbox");
-  const o = await paid(2500);
-  const r = await store().reserveRefund(o, `fin_${o.bookingId}`, 500);
-  await store().applyRefund(r.refund, "COMPLETED", "provider_fin");
-  const after = await phonePeReceipts(db, "sandbox");
-  assert.equal(after.payments - before.payments, 1);
-  assert.equal(after.receivedMinor - before.receivedMinor, 2500);
-  assert.equal(after.refundedMinor - before.refundedMinor, 500);
-  assert.equal((await phonePeReceipts(db, "production")).payments, 0);
-  const revenue = [[{ total: "1000" }], [{ total: "0" }], [{ total: "0" }], [{ total: "0" }], [{ total: "0" }], [{ cnt: 1 }], [{ avg: "1000" }]];
-  const summary = await (await adminApp(revenue, gateOn(), "SUPER_ADMIN")("/finance/summary")).json();
-  assert.equal(summary.totalRevenue, 1000); // booking-based figure is unchanged
-  assert.equal(summary.phonePe.environment, "sandbox");
-  assert.equal(summary.phonePe.receivedMinor, after.receivedMinor);
-  const off = await (await adminApp(revenue, {}, "SUPER_ADMIN")("/finance/summary")).json();
-  assert.equal(off.phonePe, undefined);
 });

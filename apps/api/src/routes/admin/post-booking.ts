@@ -12,7 +12,8 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { bookingAmendments, bookings, payments, supportRequests, users } from "@zamrabooking/db/schema";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { phonePeCompletedRefundMinor } from "../../lib/phonepe/store-neon.js";
 import type { Env, Variables } from "../../types.js";
 import { settleRefund, syncCancellation } from "../../lib/trips.js";
 
@@ -81,6 +82,15 @@ cancellationsAdminRoutes.post("/:id/resolve", zValidator("json", z.object({
   }
 
   if (action === "MARK_REFUNDED_MANUALLY") {
+    // PhonePe-paid bookings: a refund counts only once PhonePe has confirmed refunds
+    // covering it (Admin → PhonePe refunds). Prevents a second, untracked refund.
+    const phonePe = c.env.PHONEPE_SCHEMA_READY === "true" && (await db.select({ id: payments.id }).from(payments)
+      .where(and(eq(payments.bookingId, a.bookingId), sql`${payments.gateway}::text = 'PHONEPE'`)).limit(1)).length > 0;
+    if (phonePe) {
+      const due = Math.round((refundAmount ?? Number(a.refundAmount ?? 0)) * 100);
+      const confirmed = await phonePeCompletedRefundMinor(db, c.get("tenantId"), a.bookingId);
+      if (confirmed < due) throw new HTTPException(409, { message: `Paid with PhonePe: refund it in Settings → PhonePe refunds first. PhonePe has confirmed ₹${(confirmed / 100).toFixed(2)} of ₹${(due / 100).toFixed(2)}.` });
+    }
     // Not while PROCESSING: an automatic refund may be mid-flight.
     const [u] = await db.update(bookingAmendments).set({
       refundStatus: "DONE", refundedAt: new Date(), refundReference: `manual: ${note}`.slice(0, 200), refundError: null, adminNote,
@@ -89,7 +99,8 @@ cancellationsAdminRoutes.post("/:id/resolve", zValidator("json", z.object({
       inArray(bookingAmendments.refundStatus, ["PENDING", "FAILED", "MANUAL_REQUIRED"]))).returning();
     if (!u) throw new HTTPException(409, { message: "Only a successful cancellation whose refund isn't done or in progress can be marked as refunded" });
     const amount = Number(u.refundAmount ?? 0);
-    await db.update(payments)
+    // PhonePe refund totals are maintained only by confirmed PhonePe refunds.
+    if (!phonePe) await db.update(payments)
       .set({ status: amount >= Number(u.amountPaid) ? "REFUNDED" : "PARTIAL_REFUND", refundedAmount: amount.toFixed(2), refundGatewayRef: u.refundReference, refundCompletedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(payments.bookingId, a.bookingId), eq(payments.status, "SUCCESS")));
     await db.update(bookings).set({ status: "REFUNDED", updatedAt: new Date() }).where(eq(bookings.id, a.bookingId));

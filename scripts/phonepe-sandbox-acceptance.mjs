@@ -105,7 +105,7 @@ async function checkoutFlow(expect) {
   check(`reconciled payment state is ${expect}`, final?.paymentState === expect, final?.paymentState ?? "timed out after 10 minutes");
   const s = await status(token);
   const expectedLedger = expect === "COMPLETED" ? "SUCCESS" : "FAILED";
-  check(`payment status endpoint shows ${expectedLedger} from D1`, s?.payment?.gateway === "PHONEPE" && s?.payment?.status === expectedLedger, `${s?.payment?.gateway}:${s?.payment?.status}`);
+  check(`payment status endpoint shows ${expectedLedger} from the ledger`, s?.payment?.gateway === "PHONEPE" && s?.payment?.status === expectedLedger, `${s?.payment?.gateway}:${s?.payment?.status}`);
   check("supplier booking NOT confirmed automatically", s?.booking?.status === "PAYMENT_PENDING" && !s?.booking?.pnr, `booking ${s?.booking?.status}`);
   const after = await call("/api/payments/checkout", { method: "POST", headers: { "X-Checkout-Token": token }, body: { bookingId, gateway: "NOMOD", currency: "INR" } });
   check("other gateway still refused after the PhonePe outcome", after.status === 409, `HTTP ${after.status}`);

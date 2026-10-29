@@ -66,6 +66,7 @@ export const supplierNameEnum = pgEnum("supplier_name", [
 ]);
 
 export const paymentGatewayEnum = pgEnum("payment_gateway", [
+  "PHONEPE",
   "RAZORPAY",
   "NOMOD",
   "WALLET",
