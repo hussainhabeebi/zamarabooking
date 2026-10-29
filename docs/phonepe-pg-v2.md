@@ -108,3 +108,14 @@ The isolated readiness workflow adds nine PostgreSQL concurrency/constraint test
 7. On regression disable new checkout, retain authenticated reconciliation and ledger/schema. Roll back only to compatible code retaining PhonePe exclusions; never restore a legacy API that can auto-confirm supplier bookings from PhonePe payment events. Preserve unrelated Workers, schedules and queues.
 
 Production verdict: NO-GO pending the gates above. Mock tests do not replace provider sandbox acceptance, and no merges, production changes, migrations, charges or deployments were performed.
+
+## Neon driver and schema-chain validation — 29 October 2026
+
+Target database remains the existing Neon PostgreSQL (production `createDb()` uses `drizzle-orm/neon-http`). Added to the isolated PostgreSQL CI job, all on disposable databases and with no network:
+
+- The nine store concurrency/constraint tests now also run through the production `createDb()` client (`PHONEPE_TEST_DRIVER=neon-http`). An in-process shim (`apps/api/test/phonepe/neon-http-shim.ts`) receives the driver's real SQL-over-HTTP requests and executes batches as one PostgreSQL transaction per session, as Neon documents. Locally: 9/9 pass, 83 batch transactions and 190 single queries went through the Neon driver, including `db.execute` items inside `db.batch`. This validates the driver code path, not Neon's hosted service.
+- The proposed DDL is applied in one transaction on top of committed migrations 0001–0012. The schema diff must show only additions (the sole changed line is the extended `payment_gateway` enum), and a second run must fail and roll back with no change.
+
+Still required on Neon itself (needs Neon project access, not available here): create a Neon branch from production, compare its live schema with the committed chain (`pg_dump -s`), run the proposal on that branch with the API pointed at it, then record the branch/point-in-time restore point before applying to the production branch. `ALTER TYPE ... ADD VALUE` cannot be reverted by dropping; rollback is application-level (keep schema, disable gates) as described above.
+
+Merge note: the `apps/web` checkout change only shows PhonePe when the API reports `gateways.PHONEPE === true` for an INR booking, so the automatic `zamra-web` deployment on merge is backward compatible with the current API and leaves Nomod/Razorpay checkout unchanged. `main` is still unprotected and no deployment environment requires approval.

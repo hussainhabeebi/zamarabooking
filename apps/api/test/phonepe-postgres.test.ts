@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { neonConfig } from "@neondatabase/serverless";
 import * as schema from "@zamrabooking/db/schema";
+import { createDb } from "@zamrabooking/db/client";
+import { neonHttpShim } from "./phonepe/neon-http-shim.js";
 import {
   PhonePeDbStore,
   claimCheckoutGateway,
@@ -58,7 +61,15 @@ async function query(text: string, params: unknown[] = []) {
     c.release();
   }
 }
+// PHONEPE_TEST_DRIVER=neon-http runs the production createDb() client
+// (drizzle-orm/neon-http) against the fixture through an in-process shim.
+const neonHttp = process.env.PHONEPE_TEST_DRIVER === "neon-http";
+if (neonHttp) neonConfig.fetchFunction = neonHttpShim(pool, namespace);
 async function withStore<T>(fn: (s: PhonePeDbStore, db: any) => Promise<T>) {
+  if (neonHttp) {
+    const db = createDb("postgresql://fixture:fixture@neon-http-shim.invalid/phonepe_test");
+    return fn(new PhonePeDbStore(db), db);
+  }
   const c = await pool.connect();
   try {
     await c.query(`SET search_path TO "${namespace}"`);
