@@ -61,6 +61,10 @@ PhonePe payments exist once, in D1. Admin merges them at read time when `PHONEPE
 
 If D1 can't be read, the pages say so instead of hiding payments silently. While the gate is off, no D1 read happens.
 
+## D1-only sandbox harness
+
+Without Neon access, `docs/phonepe-d1-sandbox-harness.md` runs the real PhonePe sandbox through the production PhonePe code with synthetic D1 bookings (separate `zamra-phonepe-sandbox` Worker), and lists what still needs the booking database.
+
 ## Cloudflare staging (sandbox only)
 
 Step-by-step commands and the sandbox acceptance script: `docs/phonepe-sandbox-staging.md`, `scripts/phonepe-sandbox-acceptance.mjs`. `apps/api/wrangler.staging.toml` defines `zamra-api-staging` on workers.dev with its own KV, queues and D1 `zamra-phonepe-staging`, no custom domain and no cron. `DATABASE_URL` must point at the Neon `phonepe-staging` branch. That branch contains copies of real customer data: give staging NO email, WhatsApp, supplier, Nomod or Razorpay credentials. A staging web Worker (separate name, `NEXT_PUBLIC_API_URL` = staging API URL) serves `PHONEPE_RETURN_ORIGIN`.

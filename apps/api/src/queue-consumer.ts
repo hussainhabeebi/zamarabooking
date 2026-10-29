@@ -63,9 +63,19 @@ interface NotifyOtpMsg {
   tenantId: string;
 }
 
-interface PhonePeReconcileMsg { type: "PHONEPE_RECONCILE"; tenantId: string; merchantOrderId: string; merchantRefundId?: string }
+export interface PhonePeReconcileMsg { type: "PHONEPE_RECONCILE"; tenantId: string; merchantOrderId: string; merchantRefundId?: string }
 type BookingQueueMsg = InitiatePaymentMsg | PaymentCapturedMsg | PhonePeReconcileMsg;
 type NotifyQueueMsg    = NotifyBookingMsg | NotifyOtpMsg;
+
+// Authenticated PhonePe status read queued by the webhook. Shared with the
+// D1-only sandbox harness so both run the same reconciliation code.
+export async function reconcilePhonePe(env: Env, data: PhonePeReconcileMsg) {
+  const r = await phonePeReadiness(env, data.tenantId);
+  const client = await phonePeClient(env, data.tenantId, true); // Gates (incl. D1 binding) first.
+  const service = new PhonePeService(new PhonePeD1Store(env.PHONEPE_DB!), client, data.tenantId, r.environment);
+  if (data.merchantRefundId) await service.reconcileRefund(data.merchantRefundId);
+  else await service.reconcile(data.merchantOrderId);
+}
 
 // ── Booking Queue consumer ────────────────────────────────────────
 
@@ -91,11 +101,7 @@ export async function handleBookingQueue(
       const data = msg.body;
 
       if (data.type === "PHONEPE_RECONCILE") {
-        const r = await phonePeReadiness(env, data.tenantId);
-        const client = await phonePeClient(env, data.tenantId, true); // Gates (incl. D1 binding) first.
-        const service = new PhonePeService(new PhonePeD1Store(env.PHONEPE_DB!), client, data.tenantId, r.environment);
-        if (data.merchantRefundId) await service.reconcileRefund(data.merchantRefundId);
-        else await service.reconcile(data.merchantOrderId);
+        await reconcilePhonePe(env, data);
       } else if (data.type === "INITIATE_PAYMENT") {
         await handleInitiatePayment(db, env, data);
       } else if (data.type === "PAYMENT_CAPTURED") {

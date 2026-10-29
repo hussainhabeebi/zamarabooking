@@ -63,8 +63,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Neon schema and migrations are unchanged by the PhonePe release
         run: git diff --exit-code "origin/${{ github.base_ref }}" -- packages/db
-      - name: PhonePe store against local workerd D1 with the production migration (no account, no network)
-        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-d1.test.ts
+      - name: PhonePe store and D1-only sandbox harness against local workerd D1 (no account, no network)
+        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-d1.test.ts apps/api/test/phonepe-sandbox-harness.test.ts
   rendered-admin:
     name: Rendered Admin QA with local mocked APIs
     runs-on: ubuntu-latest
