@@ -36,6 +36,8 @@ Keep the `tenant_id` printed by step 5 for `PHONEPE_TENANT_ID`. Delete the branc
 
 The first deploy has no secrets, so database routes return 503. That is expected and harmless.
 
+If the first build ran on `main` and failed with a missing `wrangler.staging.toml`, nothing was deployed: that file exists only on `feature/phonepe-pg-v2`. Confirm **Settings → Build → Branch control → Production branch** = `feature/phonepe-pg-v2` (and non-production builds off). The next push to that branch triggers a staging build.
+
 ## 4. Staging API secrets (Dashboard → `zamra-api-staging` → Settings → Variables and Secrets)
 
 Add each as type **Secret**. Paste values straight from your password manager; never into chat or files.
