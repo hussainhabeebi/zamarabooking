@@ -165,11 +165,23 @@ test("provider failures return only a sanitized error code", async () => {
     [() => tokenResponse({ expires_at: 1 }), 502, "INVALID_AUTH_RESPONSE", undefined],
     [() => new Response(`not json ${SECRET}`), 502, "INVALID_RESPONSE", undefined],
     [() => { throw new Error(`socket ${SECRET}`); }, 502, "TRANSPORT_UNKNOWN", undefined],
+    [() => { throw new DOMException(`slow ${SECRET}`, "TimeoutError"); }, 502, "TRANSPORT_UNKNOWN", undefined],
   ] as const) {
     const { e, writes } = env();
     const m = mockFetch(respond as () => Response);
+    const logged: string[] = [];
+    const log = console.log;
+    console.log = (...a: unknown[]) => void logged.push(a.map(String).join(" "));
     try {
       const r = await call(e, `Bearer ${SERVICE}`);
+      console.log = log;
+      // Safe diagnostics: one line with category, elapsed ms and status/error class only.
+      const diag = logged.filter((l) => l.startsWith("[phonepe]"));
+      assert.equal(diag.length, 1, logged.join("\n"));
+      assert.match(diag[0], /"op":"oauth","environment":"sandbox","category":"(OK|HTTP_ERROR|FETCH_ERROR|TIMEOUT)","ms":\d+/);
+      assertNoSecrets(logged.join("\n"));
+      assert.ok(!/socket|slow/.test(logged.join("\n")));
+      if (error === "TRANSPORT_UNKNOWN") assert.match(diag[0], /"category":"(FETCH_ERROR|TIMEOUT)","ms":\d+,"errorName":"(Error|TimeoutError)"/);
       assert.equal(r.status, status, r.text);
       assert.equal(r.data.ok, false);
       assert.equal(r.data.error, error);
@@ -181,6 +193,7 @@ test("provider failures return only a sanitized error code", async () => {
       assert.equal(m.calls.length, 1);
       assert.deepEqual(writes, []);
     } finally {
+      console.log = log;
       m.restore();
     }
   }

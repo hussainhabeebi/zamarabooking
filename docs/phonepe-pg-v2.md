@@ -88,6 +88,7 @@ Admin reporting reads only Neon:
   - Admin list/detail/retry and Finance from Neon.
 - **`phonepe.test.ts`** (mocked provider): gates, Admin secrecy, exact paise, OAuth, SHA webhook, evidence, unknown outcomes, refunds, queue exclusion, unchanged Nomod/Razorpay checkout.
 - **`phonepe-connection-test.test.ts`:** the connection check through the real Worker: service token only, staging sandbox only, one OAuth request, no writes, and no token, credential or provider body in any reply.
+- **`phonepe-workerd-fetch.test.ts`:** the real `PhonePeClient` inside the workerd runtime (outbound traffic to a local mock): the OAuth request is actually sent, redirects are not followed, and logs carry only category, elapsed time and status. Workers rejects `redirect: "error"`, which Node-only mocks can't catch.
 - **`phonepe-d1.test.ts`, `phonepe-sandbox-harness.test.ts`:** the sandbox store and harness on local workerd D1.
 
 ## Sandbox and staging

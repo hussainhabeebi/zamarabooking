@@ -137,8 +137,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: No automatic Neon migration is added (the PhonePe DDL needs separate approval)
         run: git diff --exit-code "origin/${{ github.base_ref }}" -- packages/db/drizzle
-      - name: PhonePe store and D1-only sandbox harness against local workerd D1 (no account, no network)
-        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-d1.test.ts apps/api/test/phonepe-sandbox-harness.test.ts
+      - name: PhonePe store, D1-only sandbox harness and Workers-runtime fetch against local workerd (no account, no network)
+        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-d1.test.ts apps/api/test/phonepe-sandbox-harness.test.ts apps/api/test/phonepe-workerd-fetch.test.ts
   rendered-admin:
     name: Rendered Admin QA with local mocked APIs
     runs-on: ubuntu-latest

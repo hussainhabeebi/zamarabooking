@@ -213,20 +213,32 @@ export class PhonePeClient {
     }
   }
   private async request(url: string, init: RequestInit) {
+    // Diagnostics: operation, outcome category, elapsed ms, HTTP status and the
+    // error class only. Never the URL path, headers, body, token or credentials.
+    const started = Date.now();
+    const op = url === bases[this.c.environment].auth ? "oauth" : "api";
+    const log = (category: string, extra: { status?: number; errorName?: string } = {}) =>
+      console.log(`[phonepe] ${JSON.stringify({ op, environment: this.c.environment, category, ms: Date.now() - started, ...extra })}`);
     let res: Response;
     try {
+      // Workers fetch rejects redirect "error" (TypeError before any I/O), so
+      // use "manual": a 3xx is then a non-ok response and fails as HTTP_ERROR.
       res = await this.fetcher(url, {
         ...init,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(10000),
       });
-    } catch {
+    } catch (e) {
+      const errorName = e instanceof Error ? e.name : typeof e;
+      log(errorName === "TimeoutError" || errorName === "AbortError" ? "TIMEOUT" : "FETCH_ERROR", { errorName });
       throw new PhonePeError("TRANSPORT_UNKNOWN");
     }
     if (!res.ok) {
+      log("HTTP_ERROR", { status: res.status });
       await res.body?.cancel();
       throw new PhonePeError("HTTP_ERROR", res.status);
     }
+    log("OK", { status: res.status });
     try {
       return object(JSON.parse(await limitedText(res)));
     } catch (e) {
