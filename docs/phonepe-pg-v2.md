@@ -22,6 +22,13 @@ Nothing is written to both stores, and production has no D1 binding.
 - **Atomicity:** every PhonePe write is one Neon batch, which is one transaction with the neon-http driver. Refund completion locks the order row first, so concurrent completions can't lose an aggregate.
 - **Idempotency:** stable merchant order/refund IDs and one order per booking. `INSERT … ON CONFLICT DO NOTHING RETURNING` picks a single owner who may call PhonePe. Unknown outcomes stay `UNKNOWN` and are never blindly retried.
 - **Reconciliation:** monotonic, so late `PENDING`/`FAILED` evidence never downgrades `COMPLETED`. Webhooks only queue an authenticated status read (`PHONEPE_RECONCILE`), and the webhook payload is never settlement evidence.
+- **Webhook endpoint:** `POST /webhooks/phonepe` must answer within PhonePe's short timeout, including the request PhonePe sends when the webhook is registered. So it skips the tenant database lookup (it uses `PHONEPE_TENANT_ID`) and does no database, KV or provider I/O. Order of checks:
+  1. SHA `Authorization` (401 if wrong or missing);
+  2. `payload.merchantId` (400 on mismatch, or bad JSON);
+  3. event type (other events → 200 `{"ignored":true}`);
+  4. a usable merchant order/refund reference (none → 200 `{"ignored":true}`).
+
+  If all pass, it queues one status read and returns 200 `{"accepted":true}`, which means "received for verification", never "paid". Release gates and order/refund existence are enforced by the queued reconciliation, which refuses while PhonePe is disabled. Those final outcomes (`DISABLED`, `ORDER_NOT_FOUND`, `REFUND_NOT_FOUND`) are acknowledged once and logged; transient failures are retried. The Worker consumes both `zamra-bookings` and the staging `zamra-bookings-staging` queue.
 - **Supplier separation:** a PhonePe payment never confirms a booking or starts a supplier booking. The generic `PAYMENT_CAPTURED` path, paid-booking recovery and the Admin "Retry airline booking" action all refuse PhonePe payments. Akbar PhonePe checkout stays blocked.
 
 ### Double-refund protections

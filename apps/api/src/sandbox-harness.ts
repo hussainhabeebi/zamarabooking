@@ -14,7 +14,7 @@ import { phonePeClient, phonePeReadiness, phonePeReturnOrigin } from "./lib/phon
 import { PhonePeService } from "./lib/phonepe/service.js";
 import { claimCheckoutGatewayD1, claimLegacyGatewayD1, PhonePeD1Store } from "./lib/phonepe/store-d1.js";
 import { phonePeLedgerStatus } from "./lib/phonepe/store.js";
-import { phonePeWebhookWith } from "./routes/webhooks/phonepe.js";
+import { phonePeWebhook } from "./routes/webhooks/phonepe.js";
 import { reconcilePhonePe, type PhonePeReconcileMsg } from "./queue-consumer.js";
 
 export const HARNESS_ENVIRONMENT = "phonepe-sandbox-harness";
@@ -68,12 +68,12 @@ harness.use("*", async (c, next) => {
   // The webhook queues status reads; the harness runs them after responding with
   // the same reconcilePhonePe used by the API's queue consumer.
   const ctx = c.executionCtx as ExecutionContext;
-  c.env = { ...c.env, BOOKING_QUEUE: { send: async (m: PhonePeReconcileMsg) => ctx.waitUntil(reconcilePhonePe(c.env, m, new PhonePeD1Store(c.env.PHONEPE_DB!))) } } as never;
+  c.env = { ...c.env, BOOKING_QUEUE: { send: async (m: PhonePeReconcileMsg) => ctx.waitUntil(reconcilePhonePe(c.env, m, new PhonePeD1Store(c.env.PHONEPE_DB!)).catch((e) => console.warn("[harness] reconcile skipped", e))) } } as never;
   return next();
 });
 
 // Public: webhook (PhonePe SHA authentication inside) and the return page.
-harness.post("/webhooks/phonepe", (c) => phonePeWebhookWith(c as never, new PhonePeD1Store(c.env.PHONEPE_DB!)));
+harness.post("/webhooks/phonepe", (c) => phonePeWebhook(c as never));
 harness.get("/return", (c) =>
   c.html("<!doctype html><title>PhonePe sandbox return</title><p>Returned from PhonePe sandbox. The result is only confirmed by the authenticated status check, not by this page.</p>"),
 );
