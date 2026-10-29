@@ -75,6 +75,8 @@ A second Workers Builds project, same repository and branch:
 - **Build command:** `pnpm install --frozen-lockfile && node scripts/staging-worker-config.mjs web && cd apps/web && NEXT_PUBLIC_API_URL="$STAGING_API_URL" pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion`
 - **Deploy command:** `cd apps/web && npx wrangler deploy --config wrangler.staging.generated.jsonc`
 
+Current staging values: `STAGING_API_URL` = `https://zamra-api-staging.jobslive49.workers.dev`, site `https://zamra-web-staging.jobslive49.workers.dev`. As with the API, set the **production branch** to `feature/phonepe-pg-v2` and turn preview builds off. A build triggered from `main` fails because the guard script exists only on that branch, and nothing is deployed.
+
 `scripts/staging-worker-config.mjs` refuses any URL that isn't `https://zamra-api-staging.<subdomain>.workers.dev`. The apps fall back to the production API when the URL is missing, so this guard prevents a staging site that talks to production.
 
 Then, on **`zamra-api-staging`**, add the Text variable `PHONEPE_RETURN_ORIGIN` = `https://zamra-web-staging.<subdomain>.workers.dev` and redeploy (**Deployments → Retry/Deploy**, or push any commit).
