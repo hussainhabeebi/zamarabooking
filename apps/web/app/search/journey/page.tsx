@@ -10,6 +10,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import SearchResultControls from "../SearchResultControls";
+import { journeyResponse } from "./response";
 import { filterJourneyFares } from "./filters";
 import { readPrefCurrency } from "../../lib/currency-pref";
 import { convertInr, fetchFxRates, formatIn, type FxRates } from "../../lib/fx";
@@ -107,17 +108,12 @@ function Journey() {
     })
       .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error((typeof d.error === "string" ? d.error : d.error?.issues?.[0]?.message) ?? `Search failed (${r.status})`); return d; })
       .then((d) => {
-        const all: Fare[] = d.fares ?? [];
-        const bookable = all.filter((f) => f.supplier === "TRIPJACK" && f.tripKey);
-        setFares(bookable); setSearchId(d.searchId);
-        if (!bookable.length) {
-          // The API records the full reason under this search id (Admin → Supplier Logs).
-          const errors = Object.entries((d.supplierErrors ?? {}) as Record<string, string>);
-          console.error("[journey-search] no bookable journey fares", { searchId: d.searchId, tripType, legs, totalFares: all.length, suppliers: d.usedSuppliers, supplierErrors: d.supplierErrors });
-          setEmptyReason(errors.length
-            ? "Live fares could not be loaded right now. Please try again in a moment."
-            : all.length ? "Flights were found, but none can be booked as a single journey online." : "");
-        }
+        const result = journeyResponse<Fare>(d);
+        setSearchId(d.searchId);
+        if (!result.fares.length) console.error("[journey-search] " + JSON.stringify(result.diagnostic));
+        if (result.code) { setFares([]); setError(`${result.message} (${result.code})`); return; }
+        setFares(result.fares);
+
       })
       .catch((e) => {
         if (e.name === "AbortError") return;
