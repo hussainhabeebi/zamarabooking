@@ -1,0 +1,12 @@
+// Local-only D1 for PhonePe tests (getPlatformProxy, persist: false). Never deployed.
+{
+  "name": "zamra-phonepe-d1-test",
+  "compatibility_date": "2024-11-01",
+  "d1_databases": [
+    {
+      "binding": "PHONEPE_DB",
+      "database_name": "zamra-phonepe-test",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

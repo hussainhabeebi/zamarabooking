@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { bookings, payments, cancellationRequests } from "@zamrabooking/db/schema";
+import { bookings, payments, cancellationRequests, phonepeOrders } from "@zamrabooking/db/schema";
 import { sum, count, eq, and, gte, sql } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { requireRole } from "../../middleware/auth.js";
@@ -62,7 +62,26 @@ financeAdminRoutes.get("/summary", async (c) => {
     .from(bookings)
     .where(sql`status IN ('TICKETED', 'CONFIRMED')`);
 
+  // PhonePe gateway receipts for the configured environment, from the PhonePe
+  // `payments` rows. Reported separately: revenue above is booking-based, so these
+  // amounts are never added to it (no double counting).
+  let phonePe: { environment: string; payments: number; receivedMinor: number; refundedMinor: number } | undefined;
+  if (c.env.PHONEPE_SCHEMA_READY === "true") {
+    const environment = c.env.PHONEPE_ENVIRONMENT === "production" ? "production" : "sandbox";
+    const [r] = await db
+      .select({
+        payments: count(),
+        received: sql<string>`COALESCE(SUM(${phonepeOrders.amountMinor}), 0)`,
+        refunded: sql<string>`COALESCE(SUM(ROUND(COALESCE(${payments.refundedAmount}, 0) * 100)), 0)`,
+      })
+      .from(phonepeOrders)
+      .innerJoin(payments, eq(payments.id, phonepeOrders.paymentId))
+      .where(and(eq(phonepeOrders.state, "COMPLETED"), eq(phonepeOrders.environment, environment)));
+    phonePe = { environment, payments: Number(r?.payments ?? 0), receivedMinor: Number(r?.received ?? 0), refundedMinor: Number(r?.refunded ?? 0) };
+  }
+
   return c.json({
+    phonePe,
     totalRevenue:      Number(revRow?.total    ?? 0),
     totalMarkup:       Number(markupRow?.total ?? 0),
     totalPlatformFees: Number(pfRow?.total     ?? 0),

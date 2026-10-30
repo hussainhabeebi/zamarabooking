@@ -1,3 +1,4 @@
+import { claimLegacyGateway } from "../lib/phonepe/store-neon.js";
 // B2B agency portal API.
 //
 // Public  /api/agent-public/*  agency sign-up, invite acceptance, shared quotes,
@@ -635,6 +636,10 @@ agentPortalRoutes.post("/bookings/:id/pay", async (c) => {
   if (wallet.currency !== b.currency) return c.json({ error: `Your wallet is in ${wallet.currency}; this booking is in ${b.currency}.` }, 400);
 
   const amount = roundMoney(Number(b.totalAmount));
+  if (c.env.PHONEPE_SCHEMA_READY === "true") {
+    try { await claimLegacyGateway(c.env, db, tenantId, id, "WALLET"); }
+    catch { return c.json({ error: "Another payment gateway is reserved for this booking" }, 409); }
+  }
   const orderId = `agentwallet_${id}`;
   // One wallet payment per booking (unique gateway payment id).
   const [slot] = await db.insert(payments).values({

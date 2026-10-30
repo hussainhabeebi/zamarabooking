@@ -10,7 +10,7 @@ import type { Context } from "hono";
 import { TripjackClient, type ExchangeRecorder } from "@zamrabooking/suppliers";
 import { persistExchanges, persistInBackground } from "./api-exchanges.js";
 import { bookings, bookingPassengers, payments, bookingAmendments } from "@zamrabooking/db/schema";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { resolveFlightSuppliers } from "../routes/search.js";
 import { creditWallet, getOrCreateCustomerWallet, roundMoney } from "./customer-wallet.js";
@@ -288,13 +288,16 @@ export async function syncCancellation(c: Ctx, amendment: Amendment): Promise<Am
   return updated;
 }
 
-type RefundMethod = "WALLET" | "AGENT_WALLET" | "NOMOD" | "MANUAL";
+type RefundMethod = "WALLET" | "AGENT_WALLET" | "NOMOD" | "PHONEPE" | "MANUAL";
 
 // The refund goes back to how the booking was paid.
 export function originalRefundMethod(paid: { gateway: string; gatewayPaymentId?: string | null } | undefined, hasCustomer: boolean): RefundMethod {
   if (paid?.gateway === "WALLET" && paid.gatewayPaymentId?.startsWith("agentwallet_")) return "AGENT_WALLET";
   if (paid?.gateway === "WALLET" && hasCustomer) return "WALLET";
   if (paid?.gateway === "NOMOD" && paid.gatewayPaymentId) return "NOMOD";
+  // PhonePe refunds only go through Admin → PhonePe refunds (bounded, idempotent,
+  // provider-confirmed), never a wallet credit or an untracked manual refund.
+  if (String(paid?.gateway) === "PHONEPE") return "PHONEPE";
   return "MANUAL";
 }
 
@@ -302,6 +305,7 @@ export const REFUND_METHOD_LABEL: Record<RefundMethod, string> = {
   WALLET: "your ZamraBooking wallet (instant)",
   AGENT_WALLET: "your agency wallet (instant)",
   NOMOD:  "your original card / payment method (usually 5–10 working days)",
+  PHONEPE: "your original PhonePe payment method (our team will process it)",
   MANUAL: "your original payment method (our team will process it)",
 };
 
@@ -321,7 +325,11 @@ export async function settleRefund(
   const [booking] = await db.select({ userId: bookings.userId, agentId: bookings.agentId }).from(bookings).where(eq(bookings.id, amendment.bookingId)).limit(1);
   const [paid] = await db.select({ gateway: payments.gateway, gatewayPaymentId: payments.gatewayPaymentId, amount: payments.amount, currency: payments.currency })
     .from(payments).where(and(eq(payments.bookingId, amendment.bookingId), eq(payments.status, "SUCCESS"))).limit(1);
-  const method = originalRefundMethod(paid, Boolean(booking?.userId));
+  // A PhonePe payment may already be partly refunded (status PARTIAL_REFUND), so look
+  // for it directly; legacy gateways keep their original lookup.
+  const phonePePaid = env.PHONEPE_SCHEMA_READY === "true" && (await db.select({ id: payments.id }).from(payments)
+    .where(and(eq(payments.bookingId, amendment.bookingId), sql`${payments.gateway}::text = 'PHONEPE'`, inArray(payments.status, ["SUCCESS", "PARTIAL_REFUND", "REFUNDED"]))).limit(1)).length > 0;
+  const method = phonePePaid ? "PHONEPE" : originalRefundMethod(paid, Boolean(booking?.userId));
 
   const [claimed] = await db.update(bookingAmendments)
     .set({ refundStatus: "PROCESSING", refundMethod: method, refundError: null, updatedAt: new Date() })
@@ -336,7 +344,8 @@ export async function settleRefund(
   };
   const done = async (reference: string) => {
     const paidTotal = Number(claimed.amountPaid);
-    await db.update(payments)
+    // A PhonePe payment's refund totals come only from confirmed PhonePe refunds.
+    if (method !== "PHONEPE") await db.update(payments)
       .set({ status: amount >= paidTotal ? "REFUNDED" : "PARTIAL_REFUND", refundedAmount: amount.toFixed(2), refundGatewayRef: reference, refundCompletedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(payments.bookingId, claimed.bookingId), eq(payments.status, "SUCCESS")));
     await db.update(bookings).set({ status: "REFUNDED", updatedAt: new Date() }).where(eq(bookings.id, claimed.bookingId));
@@ -378,6 +387,9 @@ export async function settleRefund(
       ? finish({ refundStatus: "FAILED", refundError: `Nomod HTTP ${outcome.httpStatus}: ${outcome.error}` })
       : finish({ refundStatus: "MANUAL_REQUIRED", refundError: `No response from Nomod (${outcome.error}). Check the Nomod dashboard before retrying.` });
   }
+
+  if (method === "PHONEPE")
+    return finish({ refundStatus: "MANUAL_REQUIRED", refundError: "Paid with PhonePe: refund it in Admin → Settings → PhonePe refunds. It can be marked refunded only after PhonePe confirms the refund." });
 
   return finish({ refundStatus: "MANUAL_REQUIRED", refundError: `Paid via ${paid?.gateway ?? "unknown"}: refund manually to the original payment method.` });
 }

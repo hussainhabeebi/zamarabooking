@@ -1,0 +1,63 @@
+# PhonePe SANDBOX staging Worker. Separate from production: own name, own
+# workers.dev HTTPS URL, own KV/queues, no custom domain, no cron.
+# Deployed by Cloudflare Workers Builds (Dashboard) with:
+#   cd apps/api && npx wrangler deploy --config wrangler.staging.toml
+# KV ids below are the staging resources created on 29 Oct 2026 (never production ids).
+# PhonePe ledger = the Neon staging branch (DATABASE_URL) with
+# docs/migrations/phonepe-pg-v2-proposed.sql applied there. The D1 database
+# zamra-phonepe-staging belongs to the separate sandbox harness Worker only.
+#
+# DATABASE_URL secret must point at the schema-only Neon `phonepe-staging` branch
+# (role phonepe_staging), never at production. Never give this Worker
+# email/WhatsApp/supplier/Nomod/Razorpay credentials (RESEND_*, LEADVYNE_*, RIYA_*,
+# TRIPJACK_*, AKBAR_*, NOMOD_*, RAZORPAY_*): staging must not contact anyone, book
+# suppliers or take real payments.
+name = "zamra-api-staging"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "f098f93799dd7203d996a8cb1a982ce1"
+workers_dev = true
+# PHONEPE_RETURN_ORIGIN and the release gates are set in the Dashboard (Settings →
+# Variables and Secrets) so you decide when PhonePe turns on; keep them on deploy.
+keep_vars = true
+
+[[kv_namespaces]]
+binding = "SESSIONS_KV"
+id      = "7d5d7dae5fb94fd9bcdcc6f064a636f9"
+
+[[kv_namespaces]]
+binding = "TENANT_CACHE_KV"
+id      = "cb43850335334e279b7f00c0c7b59ff1"
+
+[[kv_namespaces]]
+binding = "FARE_CACHE_KV"
+id      = "d279e631964f4fe499c8b4cb0d842fa2"
+
+[[queues.producers]]
+binding = "BOOKING_QUEUE"
+queue   = "zamra-bookings-staging"
+
+[[queues.producers]]
+binding = "NOTIFY_QUEUE"
+queue   = "zamra-notifications-staging"
+
+[[queues.consumers]]
+queue             = "zamra-bookings-staging"
+max_batch_size    = 10
+max_batch_timeout = 5
+max_retries       = 3
+
+[[queues.consumers]]
+queue             = "zamra-notifications-staging"
+max_batch_size    = 50
+max_batch_timeout = 2
+
+[vars]
+ENVIRONMENT          = "staging"
+PLATFORM_TENANT_SLUG = "zamra"
+PHONEPE_ENVIRONMENT  = "sandbox"
+PHONEPE_TENANT_ID    = "5e7acd7c-d40f-4ac3-ae93-a23a27f56d9d"   # zamra tenant on phonepe-staging
+# Dashboard (Text): PHONEPE_RETURN_ORIGIN = https://zamra-web-staging.<subdomain>.workers.dev
+# Dashboard (Text), only when each check passes: PHONEPE_SCHEMA_READY,
+# PHONEPE_MERCHANT_ACTIVE, PHONEPE_RELEASE_APPROVED = "true"

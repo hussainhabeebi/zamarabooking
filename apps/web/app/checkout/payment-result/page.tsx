@@ -19,20 +19,25 @@ function NomodPaymentResult() {
   const bookingId = params.get("bookingId") ?? "";
   const token = params.get("token") ?? "";
   const result = params.get("result");
+  const phonePe = params.get("gateway") === "PHONEPE";
   const [status, setStatus] = useState<"checking" | "success" | "pending" | "failed">(
-    result === "failed" ? "failed" : "checking",
+    !phonePe && result === "failed" ? "failed" : "checking",
   );
   // After payment: the airline booking is made in the background; follow it to the PNR.
   const [booking, setBooking] = useState<{ status?: string; pnr?: string | null; hasAccount?: boolean } | null>(null);
 
   useEffect(() => {
-    if (!bookingId || !token || result === "failed") return;
+    if (!bookingId || !token || (!phonePe && result === "failed")) return;
     let attempts = 0;
     let timer: ReturnType<typeof setTimeout>;
 
     async function check() {
       attempts += 1;
       try {
+        if (phonePe && attempts % 4 === 1) {
+          await fetch(`${API}/api/payments/phonepe/reconcile`, { method: "POST",
+            headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", "X-Checkout-Token": token }, body: JSON.stringify({ bookingId }) });
+        }
         const res = await fetch(`${API}/api/payments/${encodeURIComponent(bookingId)}`, {
           headers: { "x-tenant-slug": "zamra", "X-Checkout-Token": token },
           cache: "no-store",
@@ -41,7 +46,7 @@ function NomodPaymentResult() {
         if (data.booking) setBooking(data.booking);
         // Paid: continue on the itinerary confirmation page, which waits for the
         // airline booking and downloads the itinerary.
-        if (data.payment?.status === "SUCCESS" && data.tripToken) {
+        if (data.payment?.status === "SUCCESS" && data.tripToken && !phonePe) {
           setStatus("success");
           saveGuestToken(data.tripToken);
           window.location.replace("/trips/itinerary");
@@ -65,11 +70,11 @@ function NomodPaymentResult() {
 
     check();
     return () => clearTimeout(timer);
-  }, [bookingId, token, result]);
+  }, [bookingId, token, result, phonePe]);
 
   const successful = status === "success";
   const failed = status === "failed";
-  const ticketed = ["CONFIRMED", "TICKETED"].includes(booking?.status ?? "");
+  const ticketed = phonePe ? booking?.status === "TICKETED" && Boolean(booking.pnr) : ["CONFIRMED", "TICKETED"].includes(booking?.status ?? "");
   const bookingFailed = successful && booking?.status === "PAYMENT_FAILED";
   const tripHref = booking?.hasAccount ? `/trips/${bookingId}` : "/trips/find";
 
@@ -88,10 +93,10 @@ function NomodPaymentResult() {
             : bookingFailed
               ? "The airline couldn't confirm this booking. Your payment is being refunded automatically (wallet payments return to your wallet)."
             : successful
-            ? "Your payment has been received. We're confirming your seat with the airline — this usually takes under a minute."
+            ? phonePe ? "Your payment has been received. Supplier booking confirmation is separate and remains pending. Contact our team for the booking status." : "Your payment has been received. We're confirming your seat with the airline — this usually takes under a minute."
             : failed
               ? "No charge was confirmed. You can return to checkout and try again."
-              : "Nomod has returned you to ZamraBooking. Keep this page open while we verify the payment securely."}
+              : phonePe ? "Keep this page open while we verify PhonePe payment status securely. Do not make another payment while the outcome is pending." : "Nomod has returned you to ZamraBooking. Keep this page open while we verify the payment securely."}
         </p>
         {ticketed || bookingFailed ? (
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>

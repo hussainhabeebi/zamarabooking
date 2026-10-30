@@ -1,3 +1,8 @@
+import { PhonePeError } from "./lib/phonepe/client.js";
+import { phonePeClient, phonePeReadiness } from "./lib/phonepe/config.js";
+import { PhonePeService } from "./lib/phonepe/service.js";
+import { claimLegacyGateway, PhonePeNeonStore } from "./lib/phonepe/store-neon.js";
+import type { PhonePeStore } from "./lib/phonepe/store.js";
 // CF Queue consumer — processes BOOKING_QUEUE and NOTIFY_QUEUE messages
 // Handles: INITIATE_PAYMENT, PAYMENT_CAPTURED, NOTIFY_BOOKING_CONFIRMATION
 
@@ -59,8 +64,21 @@ interface NotifyOtpMsg {
   tenantId: string;
 }
 
-type BookingQueueMsg   = InitiatePaymentMsg | PaymentCapturedMsg;
+export interface PhonePeReconcileMsg { type: "PHONEPE_RECONCILE"; tenantId: string; merchantOrderId: string; merchantRefundId?: string }
+type BookingQueueMsg = InitiatePaymentMsg | PaymentCapturedMsg | PhonePeReconcileMsg;
 type NotifyQueueMsg    = NotifyBookingMsg | NotifyOtpMsg;
+
+const PHONEPE_FINAL = ["DISABLED", "ORDER_NOT_FOUND", "REFUND_NOT_FOUND"];
+
+// Authenticated PhonePe status read queued by the webhook. Shared with the
+// D1 sandbox harness (which injects its D1 store); production uses Neon.
+export async function reconcilePhonePe(env: Env, data: PhonePeReconcileMsg, store?: PhonePeStore) {
+  const r = await phonePeReadiness(env, data.tenantId);
+  const client = await phonePeClient(env, data.tenantId, true); // Gates first.
+  const service = new PhonePeService(store ?? new PhonePeNeonStore(queueDb(env)), client, data.tenantId, r.environment);
+  if (data.merchantRefundId) await service.reconcileRefund(data.merchantRefundId);
+  else await service.reconcile(data.merchantOrderId);
+}
 
 // ── Booking Queue consumer ────────────────────────────────────────
 
@@ -85,7 +103,16 @@ export async function handleBookingQueue(
     try {
       const data = msg.body;
 
-      if (data.type === "INITIATE_PAYMENT") {
+      if (data.type === "PHONEPE_RECONCILE") {
+        try {
+          await reconcilePhonePe(env, data);
+        } catch (e) {
+          // Final outcomes: retrying cannot change them. Admin reconciliation and
+          // customer status polling remain available once PhonePe is enabled.
+          if (!(e instanceof PhonePeError && PHONEPE_FINAL.includes(e.code))) throw e;
+          console.warn(`[BookingQueue] PhonePe reconcile skipped (${e.code}) for ${data.merchantRefundId ?? data.merchantOrderId}`);
+        }
+      } else if (data.type === "INITIATE_PAYMENT") {
         await handleInitiatePayment(db, env, data);
       } else if (data.type === "PAYMENT_CAPTURED") {
         await recordQueueReceipt(env, data.orderId, msg.attempts);
@@ -125,6 +152,15 @@ async function handleInitiatePayment(
   if (booking.status !== "HELD") {
     console.warn(`Booking ${data.bookingId} is ${booking.status}, skipping payment initiation`);
     return;
+  }
+
+  if (env.PHONEPE_SCHEMA_READY === "true") {
+    const selected = data.method === "WALLET" && data.agentId ? "WALLET" : RAZORPAY_ENABLED && booking.currency === "INR" ? "RAZORPAY" : "NOMOD";
+    try { await claimLegacyGateway(env, db, data.tenantId, booking.id, selected); }
+    catch (e) {
+      if (e instanceof PhonePeError && ["CHECKOUT_GATEWAY_ALREADY_RESERVED", "PHONEPE_PAYMENT_EXISTS"].includes(e.code)) return;
+      throw e;
+    }
   }
 
   const total   = Number(booking.totalAmount);
@@ -409,7 +445,7 @@ async function handlePaymentCaptured(
 ): Promise<void> {
   // Find the booking from the payment record
   const [payment] = await db
-    .select({ bookingId: payments.bookingId })
+    .select({ bookingId: payments.bookingId, gateway: payments.gateway })
     .from(payments)
     .where(eq(payments.gatewayOrderId, data.orderId))
     .limit(1);
@@ -417,6 +453,7 @@ async function handlePaymentCaptured(
   if (!payment) {
     throw new Error(`Payment for order ${data.orderId} not found`);
   }
+  if (String(payment.gateway) === "PHONEPE") return; // PhonePe capture never authorizes supplier booking.
 
   const [booking] = await db
     .select()

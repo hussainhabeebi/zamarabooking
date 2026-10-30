@@ -1,0 +1,33 @@
+# D1-only PhonePe SANDBOX harness. Separate Worker; never production.
+# Synthetic bookings in the staging D1 database; no Neon, supplier, email,
+# Nomod/Razorpay or production bindings; workers.dev only; no cron or queues.
+# The Worker refuses to run unless ENVIRONMENT/PHONEPE_ENVIRONMENT below are set
+# and the tenant is a synthetic "phonepe-sandbox…" tenant (src/sandbox-harness.ts).
+name = "zamra-phonepe-sandbox"
+main = "src/sandbox-harness.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "f098f93799dd7203d996a8cb1a982ce1"
+workers_dev = true
+# Release gates and PHONEPE_RETURN_ORIGIN are set in the Dashboard (Settings →
+# Variables and Secrets) so you control when PhonePe is enabled; keep them on deploy.
+keep_vars = true
+
+[[kv_namespaces]]
+binding = "TENANT_CACHE_KV"
+id      = "cb43850335334e279b7f00c0c7b59ff1"   # zamra-staging-tenant-cache
+
+[[d1_databases]]
+binding       = "PHONEPE_DB"
+database_name = "zamra-phonepe-staging"
+database_id   = "271aeba6-ace1-4102-aba2-dbcf0ec0a766"
+
+[vars]
+ENVIRONMENT         = "phonepe-sandbox-harness"
+PHONEPE_ENVIRONMENT = "sandbox"
+PHONEPE_TENANT_ID   = "phonepe-sandbox-tenant"
+
+# Secrets (Dashboard → Settings → Variables and Secrets → type "Secret"):
+# HARNESS_TOKEN (32+ random characters), PHONEPE_CLIENT_ID, PHONEPE_CLIENT_SECRET,
+# PHONEPE_CLIENT_VERSION, PHONEPE_MERCHANT_ID, PHONEPE_WEBHOOK_USERNAME,
+# PHONEPE_WEBHOOK_PASSWORD (all sandbox values).

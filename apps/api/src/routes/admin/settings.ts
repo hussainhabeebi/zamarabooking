@@ -1,3 +1,4 @@
+import { phonePeAdminRoutes } from "./phonepe.js";
 // GET  /api/admin/settings/payments   — get payment gateway config
 // PUT  /api/admin/settings/payments   — save payment gateway config (Razorpay + NoMod)
 // GET  /api/admin/settings/whatsapp   — get Leadvyne / WhatsApp config
@@ -23,6 +24,7 @@ import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { FOREIGN_CURRENCIES, getFx, getFxSettings, readAutoRates, refreshAutoRates, saveFxSettings, type FxSettings } from "../../lib/fx.js";
 
 export const settingsAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+settingsAdminRoutes.route("/phonepe", phonePeAdminRoutes);
 
 const SETTINGS_TTL = 60 * 60 * 24 * 365;  // 1 year
 

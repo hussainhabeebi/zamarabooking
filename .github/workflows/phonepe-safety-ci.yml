@@ -1,0 +1,169 @@
+name: PhonePe PG V2 isolated release checks
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "apps/admin/**"
+      - "apps/web/app/checkout/**"
+      - "packages/db/**"
+      - "scripts/phonepe-test-network.mjs"
+      - "scripts/phonepe-sandbox-acceptance.mjs"
+      - "docs/phonepe-*.md"
+      - "tests/phonepe/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/phonepe-safety-ci.yml"
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+      API_BASE_URL: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: TypeScript
+        run: |
+          node node_modules/typescript/bin/tsc --noEmit -p apps/api/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p apps/admin/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p apps/web/tsconfig.json
+          node node_modules/typescript/bin/tsc --noEmit -p packages/db/tsconfig.json
+      - name: Mock payment and supplier regression tests
+        run: |
+          node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/fx.test.ts apps/api/test/tripjack-reviewed-total.test.ts apps/api/test/phonepe-sandbox-script.test.ts apps/api/test/phonepe-refund-guards.test.ts apps/api/test/phonepe-webhook.test.ts apps/api/test/phonepe-connection-test.test.ts
+          node --import ./scripts/phonepe-test-network.mjs --test packages/suppliers/test/*.test.cjs
+      - name: Admin validation build (never deployed)
+        run: node apps/admin/node_modules/next/dist/bin/next build apps/admin
+
+  postgres:
+    name: Neon ledger store on disposable PostgreSQL 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: phonepe_test
+          POSTGRES_USER: phonepe_test
+          POSTGRES_PASSWORD: disposable-ci-fixture
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U phonepe_test -d phonepe_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PHONEPE_TEST_DATABASE_URL: postgresql://phonepe_test:disposable-ci-fixture@127.0.0.1:5432/phonepe_test
+      PHONEPE_TEST_DISPOSABLE: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.12.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Test production store SQL on isolated fixture tables (no migrations)
+        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-postgres.test.ts
+      - name: Same store tests through the production drizzle-orm/neon-http client (in-process shim)
+        env:
+          NODE_ENV: production
+          PHONEPE_TEST_DRIVER: neon-http
+        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-postgres.test.ts
+      - name: Proposed DDL applies additively on top of the committed migration chain (disposable database)
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: phonepe_test
+          PGPASSWORD: disposable-ci-fixture
+        run: |
+          set -euo pipefail
+          psql -d phonepe_test -v ON_ERROR_STOP=1 -c "CREATE DATABASE phonepe_chain"
+          for f in packages/db/drizzle/migrations/*.sql; do
+            psql -d phonepe_chain -v ON_ERROR_STOP=1 -q -1 -f "$f"
+          done
+          pg_dump -d phonepe_chain -s | grep -v '^\\\(un\)\?restrict' > before.sql
+          psql -d phonepe_chain -v ON_ERROR_STOP=1 -q -1 -f docs/migrations/phonepe-pg-v2-proposed.sql
+          pg_dump -d phonepe_chain -s | grep -v '^\\\(un\)\?restrict' > after.sql
+          # Only additions are allowed; the sole changed line is the extended enum list.
+          removed=$(diff before.sql after.sql | grep '^<' || true)
+          test "$removed" = "<     'MANUAL'" || { echo "Unexpected change to existing objects:"; echo "$removed"; exit 1; }
+          psql -d phonepe_chain -tAc "SELECT 'PHONEPE' = ANY(enum_range(NULL::payment_gateway)::text[])" | grep -qx t
+          # A second run must fail and roll back without partial changes.
+          if psql -d phonepe_chain -v ON_ERROR_STOP=1 -q -1 -f docs/migrations/phonepe-pg-v2-proposed.sql; then exit 1; fi
+          pg_dump -d phonepe_chain -s | grep -v '^\\\(un\)\?restrict' | diff -q after.sql -
+      - name: Neon staging scripts match the reviewed proposal and refuse a branch with data
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: phonepe_test
+          PGPASSWORD: disposable-ci-fixture
+        run: |
+          set -euo pipefail
+          grep -v '^\s*--' docs/migrations/phonepe-pg-v2-proposed.sql | sed '/^\s*$/d' > proposed.sql
+          sed -n '/^-- BEGIN proposed migration$/,/^-- END proposed migration$/p' docs/migrations/phonepe-staging-2-apply.sql | grep -v '^\s*--' | sed '/^\s*$/d' > staged.sql
+          diff proposed.sql staged.sql
+          psql -d phonepe_test -v ON_ERROR_STOP=1 -c "CREATE DATABASE phonepe_seeded"
+          for f in packages/db/drizzle/migrations/*.sql; do psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -1 -f "$f"; done
+          for f in docs/migrations/phonepe-staging-2-apply.sql docs/migrations/phonepe-staging-4-grants-if-needed.sql docs/migrations/phonepe-staging-5-seed-sandbox.sql; do
+            if psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -f "$f" 2> err.txt; then echo "$f ran on a seeded database"; exit 1; fi
+            grep -q "Refusing: this branch contains" err.txt
+          done
+          test "$(psql -d phonepe_seeded -tAc "SELECT to_regclass('phonepe_orders') IS NULL AND NOT ('PHONEPE' = ANY(enum_range(NULL::payment_gateway)::text[]))")" = t
+          psql -d phonepe_test -v ON_ERROR_STOP=1 -c "CREATE ROLE phonepe_staging LOGIN"
+          psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -f docs/migrations/phonepe-staging-1-preflight.sql > /dev/null
+          psql -d phonepe_seeded -v ON_ERROR_STOP=1 -q -f docs/migrations/phonepe-staging-3-verify.sql > /dev/null 2>&1 && exit 1 || true  # tables absent: verify must fail here
+  d1:
+    name: D1 sandbox harness and store on local workerd D1
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.12.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: No automatic Neon migration is added (the PhonePe DDL needs separate approval)
+        run: git diff --exit-code "origin/${{ github.base_ref }}" -- packages/db/drizzle
+      - name: PhonePe store, D1-only sandbox harness and Workers-runtime fetch against local workerd (no account, no network)
+        run: node --import ./scripts/phonepe-test-network.mjs --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/phonepe-d1.test.ts apps/api/test/phonepe-sandbox-harness.test.ts apps/api/test/phonepe-workerd-fetch.test.ts
+  rendered-admin:
+    name: Rendered Admin QA with local mocked APIs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+      API_BASE_URL: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.12.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: node apps/admin/node_modules/next/dist/bin/next build apps/admin
+      - name: Render mock-only Admin and test controls at five widths
+        run: pnpm exec playwright test --config tests/phonepe/playwright.config.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phonepe-admin-local-fixture-qa
+          path: |
+            test-results/
+            phonepe-qa-report/
+          retention-days: 7

@@ -1,4 +1,4 @@
-import type { KVNamespace, R2Bucket, Queue, Hyperdrive, DurableObjectNamespace } from "@cloudflare/workers-types";
+import type { KVNamespace, R2Bucket, Queue, Hyperdrive, DurableObjectNamespace, D1Database } from "@cloudflare/workers-types";
 import type { Db } from "@zamrabooking/db";
 
 export interface Env {
@@ -38,6 +38,21 @@ export interface Env {
   RAZORPAY_KEY_ID:        string;
   RAZORPAY_KEY_SECRET:    string;
   RAZORPAY_WEBHOOK_SECRET: string;
+  /** D1 used only by the PhonePe sandbox harness (src/sandbox-harness.ts); production ledger is Neon. */
+  PHONEPE_DB?: D1Database;
+  PHONEPE_CLIENT_ID?: string;
+  PHONEPE_CLIENT_SECRET?: string;
+  PHONEPE_CLIENT_VERSION?: string;
+  PHONEPE_MERCHANT_ID?: string;
+  PHONEPE_RETURN_ORIGIN?: string;
+  PHONEPE_WEBHOOK_USERNAME?: string;
+  PHONEPE_WEBHOOK_PASSWORD?: string;
+  PHONEPE_TENANT_ID?: string;
+  PHONEPE_ENVIRONMENT?: "sandbox" | "production";
+  PHONEPE_RELEASE_APPROVED?: string;
+  PHONEPE_SCHEMA_READY?: string;
+  PHONEPE_MERCHANT_ACTIVE?: string;
+  PHONEPE_PRODUCTION_APPROVED?: string;
   NOMOD_API_KEY:          string;
   NOMOD_API_SECRET:       string;
   NOMOD_WEBHOOK_SECRET:   string;

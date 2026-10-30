@@ -1,3 +1,4 @@
+import { phonePeRoutes } from "./routes/phonepe.js";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -49,7 +50,10 @@ app.use("*", logger());
 app.use("*", secureHeaders());
 app.use("*", cors({origin:(origin)=>origin,credentials:true,allowMethods:["GET","POST","PUT","PATCH","DELETE","OPTIONS"],allowHeaders:["Content-Type","Authorization","X-Tenant-ID","X-API-Key","x-tenant-slug","X-Session-ID","X-Channel","X-ZAMRA-INTEGRATION-KEY","X-Checkout-Token","X-Trip-Token","X-FP-Agent"],exposeHeaders:["Content-Disposition"]}));
 app.get("/health",(c)=>c.json({status:"ok",env:c.env.ENVIRONMENT,worker:"zamra-api",timestamp:new Date().toISOString()}));
-app.use("*", resolveTenant);
+// The PhonePe webhook must answer within PhonePe's short timeout (including its
+// registration check), so it skips the tenant database lookup and uses the
+// configured PHONEPE_TENANT_ID. It authenticates every request itself.
+app.use("*", (c, next) => (c.req.method === "POST" && c.req.path === "/webhooks/phonepe" ? next() : resolveTenant(c, next)));
 app.use("/api/*", rateLimitMiddleware);
 
 // ── Public routes (no auth) ────────────────────────────────────
@@ -99,6 +103,7 @@ app.use("/api/whatsapp/*", authMiddleware);
 
 app.route("/api/session",  sessionRoutes);
 app.route("/api/bookings", bookingRoutes);
+app.route("/api/payments/phonepe", phonePeRoutes);
 app.route("/api/payments", paymentRoutes);
 app.route("/api/eticket",  eticketRoutes);
 app.route("/api/agents",   agentRoutes);
@@ -134,9 +139,10 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch.bind(app),
   async queue(batch: MessageBatch, env: Env): Promise<void> {
-    if (batch.queue === "zamra-bookings") {
+    // Isolated staging Workers consume the "-staging" queues (wrangler.staging.toml).
+    if (batch.queue === "zamra-bookings" || batch.queue === "zamra-bookings-staging") {
       await handleBookingQueue(batch as MessageBatch<never>, env);
-    } else if (batch.queue === "zamra-notifications") {
+    } else if (batch.queue === "zamra-notifications" || batch.queue === "zamra-notifications-staging") {
       await handleNotifyQueue(batch as MessageBatch<never>, env);
     }
   },

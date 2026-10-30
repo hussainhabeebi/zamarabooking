@@ -123,7 +123,12 @@ export default function BookingDetailPage() {
       </div>
 
       {error && <div style={errBox}>{error}</div>}
-      {b.status === "PAYMENT_PENDING" && (
+      {b.status === "PAYMENT_PENDING" && data.phonePePaid && (
+        <div style={errBox}>
+          Paid with PhonePe (see Payments &amp; refunds). Supplier booking is not automatic for PhonePe payments — confirm it with the supplier separately.
+        </div>
+      )}
+      {b.status === "PAYMENT_PENDING" && !data.phonePePaid && (
         <div style={{ ...errBox, display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
           <span>
             {data.paymentConfirmed
