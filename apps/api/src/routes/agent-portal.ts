@@ -27,6 +27,7 @@ import {
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import type { Db } from "@zamrabooking/db";
 import type { Env, Variables } from "../types.js";
+import { nomodEnabled } from "../lib/payment-gateway.js";
 import { pbkdf2HashPassword } from "./auth.js";
 import {
   agentPricing, agentTier, agentWallet, assertAgentCanBook, AgentBlocked, audit, creditStatus, debitAgentWallet,
@@ -593,7 +594,7 @@ agentPortalRoutes.post("/wallet/topup", zValidator("json", z.object({ amount: z.
   if (!wallet) return c.json({ error: "Wallet not found" }, 404);
   const settings = await c.env.TENANT_CACHE_KV.get(`admin_settings:${tenantId}:payments`, "json").catch(() => null) as { nomod?: { enabled?: boolean; apiKey?: string } } | null;
   const apiKey = settings?.nomod?.apiKey || c.env.NOMOD_API_KEY;
-  if (!settings?.nomod?.enabled || !apiKey) return c.json({ error: "Online top-up isn't available right now. Use bank transfer and submit the receipt." }, 503);
+  if (!nomodEnabled(settings) || !apiKey) return c.json({ error: "Online top-up isn't available right now. Use bank transfer and submit the receipt." }, 503);
   const { amount } = c.req.valid("json");
   const res = await fetch("https://api.nomod.com/v1/links", {
     method: "POST",
@@ -754,7 +755,7 @@ agentPortalRoutes.get("/wallet/bank-accounts", async (c) => {
   const settings = await c.env.TENANT_CACHE_KV.get(`admin_settings:${tenantId}:payments`, "json").catch(() => null) as { nomod?: { enabled?: boolean } } | null;
   return c.json({
     walletCurrency: wallet?.currency ?? null,
-    onlineTopup: Boolean(settings?.nomod?.enabled),
+    onlineTopup: nomodEnabled(settings),
     accounts: visibleAccounts(await getBankAccounts(c.env, tenantId), wallet?.currency ?? ""),
   });
 });

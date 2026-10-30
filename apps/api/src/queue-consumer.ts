@@ -16,6 +16,7 @@ import { resolveFlightSuppliers } from "./routes/search.js";
 import {
   acquireBookingLock, errorDetail, explainMissingPnr, isTestBooking, logBookingEvent, recordBookingError, recordQueueReceipt, releaseBookingLock,
 } from "./lib/booking-recovery.js";
+import { getPhonePeToken, phonePeConfigForTenant, refundPhonePeOrder } from "./lib/phonepe.js";
 import { createRazorpayOrder, createNomodCheckout, createRefundRazorpay, RAZORPAY_ENABLED, refundNomodCharge, resolveNomodApiKey } from "./lib/payment-gateway.js";
 import { creditBookingBonus, creditWallet } from "./lib/customer-wallet.js";
 import { rewardReferral } from "./lib/referral.js";
@@ -337,9 +338,10 @@ async function triggerAutoRefund(
   }
 
   const [payment] = await db
-    .select({ gateway: payments.gateway, gatewayOrderId: payments.gatewayOrderId, amount: payments.amount, currency: payments.currency })
+    .select({ id: payments.id, gateway: payments.gateway, gatewayOrderId: payments.gatewayOrderId, amount: payments.amount, currency: payments.currency })
     .from(payments)
-    .where(eq(payments.bookingId, bookingId))
+    // The captured attempt (a booking can also have failed / abandoned attempts).
+    .where(and(eq(payments.bookingId, bookingId), eq(payments.status, "SUCCESS")))
     .limit(1);
 
   if (!payment) {
@@ -386,6 +388,30 @@ async function triggerAutoRefund(
         updatedAt:        new Date(),
       }).where(eq(payments.bookingId, bookingId));
       console.info(`[autoRefund] Nomod refund ${outcome.refundId} issued for booking ${bookingId}`);
+    } else if (payment.gateway === "PHONEPE" && payment.gatewayOrderId) {
+      const [bk] = await db.select({ tenantId: bookings.tenantId }).from(bookings).where(eq(bookings.id, bookingId)).limit(1);
+      const { config } = bk ? await phonePeConfigForTenant(env, bk.tenantId) : { config: null };
+      if (!config) {
+        console.error("[autoRefund] PhonePe credentials not configured; refund manually from the PhonePe dashboard");
+        return;
+      }
+      const chargeAmount = Number(payment.amount);
+      const token = await getPhonePeToken(config, env.TENANT_CACHE_KV);
+      // Stable refund id: a retried queue message asks PhonePe for the same refund, not a second one.
+      const merchantRefundId = `RF${payment.gatewayOrderId}`.slice(0, 63);
+      const outcome = await refundPhonePeOrder(config, token, { merchantRefundId, merchantOrderId: payment.gatewayOrderId, amountInr: chargeAmount });
+      if (!outcome.ok) {
+        console.error(`[autoRefund] PhonePe refund for booking ${bookingId} not confirmed: ${outcome.error}`);
+        return;
+      }
+      await db.update(payments).set({
+        status:           "REFUNDED",
+        refundedAmount:   chargeAmount.toFixed(2),
+        refundGatewayRef: `phonepe:${outcome.refundId}`,
+        refundCompletedAt: new Date(),
+        updatedAt:        new Date(),
+      }).where(eq(payments.id, payment.id));
+      console.info(`[autoRefund] PhonePe refund ${outcome.refundId} (${outcome.state}) issued for booking ${bookingId}`);
     }
   } catch (refundErr) {
     // Refund failure must never swallow the original booking failure — log and continue

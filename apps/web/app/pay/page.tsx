@@ -17,6 +17,15 @@ export default function PayHeldFarePage() {
   const [held, setHeld] = useState<Held | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [phonePe, setPhonePe] = useState(false);
+  const [nomod, setNomod] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API}/api/payments/config`, { headers: { "x-tenant-slug": "zamra" } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.gateways) { setPhonePe(Boolean(d.gateways.PHONEPE)); setNomod(Boolean(d.gateways.NOMOD)); } })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -29,14 +38,14 @@ export default function PayHeldFarePage() {
       .catch((e) => setError(e.message));
   }, []);
 
-  async function pay() {
+  async function pay(gateway: "NOMOD" | "PHONEPE") {
     if (!ids) return;
     setBusy(true); setError("");
     try {
       const res = await fetch(`${API}/api/payments/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", "X-Checkout-Token": ids.t },
-        body: JSON.stringify({ bookingId: ids.b, gateway: "NOMOD" }),
+        body: JSON.stringify({ bookingId: ids.b, gateway }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.paymentUrl) throw new Error(d.error ?? "The payment page couldn't open. You have not been charged.");
@@ -71,10 +80,16 @@ export default function PayHeldFarePage() {
         </section>
       )}
       {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
-      {payable && (
-        <button type="button" onClick={pay} disabled={busy}
+      {payable && phonePe && held.currency === "INR" && (
+        <button type="button" onClick={() => pay("PHONEPE")} disabled={busy}
+          style={{ width: "100%", height: 52, border: 0, borderRadius: 14, background: "#5f259f", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? .7 : 1, marginBottom: 10 }}>
+          {busy ? "Opening payment…" : "Pay with PhonePe (UPI, cards, net banking)"}
+        </button>
+      )}
+      {payable && (nomod || !(phonePe && held.currency === "INR")) && (
+        <button type="button" onClick={() => pay("NOMOD")} disabled={busy}
           style={{ width: "100%", height: 52, border: 0, borderRadius: 14, background: "#0D4B96", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? .7 : 1 }}>
-          {busy ? "Opening payment…" : "Pay now"}
+          {busy ? "Opening payment…" : phonePe && held.currency === "INR" ? "Pay by card" : "Pay now"}
         </button>
       )}
       <p style={{ marginTop: 18 }}><a href="/" style={{ color: "#0D4B96", fontWeight: 700, textDecoration: "none" }}>← Search flights</a></p>

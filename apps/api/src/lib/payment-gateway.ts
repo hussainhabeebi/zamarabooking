@@ -4,6 +4,11 @@
 // on payments taken before the switch; flip this to re-enable it for checkout.
 export const RAZORPAY_ENABLED = false;
 
+// Nomod is on by default; only an explicit "off" saved in Admin → Settings disables it.
+export function nomodEnabled(settings: { nomod?: { enabled?: boolean } } | null | undefined): boolean {
+  return settings?.nomod?.enabled !== false;
+}
+
 export interface GatewayOrderResult {
   gateway:     "RAZORPAY" | "NOMOD";
   orderId:     string;

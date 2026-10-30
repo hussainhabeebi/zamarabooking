@@ -9,11 +9,13 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { bookings, payments } from "@zamrabooking/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { issueTripToken } from "./trips.js";
-import { RAZORPAY_ENABLED } from "../lib/payment-gateway.js";
+import { RAZORPAY_ENABLED, nomodEnabled } from "../lib/payment-gateway.js";
 import { convertAmount, getAedRate } from "../lib/fx.js";
+import { createPhonePeOrder, getPhonePeToken, phonePeEnabled, phonePeMerchantOrderId, resolvePhonePeConfig } from "../lib/phonepe.js";
+import { settlePhonePePayment } from "../lib/phonepe-settle.js";
 
 export const paymentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -44,13 +46,16 @@ paymentRoutes.get("/config", async (c) => {
   const tenantId = c.get("tenantId");
   const settings = await getTenantPaymentSettings(c.env, tenantId);
   const razorpayConfigured = RAZORPAY_ENABLED && Boolean(settings?.razorpay?.enabled && (settings.razorpay.keyId || c.env.RAZORPAY_KEY_ID));
-  const nomodConfigured = Boolean(settings?.nomod?.enabled && (settings.nomod.apiKey || c.env.NOMOD_API_KEY));
-  const preferred = settings?.defaultGateway === "NOMOD" && nomodConfigured
-    ? "NOMOD"
-    : razorpayConfigured ? "RAZORPAY" : nomodConfigured ? "NOMOD" : null;
+  const nomodConfigured = nomodEnabled(settings) && Boolean(settings?.nomod?.apiKey || c.env.NOMOD_API_KEY);
+  const phonePeConfigured = phonePeEnabled(settings) && Boolean(resolvePhonePeConfig(c.env, settings));
+  const configured = { RAZORPAY: razorpayConfigured, NOMOD: nomodConfigured, PHONEPE: phonePeConfigured } as const;
+  const wanted = settings?.defaultGateway as keyof typeof configured | undefined;
+  const preferred = wanted && configured[wanted]
+    ? wanted
+    : nomodConfigured ? "NOMOD" : phonePeConfigured ? "PHONEPE" : razorpayConfigured ? "RAZORPAY" : null;
   const aedRate = await getAedRate(c.env, tenantId, c.executionCtx);
   return c.json({
-    defaultGateway: preferred, gateways: { RAZORPAY: razorpayConfigured, NOMOD: nomodConfigured },
+    defaultGateway: preferred, gateways: configured,
     // Card payments can be made in INR, or in AED at the admin-set rate (INR per 1 AED).
     currencies: { INR: true, AED: Boolean(nomodConfigured && aedRate) }, aedRate,
   });
@@ -60,7 +65,7 @@ paymentRoutes.get("/config", async (c) => {
 
 const checkoutSchema = z.object({
   bookingId: z.string(),
-  gateway:   z.enum(["RAZORPAY", "NOMOD"]).default("NOMOD"),
+  gateway:   z.enum(["RAZORPAY", "NOMOD", "PHONEPE"]).default("NOMOD"),
   currency:  z.enum(["INR", "AED", "USD"]).optional(),
 });
 
@@ -114,7 +119,7 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
     throw new HTTPException(400, { message: "Razorpay is disabled; pay with Nomod" });
   }
 
-  if (gateway === "RAZORPAY" && cur !== booking.currency) {
+  if ((gateway === "RAZORPAY" || gateway === "PHONEPE") && cur !== booking.currency) {
     throw new HTTPException(400, { message: "Currency conversion is only available for Nomod payments" });
   }
 
@@ -162,8 +167,12 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
 
   if (gateway === "NOMOD") {
     const { apiKey } = resolvePaymentKeys(c.env, settings, "NOMOD") as { apiKey: string };
-    if (!settings?.nomod?.enabled || !apiKey) {
-      throw new HTTPException(503, { message: "Nomod is not enabled or its API key is missing" });
+    if (!nomodEnabled(settings)) {
+      throw new HTTPException(503, { message: "Nomod is switched off in Admin → Settings → Payments" });
+    }
+    if (!apiKey) {
+      console.error("[payments] Nomod API key missing: set it in Admin → Settings → Payments or the NOMOD_API_KEY secret");
+      throw new HTTPException(503, { message: "Nomod API key is missing" });
     }
 
     const checkoutToken = c.req.header("X-Checkout-Token") ?? "";
@@ -184,8 +193,8 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
         note: `Payment for booking ${bookingId}`,
         shipping_address_required: false,
         allow_tip: false,
-        allow_tabby: settings.nomod.allowTabby ?? true,
-        allow_tamara: settings.nomod.allowTamara ?? true,
+        allow_tabby: settings?.nomod?.allowTabby ?? true,
+        allow_tamara: settings?.nomod?.allowTamara ?? true,
         allow_service_fee: false,
         payment_expiry_limit: 1,
         success_url: `${resultUrl}&result=success`,
@@ -213,6 +222,54 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
     });
 
     return c.json({ paymentUrl: link.url, orderId: link.id, amount: Number(link.amount ?? amount), currency: link.currency ?? cur, ...(fx ? { fx } : {}) });
+  }
+
+  if (gateway === "PHONEPE") {
+    if (!phonePeEnabled(settings)) {
+      throw new HTTPException(503, { message: "PhonePe is switched off in Admin → Settings → Payments" });
+    }
+    const config = resolvePhonePeConfig(c.env, settings);
+    if (!config) {
+      console.error("[payments] PhonePe credentials missing: set them in Admin → Settings → Payments or the PHONEPE_CLIENT_ID / PHONEPE_CLIENT_SECRET secrets");
+      throw new HTTPException(503, { message: "PhonePe credentials are missing" });
+    }
+    if (cur !== "INR") throw new HTTPException(400, { message: "PhonePe accepts INR only. Please pay in INR." });
+
+    // A pending PhonePe order for the same amount is reused until shortly before it expires.
+    const existing = await db.select().from(payments).where(and(eq(payments.bookingId, bookingId), eq(payments.gateway, "PHONEPE"), eq(payments.status, "PENDING")));
+    const reusable = existing.find((p) => {
+      const r = p.gatewayResponse as { redirectUrl?: string; expireAt?: number } | null;
+      return Number(p.amount) === amountFull && typeof r?.redirectUrl === "string" && (r.expireAt ?? 0) - 60_000 > Date.now();
+    });
+    if (reusable) {
+      return c.json({ paymentUrl: (reusable.gatewayResponse as any).redirectUrl, orderId: reusable.gatewayOrderId, amount: amountFull, currency: cur });
+    }
+
+    const checkoutToken = c.req.header("X-Checkout-Token") ?? "";
+    const redirectUrl = `https://zamrabooking.com/checkout/payment-result?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}&gateway=phonepe`;
+    const merchantOrderId = phonePeMerchantOrderId(bookingId);
+    await freezeBookingPrice(db, tenantId, booking);
+    let order: { orderId: string; redirectUrl: string; expireAt?: number };
+    try {
+      const token = await getPhonePeToken(config, c.env.TENANT_CACHE_KV);
+      order = await createPhonePeOrder(config, token, { merchantOrderId, amountInr: amountFull, redirectUrl, expireAfterSeconds: 20 * 60, bookingId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[payments] PhonePe order failed for booking ${bookingId}: ${message}`);
+      throw new HTTPException(502, { message: `PhonePe order failed: ${message}` });
+    }
+
+    await db.insert(payments).values({
+      bookingId,
+      gateway: "PHONEPE",
+      gatewayOrderId: merchantOrderId,
+      amount: String(amountFull),
+      currency: "INR",
+      status: "PENDING",
+      gatewayResponse: { phonePeOrderId: order.orderId, redirectUrl: order.redirectUrl, expireAt: order.expireAt ?? Date.now() + 20 * 60_000 },
+    });
+
+    return c.json({ paymentUrl: order.redirectUrl, orderId: merchantOrderId, amount: amountFull, currency: "INR" });
   }
 
   throw new HTTPException(400, { message: "Unsupported gateway" });
@@ -318,7 +375,9 @@ paymentRoutes.get("/:bookingId", async (c) => {
 
   if (!booking) throw new HTTPException(404, { message: "Booking not found" });
 
-  const [payment] = await db
+  // A booking can have several attempts (e.g. a failed Nomod try, then PhonePe):
+  // report the paid one if any, else the latest attempt.
+  const attempts = await db
     .select({
       id:               payments.id,
       gateway:          payments.gateway,
@@ -331,7 +390,18 @@ paymentRoutes.get("/:bookingId", async (c) => {
     })
     .from(payments)
     .where(eq(payments.bookingId, bookingId))
-    .limit(1);
+    .orderBy(desc(payments.createdAt));
+  let payment = attempts.find((p) => ["SUCCESS", "REFUNDED", "PARTIAL_REFUND"].includes(p.status)) ?? attempts[0];
+
+  // PhonePe's redirect carries no result: ask PhonePe while the attempt is pending.
+  if (payment?.gateway === "PHONEPE" && payment.status === "PENDING") {
+    try {
+      const outcome = await settlePhonePePayment(c.env, db, tenantId, { ...payment, bookingId });
+      if (outcome === "SUCCESS" || outcome === "FAILED") payment = { ...payment, status: outcome };
+    } catch (err) {
+      console.error(`[payments] PhonePe status check failed for booking ${bookingId}:`, err);
+    }
+  }
 
   // Once paid, hand the browser a read-only trip token so it can move on to the
   // itinerary confirmation page (the checkout token expires after 20 minutes).

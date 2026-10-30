@@ -17,6 +17,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { Env, Variables } from "../../types.js";
 import { RAZORPAY_ENABLED } from "../../lib/payment-gateway.js";
+import { getPhonePeToken, phonePeEnabled, resolvePhonePeConfig } from "../../lib/phonepe.js";
 import { DEFAULT_EMAIL_SETTINGS, emailLayout, getEmailSettings, resendKey, saveEmailSettings, sendMail } from "../../lib/email.js";
 import { emailLogs } from "@zamrabooking/db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
@@ -61,8 +62,19 @@ const paymentsSchema = z.object({
     // INR per 1 AED, used to charge AED to customers who choose AED. Empty/null = AED payment off.
     aedRate:       z.number().positive().max(1000).nullable().optional(),
   }).optional(),
-  defaultGateway: z.enum(["RAZORPAY", "NOMOD"]).default("NOMOD"),
+  phonepe: z.object({
+    enabled:         z.boolean(),
+    clientId:        z.string().optional(),
+    clientSecret:    z.string().optional(),
+    clientVersion:   z.string().optional(),
+    environment:     z.enum(["sandbox", "production"]).default("production"),
+    webhookUsername: z.string().optional(),
+    webhookPassword: z.string().optional(),
+  }).optional(),
+  defaultGateway: z.enum(["RAZORPAY", "NOMOD", "PHONEPE"]).default("NOMOD"),
 });
+
+const PHONEPE_DEFAULTS = { enabled: true, clientId: "", clientSecret: "", clientVersion: "1", environment: "production", webhookUsername: "", webhookPassword: "" };
 
 settingsAdminRoutes.get("/payments", async (c) => {
   const tenantId = c.get("tenantId");
@@ -70,7 +82,8 @@ settingsAdminRoutes.get("/payments", async (c) => {
   if (!saved) {
     return c.json({
       razorpay: { enabled: false, keyId: "", keySecret: "", webhookSecret: "", configured: false },
-      nomod: { enabled: false, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production", allowTabby: true, allowTamara: true, configured: false },
+      nomod: { enabled: true, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production", allowTabby: true, allowTamara: true, configured: false },
+      phonepe: { ...PHONEPE_DEFAULTS, configured: Boolean(resolvePhonePeConfig(c.env, null)), secretsFromWorker: Boolean(c.env.PHONEPE_CLIENT_ID) },
       defaultGateway: "NOMOD",
     });
   }
@@ -86,12 +99,22 @@ settingsAdminRoutes.get("/payments", async (c) => {
     },
     nomod: {
       ...saved.nomod,
+      enabled: saved.nomod?.enabled !== false,
       apiKey: "",
       apiSecret: "",
       webhookSecret: "",
       allowTabby: saved.nomod?.allowTabby ?? true,
       allowTamara: saved.nomod?.allowTamara ?? true,
       configured: Boolean(saved.nomod?.apiKey),
+    },
+    phonepe: {
+      ...PHONEPE_DEFAULTS,
+      ...saved.phonepe,
+      enabled: phonePeEnabled(saved),
+      clientSecret: "",
+      webhookPassword: "",
+      configured: Boolean(resolvePhonePeConfig(c.env, saved)),
+      secretsFromWorker: Boolean(c.env.PHONEPE_CLIENT_ID),
     },
   });
 });
@@ -123,10 +146,20 @@ settingsAdminRoutes.put("/payments", zValidator("json", paymentsSchema), async (
       allowTamara:   body.nomod.allowTamara,
       aedRate:       body.nomod.aedRate === undefined ? (existing as any)?.nomod?.aedRate ?? null : body.nomod.aedRate,
     } : (existing as any)?.nomod,
+    phonepe: body.phonepe ? {
+      ...(existing as any)?.phonepe,
+      enabled:         body.phonepe.enabled,
+      clientId:        body.phonepe.clientId        || (existing as any)?.phonepe?.clientId,
+      clientSecret:    body.phonepe.clientSecret    || (existing as any)?.phonepe?.clientSecret,
+      clientVersion:   body.phonepe.clientVersion   || (existing as any)?.phonepe?.clientVersion || "1",
+      environment:     body.phonepe.environment,
+      webhookUsername: body.phonepe.webhookUsername || (existing as any)?.phonepe?.webhookUsername,
+      webhookPassword: body.phonepe.webhookPassword || (existing as any)?.phonepe?.webhookPassword,
+    } : (existing as any)?.phonepe,
   };
-  // Nomod is the only gateway accepting new payments.
+  // Razorpay no longer accepts new payments.
   if (!RAZORPAY_ENABLED) {
-    merged.defaultGateway = "NOMOD";
+    if (merged.defaultGateway === "RAZORPAY") merged.defaultGateway = "NOMOD";
     if (merged.razorpay) merged.razorpay = { ...merged.razorpay, enabled: false };
   }
 
@@ -139,7 +172,7 @@ settingsAdminRoutes.post("/payments/test-nomod", async (c) => {
   const tenantId = c.get("tenantId");
   const saved = await getSettings<any>(c.env, tenantId, "payments");
   const apiKey = saved?.nomod?.apiKey || c.env.NOMOD_API_KEY;
-  if (!saved?.nomod?.enabled || !apiKey) {
+  if (saved?.nomod?.enabled === false || !apiKey) {
     return c.json({ ok: false, message: "Enable Nomod and save an API key first" }, 400);
   }
 
@@ -152,6 +185,22 @@ settingsAdminRoutes.post("/payments/test-nomod", async (c) => {
     return c.json({ ok: false, message: raw.slice(0, 180) || `Nomod returned HTTP ${res.status}` }, 502);
   }
   return c.json({ ok: true, mode: apiKey.startsWith("sk_test_") ? "test" : "live" });
+});
+
+// Check the PhonePe credentials by requesting an access token.
+settingsAdminRoutes.post("/payments/test-phonepe", async (c) => {
+  const tenantId = c.get("tenantId");
+  const saved = await getSettings<any>(c.env, tenantId, "payments");
+  const config = resolvePhonePeConfig(c.env, saved);
+  if (!phonePeEnabled(saved) || !config) {
+    return c.json({ ok: false, message: "Enable PhonePe and save the Client ID and Client Secret first" }, 400);
+  }
+  try {
+    await getPhonePeToken(config);
+    return c.json({ ok: true, mode: config.environment });
+  } catch (err) {
+    return c.json({ ok: false, message: err instanceof Error ? err.message : String(err) }, 502);
+  }
 });
 
 // ── WhatsApp / Leadvyne settings ──────────────────────────────────────────────

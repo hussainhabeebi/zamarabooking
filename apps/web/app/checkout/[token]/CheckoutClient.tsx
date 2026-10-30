@@ -19,7 +19,7 @@ interface Props {
   whatsappPhone:  string;
 }
 
-type Gateway = "RAZORPAY" | "NOMOD";
+type Gateway = "RAZORPAY" | "NOMOD" | "PHONEPE";
 type PaymentState = "idle" | "creating" | "paying" | "polling" | "success" | "failed";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
@@ -30,7 +30,7 @@ export default function CheckoutClient({
   contactEmail, contactPhone, whatsappPhone,
 }: Props) {
   const [gateway,  setGateway]  = useState<Gateway>("NOMOD");
-  const [available, setAvailable] = useState<Record<Gateway, boolean>>({ RAZORPAY: false, NOMOD: false });
+  const [available, setAvailable] = useState<Record<Gateway, boolean>>({ RAZORPAY: false, NOMOD: false, PHONEPE: false });
   const [configLoading, setConfigLoading] = useState(true);
   const [state,    setState]    = useState<PaymentState>("idle");
   const [error,    setError]    = useState<string | null>(null);
@@ -44,12 +44,15 @@ export default function CheckoutClient({
         return res.json() as Promise<{ defaultGateway: Gateway | null; gateways: Record<Gateway, boolean> }>;
       })
       .then((config) => {
-        setAvailable(config.gateways);
-        if (config.defaultGateway) setGateway(config.defaultGateway);
+        // PhonePe takes INR only.
+        const gateways = { ...config.gateways, PHONEPE: Boolean(config.gateways.PHONEPE) && currency === "INR" };
+        setAvailable(gateways);
+        if (config.defaultGateway && gateways[config.defaultGateway]) setGateway(config.defaultGateway);
+        else if (!gateways.NOMOD && gateways.PHONEPE) setGateway("PHONEPE");
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setConfigLoading(false));
-  }, [token]);
+  }, [token, currency]);
 
   async function ensureRazorpay() {
     if (window.Razorpay) return;
@@ -104,8 +107,8 @@ export default function CheckoutClient({
         setState("paying");
         await ensureRazorpay();
         await openRazorpay(order.orderId, order.keyId, order.amount, order.currency);
-      } else if (gateway === "NOMOD" && order.paymentUrl) {
-        // NoMod: redirect to hosted payment page
+      } else if ((gateway === "NOMOD" || gateway === "PHONEPE") && order.paymentUrl) {
+        // Nomod / PhonePe: redirect to the hosted payment page
         window.location.assign(order.paymentUrl);
       } else {
         throw new Error("Gateway returned unexpected response");
@@ -238,8 +241,13 @@ export default function CheckoutClient({
       {/* Only show methods enabled by the administrator */}
       {configLoading ? (
         <div style={{ ...loadingBar, marginBottom: 20 }} />
-      ) : (available.NOMOD || available.RAZORPAY) ? (
-        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+      ) : (available.NOMOD || available.RAZORPAY || available.PHONEPE) ? (
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          {available.PHONEPE && <GatewayOption
+            id="PHONEPE" label="Pay with PhonePe"
+            subtitle="UPI · Cards · Net banking"
+            icon="📱" active={gateway === "PHONEPE"}
+            onClick={() => setGateway("PHONEPE")} />}
           {available.NOMOD && <GatewayOption
             id="NOMOD" label="Pay securely with Nomod"
             subtitle="Cards · Apple Pay · Google Pay · Tabby · Tamara"

@@ -15,6 +15,7 @@ import type { Env, Variables } from "../types.js";
 import { resolveFlightSuppliers } from "../routes/search.js";
 import { creditWallet, getOrCreateCustomerWallet, roundMoney } from "./customer-wallet.js";
 import { refundNomodCharge, resolveNomodApiKey } from "./payment-gateway.js";
+import { getPhonePeToken, phonePeConfigForTenant, refundPhonePeOrder } from "./phonepe.js";
 import { logSupplierCall } from "./supplier-logger.js";
 import { describeError, errorDetail, logBookingEvent } from "./booking-recovery.js";
 import { isOfflineSupplier } from "./flight-sources.js";
@@ -288,13 +289,14 @@ export async function syncCancellation(c: Ctx, amendment: Amendment): Promise<Am
   return updated;
 }
 
-type RefundMethod = "WALLET" | "AGENT_WALLET" | "NOMOD" | "MANUAL";
+type RefundMethod = "WALLET" | "AGENT_WALLET" | "NOMOD" | "PHONEPE" | "MANUAL";
 
 // The refund goes back to how the booking was paid.
 export function originalRefundMethod(paid: { gateway: string; gatewayPaymentId?: string | null } | undefined, hasCustomer: boolean): RefundMethod {
   if (paid?.gateway === "WALLET" && paid.gatewayPaymentId?.startsWith("agentwallet_")) return "AGENT_WALLET";
   if (paid?.gateway === "WALLET" && hasCustomer) return "WALLET";
   if (paid?.gateway === "NOMOD" && paid.gatewayPaymentId) return "NOMOD";
+  if (paid?.gateway === "PHONEPE") return "PHONEPE";
   return "MANUAL";
 }
 
@@ -302,6 +304,7 @@ export const REFUND_METHOD_LABEL: Record<RefundMethod, string> = {
   WALLET: "your ZamraBooking wallet (instant)",
   AGENT_WALLET: "your agency wallet (instant)",
   NOMOD:  "your original card / payment method (usually 5–10 working days)",
+  PHONEPE: "your original UPI / card / bank account via PhonePe (usually 3–7 working days)",
   MANUAL: "your original payment method (our team will process it)",
 };
 
@@ -319,7 +322,7 @@ export async function settleRefund(
   if (amendment.status !== "SUCCESS" || !allowed.includes(amendment.refundStatus)) return null;
 
   const [booking] = await db.select({ userId: bookings.userId, agentId: bookings.agentId }).from(bookings).where(eq(bookings.id, amendment.bookingId)).limit(1);
-  const [paid] = await db.select({ gateway: payments.gateway, gatewayPaymentId: payments.gatewayPaymentId, amount: payments.amount, currency: payments.currency })
+  const [paid] = await db.select({ gateway: payments.gateway, gatewayOrderId: payments.gatewayOrderId, gatewayPaymentId: payments.gatewayPaymentId, amount: payments.amount, currency: payments.currency })
     .from(payments).where(and(eq(payments.bookingId, amendment.bookingId), eq(payments.status, "SUCCESS"))).limit(1);
   const method = originalRefundMethod(paid, Boolean(booking?.userId));
 
@@ -342,7 +345,7 @@ export async function settleRefund(
     await db.update(bookings).set({ status: "REFUNDED", updatedAt: new Date() }).where(eq(bookings.id, claimed.bookingId));
     const row = await finish({ refundStatus: "DONE", refundReference: reference, refundedAt: new Date() });
     // Wallet refunds are instant (the "cancelled" email already says so); card refunds get their own email.
-    if (row && amount > 0 && claimed.refundMethod === "NOMOD") await emailCancellation(env, db, row, "REFUNDED");
+    if (row && amount > 0 && (claimed.refundMethod === "NOMOD" || claimed.refundMethod === "PHONEPE")) await emailCancellation(env, db, row, "REFUNDED");
     return row;
   };
 
@@ -377,6 +380,22 @@ export async function settleRefund(
     return outcome.definite
       ? finish({ refundStatus: "FAILED", refundError: `Nomod HTTP ${outcome.httpStatus}: ${outcome.error}` })
       : finish({ refundStatus: "MANUAL_REQUIRED", refundError: `No response from Nomod (${outcome.error}). Check the Nomod dashboard before retrying.` });
+  }
+
+  if (method === "PHONEPE") {
+    const { config } = await phonePeConfigForTenant(env, claimed.tenantId);
+    if (!config || !paid?.gatewayOrderId) return finish({ refundStatus: "MANUAL_REQUIRED", refundError: "PhonePe credentials are not configured; refund from the PhonePe dashboard." });
+    let token: string;
+    try { token = await getPhonePeToken(config, env.TENANT_CACHE_KV); }
+    catch (err) { return finish({ refundStatus: "FAILED", refundError: `PhonePe sign-in failed: ${err instanceof Error ? err.message : String(err)}` }); }
+    // One refund id per cancellation: a retry asks PhonePe about the same refund, never a second one.
+    const merchantRefundId = `RF${claimed.id.replace(/[^A-Za-z0-9]/g, "")}`.slice(0, 63);
+    const outcome = await refundPhonePeOrder(config, token, { merchantRefundId, merchantOrderId: paid.gatewayOrderId, amountInr: amount });
+    if (outcome.ok) return done(`phonepe:${outcome.refundId}`);
+    console.error(`[refund] PhonePe refund for ${claimed.bookingId}:`, outcome.error);
+    return outcome.definite
+      ? finish({ refundStatus: "FAILED", refundError: outcome.error })
+      : finish({ refundStatus: "MANUAL_REQUIRED", refundError: `No response from PhonePe (${outcome.error}). Check the PhonePe dashboard before retrying.` });
   }
 
   return finish({ refundStatus: "MANUAL_REQUIRED", refundError: `Paid via ${paid?.gateway ?? "unknown"}: refund manually to the original payment method.` });
