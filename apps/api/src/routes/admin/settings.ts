@@ -71,7 +71,7 @@ const paymentsSchema = z.object({
     webhookUsername: z.string().optional(),
     webhookPassword: z.string().optional(),
   }).optional(),
-  defaultGateway: z.enum(["RAZORPAY", "NOMOD", "PHONEPE"]).default("NOMOD"),
+  defaultGateway: z.enum(["RAZORPAY", "NOMOD", "PHONEPE"]).default("PHONEPE"),
 });
 
 const PHONEPE_DEFAULTS = { enabled: true, clientId: "", clientSecret: "", clientVersion: "1", environment: "production", webhookUsername: "", webhookPassword: "" };
@@ -84,7 +84,7 @@ settingsAdminRoutes.get("/payments", async (c) => {
       razorpay: { enabled: false, keyId: "", keySecret: "", webhookSecret: "", configured: false },
       nomod: { enabled: true, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production", allowTabby: true, allowTamara: true, configured: false },
       phonepe: { ...PHONEPE_DEFAULTS, configured: Boolean(resolvePhonePeConfig(c.env, null)), secretsFromWorker: Boolean(c.env.PHONEPE_CLIENT_ID) },
-      defaultGateway: "NOMOD",
+      defaultGateway: "PHONEPE",
     });
   }
 
@@ -159,7 +159,7 @@ settingsAdminRoutes.put("/payments", zValidator("json", paymentsSchema), async (
   };
   // Razorpay no longer accepts new payments.
   if (!RAZORPAY_ENABLED) {
-    if (merged.defaultGateway === "RAZORPAY") merged.defaultGateway = "NOMOD";
+    if (merged.defaultGateway === "RAZORPAY") merged.defaultGateway = "PHONEPE";
     if (merged.razorpay) merged.razorpay = { ...merged.razorpay, enabled: false };
   }
 
