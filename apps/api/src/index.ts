@@ -75,7 +75,10 @@ app.route("/api/checkout",       checkoutRoutes);
 
 // ── Authenticated routes ───────────────────────────────────────
 app.use("/api/bookings/*", authMiddleware);
-app.use("/api/payments/*", authMiddleware);
+// The checkout configuration (which payment methods are on) is public: the booking
+// page needs it before the customer has a checkout token or an account.
+app.use("/api/payments/*", (c, next) =>
+  c.req.method === "GET" && c.req.path === "/api/payments/config" ? next() : authMiddleware(c, next));
 app.use("/api/eticket/*",  authMiddleware);
 app.use("/api/agents/*",   authMiddleware);
 app.use("/api/agent/*",    authMiddleware);
