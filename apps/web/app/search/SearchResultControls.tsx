@@ -30,9 +30,20 @@ const AIRPORT_GROUPS = [
   ],
 ];
 
+// City names for airports outside the switchable groups, so a lone code isn't shown twice.
+const AIRPORT_NAMES: Record<string, string> = {
+  BOM: "Mumbai", DEL: "Delhi", BLR: "Bengaluru", HYD: "Hyderabad", MAA: "Chennai", CCU: "Kolkata",
+  AMD: "Ahmedabad", PNQ: "Pune", GOI: "Goa", GOX: "Goa Mopa", JAI: "Jaipur", LKO: "Lucknow", IXE: "Mangaluru",
+  DOH: "Doha", BAH: "Bahrain", KWI: "Kuwait", MCT: "Muscat", RUH: "Riyadh", JED: "Jeddah", DMM: "Dammam",
+  SIN: "Singapore", KUL: "Kuala Lumpur", BKK: "Bangkok", LHR: "London Heathrow",
+};
+
 function airportOptions(code: string) {
-  return AIRPORT_GROUPS.find((group) => group.some((a) => a.code === code)) ?? [{ code, city: code }];
+  return AIRPORT_GROUPS.find((group) => group.some((a) => a.code === code)) ?? [{ code, city: AIRPORT_NAMES[code] ?? code }];
 }
+
+// "DXB · Dubai International": the code stays readable when a narrow select cuts the name.
+const legAirportLabel = (a: { code: string; city: string }) => (a.city === a.code ? a.code : `${a.code} · ${a.city}`);
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -168,10 +179,10 @@ export default function SearchResultControls({ origin, destination, departureDat
       {(isPending || pendingQuery !== null) && <div className="result-refresh" role="status"><span /> Updating flights…</div>}
       {journey ? <>
         <p style={{fontSize:13,color:"#667085"}}>Filters apply to each flight leg.</p>
-        {journeyLegs.map((leg,i) => <div className="filter-section" key={i}>
+        {journeyLegs.map((leg,i) => <div className="filter-section journey-leg-controls" key={i}>
           <div className="filter-section-label">Flight {i+1} · {leg.origin} → {leg.destination}</div>
-          <label className="airport-select"><span>Travel date</span><input aria-label={`Flight ${i+1} date`} type="date" value={leg.departureDate} min={i ? journeyLegs[i-1].departureDate : today} max={journeyLegs[i+1]?.departureDate ?? "9999-12-31"} onChange={e=>e.target.validity.valid && e.target.value && changeLeg(i,"departureDate",e.target.value)} /></label>
-          <div className="result-tool-row">{(["origin","destination"] as const).map(field => <label className="airport-select" key={field}><span>{field === "origin" ? "From" : "To"}</span><select aria-label={`Flight ${i+1} ${field}`} value={leg[field]} onChange={e=>changeLeg(i,field,e.target.value)}>{airportOptions(leg[field]).map(a=><option key={a.code} value={a.code}>{a.city} ({a.code})</option>)}</select></label>)}</div>
+          <label className="airport-select leg-date"><span>Travel date</span><input aria-label={`Flight ${i+1} date`} type="date" value={leg.departureDate} min={i ? journeyLegs[i-1].departureDate : today} max={journeyLegs[i+1]?.departureDate ?? "9999-12-31"} onChange={e=>e.target.validity.valid && e.target.value && changeLeg(i,"departureDate",e.target.value)} /></label>
+          <div className="leg-airports">{(["origin","destination"] as const).map(field => <label className="airport-select" key={field}><span>{field === "origin" ? "From" : "To"}</span><select aria-label={`Flight ${i+1} ${field}`} title={airportOptions(leg[field]).find(a=>a.code===leg[field])?.city} value={leg[field]} onChange={e=>changeLeg(i,field,e.target.value)}>{airportOptions(leg[field]).map(a=><option key={a.code} value={a.code}>{legAirportLabel(a)}</option>)}</select></label>)}</div>
         </div>)}
       </> : <>
       <div className="filter-section-label">Travel dates</div>
