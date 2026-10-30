@@ -57,6 +57,30 @@ const journeys = {
       }
       await page.close();
     }
+    // One-way: open the first Akbar fare's checkout from the results page (no booking).
+    if (process.env.CHECK_CHECKOUT === '1') {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const url = `${site}/search?tripType=ONEWAY&origin=BOM&destination=DEL&departureDate=${day(21)}&adults=1&cabinClass=ECONOMY`;
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+      const links = page.locator('a.fare-card-v2-book[href*="supplier=AKBAR"]');
+      await links.first().waitFor({ timeout: 90000 }).catch(() => {});
+      const count = await links.count();
+      let result = { trip: 'ONEWAY', url, akbarFaresShown: count, checkout: null };
+      if (count) {
+        await page.goto(new URL(await links.first().getAttribute('href'), site).toString(), { waitUntil: 'domcontentloaded' });
+        const card = page.getByRole('region', { name: 'Baggage' });
+        await card.waitFor({ timeout: 30000 }).catch(() => {});
+        result.checkout = {
+          supplier: new URL(page.url()).searchParams.get('supplier'),
+          baggageCard: await card.isVisible() ? (await card.innerText()).replace(/\s+/g, ' ').trim() : null,
+          addBaggageOffered: await page.getByText(/Add Baggage/).count(),
+        };
+        await page.screenshot({ path: 'checkout-live-ONEWAY.png', fullPage: true });
+      }
+      console.log(JSON.stringify(result));
+      if (!result.checkout?.baggageCard) failed = true;
+      await page.close();
+    }
   } finally { await browser.close(); }
   process.exitCode = failed ? 1 : 0;
 })().catch((e) => { console.error(e); process.exitCode = 1; });
