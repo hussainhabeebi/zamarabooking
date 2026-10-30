@@ -248,13 +248,13 @@ function logSearchOutcome(
     }));
   }
 
-  // Round trip / multi-city results can only be booked from TripJack journey fares
-  // (fares carrying a tripKey). Anything else is dropped by the website's journey
-  // page, so record why the customer saw "No flights found for this journey".
+  // Round trip / multi-city results can only be booked from journey fares (TripJack
+  // or Akbar fares carrying a tripKey). Anything else is dropped by the website's
+  // journey page, so record why the customer saw "No flights found for this journey".
   const journey = journeyOutcome(params, fares, diagnostics);
   if (journey) {
     writes.push(logSupplierCall(db, {
-      tenantId, supplier: "TRIPJACK", endpoint: "flight-search/journey", level: journey.level, requestId: searchId,
+      tenantId, supplier: journey.supplier, endpoint: "flight-search/journey", level: journey.level, requestId: searchId,
       requestSummary: { ...requestSummary, ...journey.summary },
       errorCode: journey.errorCode, errorMessage: journey.errorMessage,
     }));
@@ -265,48 +265,63 @@ function logSearchOutcome(
 
 type JourneyFare = { supplier?: string; tripKey?: string };
 
+// Sources whose fares the journey page can book leg by leg. A journey is booked from
+// one source, so each source must cover every leg on its own.
+export const JOURNEY_SUPPLIERS = ["AKBAR", "TRIPJACK"] as const;
+type JourneySupplier = (typeof JOURNEY_SUPPLIERS)[number];
+
 export function journeyOutcome(
   params: { tripType: string; returnDate?: string; legs?: unknown[] },
   fares: JourneyFare[],
   diagnostics: Record<string, SupplierDiagnostic>,
-): { level: "WARN" | "ERROR"; errorCode: string; errorMessage: string; summary: Record<string, unknown> } | null {
+): { supplier: JourneySupplier; level: "WARN" | "ERROR"; errorCode: string; errorMessage: string; summary: Record<string, unknown> } | null {
   if (params.tripType !== "ROUNDTRIP" && params.tripType !== "MULTICITY") return null;
 
   const faresBySupplier: Record<string, number> = {};
-  const tripKeys: Record<string, number> = {};
+  const tripKeys: Partial<Record<JourneySupplier, Record<string, number>>> = {};
   for (const f of fares) {
     const supplier = f.supplier ?? "UNKNOWN";
     faresBySupplier[supplier] = (faresBySupplier[supplier] ?? 0) + 1;
-    if (supplier === "TRIPJACK" && f.tripKey) tripKeys[f.tripKey] = (tripKeys[f.tripKey] ?? 0) + 1;
+    if ((JOURNEY_SUPPLIERS as readonly string[]).includes(supplier) && f.tripKey) {
+      const keys = (tripKeys[supplier as JourneySupplier] ??= {});
+      keys[f.tripKey] = (keys[f.tripKey] ?? 0) + 1;
+    }
   }
-  const bookable = Object.values(tripKeys).reduce((n, v) => n + v, 0);
-  const tripjack = diagnostics.TRIPJACK;
+  const searched = JOURNEY_SUPPLIERS.filter((s) => diagnostics[s]);
+  const bookable = Object.values(tripKeys).reduce((n, keys) => n + Object.values(keys!).reduce((m, v) => m + v, 0), 0);
   const summary = {
     totalFares: fares.length, journeyBookableFares: bookable, faresBySupplier, tripKeys,
-    tripjack: tripjack ? { ok: tripjack.ok, fareCount: tripjack.fareCount, errorCode: tripjack.errorCode } : "NOT_SEARCHED",
+    ...Object.fromEntries(JOURNEY_SUPPLIERS.map((s) => [s.toLowerCase(), diagnostics[s]
+      ? { ok: diagnostics[s].ok, fareCount: diagnostics[s].fareCount, errorCode: diagnostics[s].errorCode }
+      : "NOT_SEARCHED"])),
   };
+  const primary: JourneySupplier = searched[0] ?? "AKBAR";
 
   if (bookable === 0) {
-    const reason = !tripjack
-      ? "TripJack was not searched (switched off or no credentials). Round trip / multi-city can only be booked through TripJack."
-      : !tripjack.ok
-        ? `TripJack failed: ${tripjack.errorMessage ?? tripjack.errorCode ?? "unknown error"}.`
+    const failed = searched.filter((s) => !diagnostics[s].ok);
+    const reason = !searched.length
+      ? "Neither Akbar nor TripJack was searched (switched off or no credentials). Round trip / multi-city can only be booked through Akbar or TripJack."
+      : failed.length === searched.length
+        ? failed.map((s) => `${s === "AKBAR" ? "Akbar" : "TripJack"} failed: ${diagnostics[s].errorMessage ?? diagnostics[s].errorCode ?? "unknown error"}.`).join(" ")
         : fares.length
-          ? "Other sources returned fares, but none are TripJack journey fares the journey page can book."
-          : "TripJack responded successfully but returned no journey fares for these legs / dates.";
-    return { level: "ERROR", errorCode: "JOURNEY_NO_BOOKABLE_FARES", errorMessage: `Customer saw "No flights found for this journey". ${reason}`, summary };
+          ? "Other sources returned fares, but none are Akbar / TripJack journey fares the journey page can book."
+          : `${searched.map((s) => (s === "AKBAR" ? "Akbar" : "TripJack")).join(" and ")} responded successfully but returned no journey fares for these legs / dates.`;
+    return { supplier: failed[0] ?? primary, level: "ERROR", errorCode: "JOURNEY_NO_BOOKABLE_FARES", errorMessage: `Customer saw "No flights found for this journey". ${reason}`, summary };
   }
 
   // Split journeys (domestic return / multi-city) need one list per leg; COMBO covers all legs at once.
-  if (!tripKeys.COMBO) {
-    const legCount = params.legs?.length ?? (params.returnDate ? 2 : 1);
-    const expected = params.tripType === "ROUNDTRIP" && !params.legs
-      ? ["ONWARD", "RETURN"]
-      : Array.from({ length: legCount }, (_, i) => String(i));
-    const missing = expected.filter((k) => !tripKeys[k] && !(k === "0" && tripKeys.ONWARD) && !(k === "1" && tripKeys.RETURN));
-    if (missing.length) {
-      return { level: "WARN", errorCode: "JOURNEY_LEG_MISSING", errorMessage: `TripJack returned no fares for leg(s) ${missing.join(", ")}; the journey cannot be completed.`, summary: { ...summary, missingLegs: missing } };
-    }
+  const legCount = params.legs?.length ?? (params.returnDate ? 2 : 1);
+  const expected = params.tripType === "ROUNDTRIP" && !params.legs
+    ? ["ONWARD", "RETURN"]
+    : Array.from({ length: legCount }, (_, i) => String(i));
+  const missingFor = (keys: Record<string, number>) => keys.COMBO ? [] :
+    expected.filter((k) => !keys[k] && !(k === "0" && keys.ONWARD) && !(k === "1" && keys.RETURN));
+  const covered = Object.entries(tripKeys).filter(([, keys]) => missingFor(keys!).length === 0);
+  if (!covered.length) {
+    const [supplier, keys] = Object.entries(tripKeys)[0] as [JourneySupplier, Record<string, number>];
+    const missing = missingFor(keys);
+    const name = supplier === "AKBAR" ? "Akbar" : "TripJack";
+    return { supplier, level: "WARN", errorCode: "JOURNEY_LEG_MISSING", errorMessage: `${name} returned no fares for leg(s) ${missing.join(", ")}; the journey cannot be completed.`, summary: { ...summary, missingLegs: missing } };
   }
   return null;
 }

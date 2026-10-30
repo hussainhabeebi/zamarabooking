@@ -2,8 +2,9 @@ import type { NormalizedFare, SearchParams, StopDetail, SupplierAdapter, Supplie
 import { AkbarClient, AkbarError, searchTui, type AkbarCredentials, type AkbarToken } from "./client.js";
 
 // Akbar Travels search for Zamra's flight results. Like Poomas, Akbar fares are
-// sold on Zamra and ticketed by staff on Akbar's portal (one-way only) until the
-// CreateItinerary booking flow is built. The price is Akbar's NetFare: what Akbar
+// sold on Zamra and ticketed by staff on Akbar's portal until the CreateItinerary
+// booking flow is built. Round trips and multi-city are searched one leg at a time
+// with the one-way ExpressSearch, so every leg is a fare staff can ticket on its own. The price is Akbar's NetFare: what Akbar
 // charges Zamra, before Zamra's markup.
 //
 // Credentials: the AkbarCredentials fields, plus getToken (the API's 48-hour token cache).
@@ -119,8 +120,22 @@ export class AkbarAdapter implements SupplierAdapter {
   }
 
   async search(params: SearchParams): Promise<NormalizedFare[]> {
-    // Staff ticket each booking by hand, so only single one-way fares are offered.
-    if (params.tripType !== "ONEWAY") return [];
+    if (params.tripType === "ONEWAY") return this.searchLeg(params);
+    const legs = akbarJourneyLegs(params);
+    if (legs.length < 2) return [];
+    // One-way ExpressSearch per leg, all at once. Any failed leg fails the search with
+    // Akbar's own error: a journey missing a leg can't be booked.
+    const perLeg = await Promise.all(legs.map((leg) => this.searchLeg({
+      ...params, tripType: "ONEWAY", origin: leg.origin, destination: leg.destination,
+      departureDate: leg.date, returnDate: undefined, legs: undefined,
+    })));
+    return perLeg.flatMap((fares, i) => {
+      const tripKey = akbarTripKey(params, i, legs.length);
+      return fares.map((f) => ({ ...f, tripKey, legIndex: i }));
+    });
+  }
+
+  private async searchLeg(params: SearchParams): Promise<NormalizedFare[]> {
     let token = await this.getToken();
     // Zamra's search waits 28 s for every source, so stop collecting Akbar results before then.
     const opts = { deadlineMs: 22_000 };
@@ -133,3 +148,19 @@ export class AkbarAdapter implements SupplierAdapter {
     return normalizeAkbarSearch(result.data, params.cabinClass);
   }
 }
+
+// The legs of a round trip / multi-city search: explicit legs, else out and back.
+export function akbarJourneyLegs(params: SearchParams): { origin: string; destination: string; date: string }[] {
+  if (params.legs?.length) return params.legs.slice(0, 6);
+  if (params.tripType === "ROUNDTRIP" && params.returnDate) {
+    return [
+      { origin: params.origin, destination: params.destination, date: params.departureDate },
+      { origin: params.destination, destination: params.origin, date: params.returnDate },
+    ];
+  }
+  return [];
+}
+
+// Same leg keys the journey page uses for TripJack: ONWARD / RETURN, or "0".."5".
+const akbarTripKey = (params: SearchParams, i: number, count: number) =>
+  params.tripType === "ROUNDTRIP" && count === 2 ? (i === 0 ? "ONWARD" : "RETURN") : String(i);

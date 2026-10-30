@@ -73,6 +73,8 @@ const directBookSchema = z.object({
   // POST /api/book/review. The fareId is then only informational.
   reviewBookingId: z.string().min(5).optional(),
   tripType:      z.enum(["ONEWAY", "ROUNDTRIP", "MULTICITY"]).default("ONEWAY"),
+  // Akbar round trip / multi-city: one fare ID per leg, in leg order (fareId is the first).
+  priceIds:      z.array(z.string().min(1)).min(1).max(6).optional(),
   gstInfo: z.object({
     gstNumber:      z.string().regex(/^\d{2}[A-Za-z0-9]{13}$/, "GSTIN must be 15 characters"),
     registeredName: z.string().min(2).max(35),
@@ -704,6 +706,13 @@ bookDirectRoutes.post("/", zValidator("json", directBookSchema, (result, c) => {
 // Poomas / manual fares: no supplier call before payment. The fare is priced on the
 // server (remembered Poomas search price, or the manual fare row), saved as
 // PAYMENT_PENDING, and after payment waits in Admin for staff to issue the ticket.
+// Akbar journey legs must follow on from each other (round trip: out and back).
+export function journeyLegsMatch(legs: { origin: string; destination: string; departureTime: string }[], tripType: string): boolean {
+  if (legs.length < 2 || (tripType === "ROUNDTRIP" && legs.length !== 2)) return false;
+  if (tripType === "ROUNDTRIP" && (legs[1].origin !== legs[0].destination || legs[1].destination !== legs[0].origin)) return false;
+  return legs.every((l, i) => i === 0 || l.departureTime >= legs[i - 1].departureTime);
+}
+
 async function bookOfflineFare(
   c: Context<{ Bindings: Env; Variables: Variables }>,
   body: z.infer<typeof directBookSchema>,
@@ -725,15 +734,26 @@ async function bookOfflineFare(
   if (body.passengers.some((p) => p.ssr?.baggage?.length || p.ssr?.meal?.length || p.ssr?.extra?.length || p.ssr?.seat?.length)) {
     return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: "Meals, baggage and seats can't be added to this fare online. Ask us after booking.", requestId }, 400);
   }
-  const fare = await quoteOfflineFare(c.env, db, tenantId, supplier, body.fareId, pax);
-  if (!fare || fare.origin !== body.origin.toUpperCase() || fare.destination !== body.destination.toUpperCase()) {
+  // Round trip / multi-city (Akbar): every leg is quoted from the search, never from the browser.
+  const journey = supplier === "AKBAR" && body.tripType !== "ONEWAY" && (body.priceIds?.length ?? 0) > 1;
+  const fareIds = journey ? body.priceIds! : [body.fareId];
+  const quoted = await Promise.all(fareIds.map((id) => quoteOfflineFare(c.env, db, tenantId, supplier, id, pax)));
+  const legs = quoted.filter((f): f is NonNullable<typeof f> => f !== null);
+  const fare = legs[0];
+  const lastLeg = legs[legs.length - 1];
+  const expired = legs.length !== fareIds.length || !fare || fare.origin !== body.origin.toUpperCase()
+    || (journey ? !journeyLegsMatch(legs, body.tripType) || ![fare.destination, lastLeg.destination].includes(body.destination.toUpperCase())
+      : fare.destination !== body.destination.toUpperCase());
+  if (expired) {
     return c.json({ error: "This fare is no longer available. Please search again.", errorCode: "FARE_EXPIRED", requestId }, 409);
   }
 
-  const supplierAmount = fare.totalFare;
-  const companyFareAmount = await customerPrice(db, tenantId, supplierAmount, {
-    origin: fare.origin, destination: fare.destination, supplier, airline: fare.airline,
-  }, agent?.agentId ?? null);
+  const supplierAmount = Math.round(legs.reduce((n, f) => n + f.totalFare, 0) * 100) / 100;
+  // Markup per leg, the same way search priced each leg the customer picked.
+  const legPrices = await Promise.all(legs.map((leg) => customerPrice(db, tenantId, leg.totalFare, {
+    origin: leg.origin, destination: leg.destination, supplier, airline: leg.airline,
+  }, agent?.agentId ?? null)));
+  const companyFareAmount = Math.round(legPrices.reduce((n, v) => n + v, 0) * 100) / 100;
   const agentQuote = agent ? (await agentPricing(c.env, db, tenantId, agent.agentId)).price(companyFareAmount) : null;
   const customerAmount = agentQuote?.net ?? companyFareAmount;
   const markupAmount = Math.max(0, Math.round((customerAmount - supplierAmount) * 100) / 100);
@@ -747,7 +767,7 @@ async function bookOfflineFare(
       ...(agent ? { agentId: agent.agentId } : {}),
       channel:       agent ? "B2B_PORTAL" : "B2C_WEB",
       status:        "PAYMENT_PENDING",
-      tripType:      "ONEWAY",
+      tripType:      journey ? body.tripType : "ONEWAY",
       cabinClass:    (["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"].includes(fare.cabinClass) ? fare.cabinClass : "ECONOMY") as "ECONOMY",
       origin:        fare.origin,
       destination:   fare.destination,
@@ -764,12 +784,14 @@ async function bookOfflineFare(
         airline: fare.airline, airlineName: fare.airlineName, flightNumber: fare.flightNumber,
         origin: fare.origin, destination: fare.destination,
         departureTime: fare.departureTime, arrivalTime: fare.arrivalTime, cabinClass: fare.cabinClass,
-        isRefundable: fare.isRefundable, baggage: fare.baggage,
+        isRefundable: legs.every((f) => f.isRefundable), baggage: fare.baggage,
         offline: {
           supplier,
           ticketing: "AWAITING_PAYMENT",
           fare: fareSnapshot,
           sourceRef: raw,
+          // Each leg is ticketed by staff on Akbar with its own TUI / Index.
+          ...(journey ? { legs: legs.map(({ raw: legRef, ...leg }) => ({ ...leg, sourceRef: legRef })) } : {}),
           ...(body.gstInfo ? { gstInfo: body.gstInfo } : {}),
           ...(body.emergencyContact ? { emergencyContact: body.emergencyContact } : {}),
           pax: body.passengers.map((p) => ({

@@ -1,0 +1,106 @@
+name: API-only release - Akbar journey search (no migrations)
+
+# Deploys ONLY the zamra-api Worker, built from the last deployed API commit plus the
+# Akbar round-trip / multi-city search files. No database migrations, no web /
+# portal / admin deploy, and no other undeployed main changes (e.g. checkout or
+# payment work) are shipped. Afterwards it runs live SEARCH-only checks.
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: 'Commit the live API was last deployed from'
+        required: true
+        default: 'd3e0a6cf00db43c7a9ff260c6213bc4a6faca480'
+      fix_from:
+        description: 'Commit before the Akbar journey fix (main before the merge)'
+        required: true
+      fix_to:
+        description: 'Commit with the Akbar journey fix (PR head)'
+        required: true
+      authorization:
+        description: 'Type DEPLOY_API_ONLY_NO_MIGRATIONS'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zamra-production-api
+  cancel-in-progress: false
+
+env:
+  RELEASE_FILES: >-
+    apps/api/src/routes/search.ts
+    apps/api/src/routes/book.ts
+    packages/suppliers/src/akbar/adapter.ts
+    packages/suppliers/src/index.ts
+    apps/api/test/flight-sources.test.ts
+    apps/api/test/journey-search-logs.test.ts
+    apps/api/test/akbar-journey-booking.test.ts
+
+jobs:
+  release-api:
+    if: github.ref == 'refs/heads/main' && inputs.authorization == 'DEPLOY_API_ONLY_NO_MIGRATIONS'
+    name: Build, test and deploy API Worker only
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree (last deployed API + Akbar journey files only)
+        env:
+          BASE: ${{ inputs.base_sha }}
+          FROM: ${{ inputs.fix_from }}
+          TO: ${{ inputs.fix_to }}
+        run: |
+          git merge-base --is-ancestor "$TO" origin/main || { echo "fix_to is not on main"; exit 1; }
+          git diff "$FROM" "$TO" -- $RELEASE_FILES > "$RUNNER_TEMP/fix.patch"
+          git checkout --detach "$BASE"
+          git apply --index "$RUNNER_TEMP/fix.patch"
+          git diff --cached --name-only | tee "$RUNNER_TEMP/changed.txt"
+          for f in $(cat "$RUNNER_TEMP/changed.txt"); do
+            case " $RELEASE_FILES " in *" $f "*) ;; *) echo "Unexpected file in release: $f"; exit 1;; esac
+          done
+          if grep -E '^(packages/db/|apps/(web|portal|admin)/)' "$RUNNER_TEMP/changed.txt"; then exit 1; fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/api typecheck
+      - name: Akbar journey search / booking tests
+        run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/flight-sources.test.ts apps/api/test/journey-search-logs.test.ts apps/api/test/akbar-journey-booking.test.ts
+      - name: Deploy zamra-api Worker (no database migrations)
+        working-directory: apps/api
+        run: pnpm exec wrangler deploy --message "Akbar journey search ${{ inputs.fix_to }} on ${{ inputs.base_sha }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  live-check:
+    needs: release-api
+    name: Live round-trip / multi-city search check (search only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: API search responses
+        run: python3 scripts/akbar-journey-live-check.py https://api.zamrabooking.com
+        continue-on-error: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Website journey page
+        run: |
+          npm install --prefix "$RUNNER_TEMP/live-qa" --no-save --ignore-scripts @playwright/test@1.64.1
+          node "$RUNNER_TEMP/live-qa/node_modules/playwright/cli.js" install --with-deps chromium
+          node apps/web/test/journey-live-browser.cjs "$RUNNER_TEMP/live-qa" https://zamrabooking.com
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: journey-live-screenshots
+          path: journey-live-*.png
+          if-no-files-found: ignore
