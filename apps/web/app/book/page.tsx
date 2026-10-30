@@ -5,6 +5,7 @@ import { SeatPicker, seatCss, type SegmentSeatMap } from "./SeatPicker";
 import { ScanDocument, type ScannedTraveller } from "../components/ScanDocument";
 import SocialSignIn from "./SocialSignIn";
 import { bookingError } from "./booking-error";
+import BaggageSelection from "./BaggageSelection";
 import { passengerNameProblem } from "./passenger-names";
 import PassengerDateInput from "../components/PassengerDateInput";
 import { passengerDatesProblem } from "../lib/passenger-dates";
@@ -488,7 +489,7 @@ export default function BookPage() {
 
   const cond = review?.conditions;
   const passportNeeded = isInternational || !!cond?.passportMandatory;
-  const ssrSegments = (review?.segments ?? []).filter((s) => s.ssr.baggage.length || s.ssr.meal.length);
+  const ssrSegments = review?.segments ?? [];
   const ssrPrice = (kind: "baggage" | "meal", key: string, code: string) =>
     review?.segments.find((s) => s.key === key)?.ssr[kind].find((o) => o.code === code)?.amount ?? 0;
   const ssrSum = passengers.reduce((n, p) =>
@@ -501,6 +502,7 @@ export default function BookPage() {
   // A new fare session invalidates the seat map and any seats picked from it.
   useEffect(() => {
     setSeatMaps(null); setSeatError("");
+    setPassengers((ps) => ps.map(p => ({...p, bag: {}, meal: {}})));
     setPassengers((ps) => ps.map((p) => (Object.keys(p.seat).length ? { ...p, seat: {} } : p)));
   }, [review?.bookingId]);
 
@@ -1015,11 +1017,14 @@ export default function BookPage() {
                       v={p.documentId} c={(v) => upd(i, "documentId", v.replace(/[^A-Za-z0-9]/g, ""))} r={cond.documentIdMandatory} />
                   )}
                 </div>
+                {p.type !== "INFANT" && !reviewLoading && ssrSegments.length === 0 && <p className="checkoutProgress">Additional baggage options are unavailable for this fare. {reviewError ? "Fare review failed; retry before continuing." : "No supplier baggage options were returned. Included allowance is unchanged."}</p>}
+                {p.type === "INFANT" && <p className="checkoutProgress">Additional baggage selection is not supported for infants in this booking flow.</p>}
                 {p.type !== "INFANT" && ssrSegments.length > 0 && (
                   <div className="ssrBox">
                     <div className="ssrHead">
-                      <b>Meals &amp; extra baggage</b>
-                      <span>Optional · added to your total</span>
+                      <b>Baggage &amp; meals</b>
+                      <span>Optional · per traveller and flight segment</span>
+                      <p style={{fontSize:12,margin:"4px 0",width:"100%"}}>Fare summary checked baggage: {fare?.cabinChecked || "Allowance not provided; check the fare details"}. Only supplier-returned extras are listed below.</p>
                     </div>
                     {ssrSegments.map((seg) => {
                       const bag = seg.ssr.baggage.find((o) => o.code === p.bag[seg.key]);
@@ -1028,15 +1033,9 @@ export default function BookPage() {
                         <div key={seg.key} className="ssrSeg">
                           <div className="ssrFlight"><span aria-hidden="true">✈</span> {seg.origin} → {seg.destination}<small>{seg.airline} {seg.flightNumber}</small></div>
                           <div className="ssrGrid">
-                            {seg.ssr.baggage.length > 0 && (
-                              <label>Extra baggage
-                                <select value={p.bag[seg.key] ?? ""} onChange={(e) => updSsr(i, "bag", seg.key, e.target.value)}>
-                                  <option value="">None</option>
-                                  {seg.ssr.baggage.map((o) => <option key={o.code} value={o.code}>{o.desc} · {o.amount ? amt(o.amount) : "included"}</option>)}
-                                </select>
-                                {bag && <small className="ssrPick">{bag.amount ? `+ ${amt(bag.amount)}` : "Covers the whole connecting journey"}</small>}
-                              </label>
-                            )}
+                            <BaggageSelection options={seg.ssr.baggage} value={p.bag[seg.key] ?? ""}
+                              label={`Traveller ${i+1} additional baggage ${seg.origin} to ${seg.destination} ${seg.key}`}
+                              onChange={code=>updSsr(i,"bag",seg.key,code)} format={amt} />
                             {seg.ssr.meal.length > 0 && (
                               <label>Meal
                                 <select value={p.meal[seg.key] ?? ""} onChange={(e) => updSsr(i, "meal", seg.key, e.target.value)}>
@@ -1128,6 +1127,7 @@ export default function BookPage() {
             </div>
           </section>
         )}
+        {passengers.some(p => Object.values(p.bag).some(Boolean)) && <section className="card" aria-label="Selected additional baggage"><h2>Selected additional baggage</h2>{passengers.map((p,i)=>Object.entries(p.bag).filter(([,code])=>code).map(([key,code])=>{const seg=review?.segments.find(s=>s.key===key);const option=seg?.ssr.baggage.find(o=>o.code===code);return option && <p key={`${i}-${key}`}>Traveller {i+1} · {seg?.origin} → {seg?.destination} · {option.desc}: <b>{amt(option.amount)}</b></p>;}))}<p>Added to the journey total. Supplier confirmation is required to confirm the service.</p></section>}
         {ssrSum > 0 && (
           <p className="checkoutProgress">Meals &amp; baggage: <b>{amt(ssrSum)}</b> added to the fare.</p>
         )}

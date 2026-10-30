@@ -47,7 +47,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : N
 
 function ssrList(v: unknown): SsrOption[] {
   return Array.isArray(v)
-    ? v.filter((x: Rec) => x?.code).map((x: Rec) => ({ code: String(x.code), amount: num(x.amount), desc: String(x.desc ?? x.code) }))
+    ? v.filter((x: Rec) => x?.code && x.amount !== null && x.amount !== undefined && x.amount !== "" && Number.isFinite(Number(x.amount)) && Number(x.amount) >= 0).map((x: Rec) => ({ code: String(x.code), amount: num(x.amount), desc: String(x.desc ?? x.code) }))
     : [];
 }
 
@@ -138,7 +138,10 @@ export function ssrTotal(
   const invalid: string[] = [];
   passengers.forEach((p, i) => {
     for (const [kind, list] of [["baggage", p.ssr?.baggage], ["meal", p.ssr?.meal], ["extra", p.ssr?.extra]] as const) {
+      const seen = new Set<string>();
       for (const pick of list ?? []) {
+        if (seen.has(pick.key)) { invalid.push(`passenger ${i + 1} duplicate ${kind} on ${pick.key}`); continue; }
+        seen.add(pick.key);
         const option = byKey.get(pick.key)?.ssr[kind].find((o) => o.code === pick.code);
         if (!option) invalid.push(`passenger ${i + 1} ${kind} ${pick.code} on ${pick.key}`);
         else total += option.amount;

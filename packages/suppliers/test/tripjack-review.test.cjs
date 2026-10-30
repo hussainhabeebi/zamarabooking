@@ -207,3 +207,29 @@ test('extra-baggage selections, prices and supplier booking payload are preserve
   assert.deepEqual(body.travellerInfo[0].ssrBaggageInfos, picks);
   assert.deepEqual(passenger.ssr.baggage, picks);
 });
+
+for (const trip of ['ONEWAY', 'ROUNDTRIP']) for (const extra of [false, true]) {
+  test(`baggage certification fixture: ${trip} ${extra ? 'with' : 'without'} additional baggage`, async (t) => {
+    const { parseTripjackReview, ssrTotal } = await import(moduleUrl('../src/tripjack/review.ts'));
+    const { TripjackClient } = await import(moduleUrl('../src/tripjack/client.ts'));
+    const ids = trip === 'ROUNDTRIP' ? ['outbound', 'inbound'] : ['outbound'];
+    const summary = parseTripjackReview({bookingId:'local-fixture',tripInfos:ids.map(id=>({sI:[{id,ssrInfo:{BAGGAGE:[{code:`BAG-${id}`,amount:500,desc:'Fixture extra baggage'}]}}]}))});
+    const picks = extra ? ids.map(id=>({key:id,code:`BAG-${id}`})) : [];
+    const passengers = ['ADULT','CHILD'].map((type,i)=>({type,firstName:`Fixture${i}`,lastName:'Only',gender:'M',...(extra?{ssr:{baggage:picks}}:{})}));
+    const amount=extra?ids.length*500*2:0;
+    assert.deepEqual(ssrTotal(summary.segments,passengers),{total:amount,invalid:[]});
+    let request;
+    const old=global.fetch;t.after(()=>global.fetch=old);
+    global.fetch=async(url,init)=>{assert.equal(url,'https://fixture.invalid/oms/v1/air/book');request=JSON.parse(init.body);return Response.json({status:{success:true}})};
+    await new TripjackClient({baseUrl:'https://fixture.invalid',apiKey:'fixture-only'}).book({holdId:'local-fixture',passengers,contactPhone:'0000000000',contactEmail:'fixture@example.invalid',paymentAmount:10000+amount});
+    for(const p of request.travellerInfo) assert.deepEqual(p.ssrBaggageInfos,extra?picks:undefined);
+    assert.equal(request.paymentInfos[0].amount,10000+amount);
+  });
+}
+test('missing/malformed baggage prices are unavailable and duplicate segment picks fail',async()=>{
+  const {parseTripjackReview,ssrTotal}=await import(moduleUrl('../src/tripjack/review.ts'));
+  const summary=parseTripjackReview({tripInfos:[{sI:[{id:'out',ssrInfo:{BAGGAGE:[{code:'missing'},{code:'negative',amount:-1},{code:'invalid',amount:'invalid'},{code:'zero',amount:0},{code:'valid',amount:100}]}}]}]});
+  assert.deepEqual(summary.segments[0].ssr.baggage.map(o=>o.code),['zero','valid']);
+  assert.ok(ssrTotal(summary.segments,[{ssr:{baggage:[{key:'out',code:'valid'},{key:'out',code:'zero'}]}}]).invalid.length);
+  assert.ok(ssrTotal(summary.segments,[{ssr:{baggage:[{key:'out',code:'invented'}]}}]).invalid.length);
+});

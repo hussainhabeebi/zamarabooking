@@ -36,6 +36,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Supplier baggage fixture regressions (no live calls)
+        run: node --test packages/suppliers/test/*.test.cjs
       - name: Passenger date validation regression tests
         run: node --test apps/web/test/*.test.cjs
       - name: Install isolated browser test tools
