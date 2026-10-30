@@ -60,7 +60,11 @@ export function normalizeAkbarJourney(j: Raw, tui: string, cabinClass: string): 
   // "6E 2101", "6E-2101" or "2101" → "2101"
   const flightNumber = str(j.FlightNo).replace(new RegExp(`^${airline}[\\s-]*`, "i"), "").replace(/\s+/g, "");
   const connections  = Array.isArray(j.Connections) ? (j.Connections as Raw[]) : [];
-  const stops        = j.Stops != null && j.Stops !== "" ? num(j.Stops) : connections.length;
+  // Stops: Akbar's count, never fewer than the connections it lists. With neither
+  // a numeric count nor a connection list the count is unknown, not non-stop.
+  const declared     = j.Stops != null && j.Stops !== "" && Number.isFinite(Number(j.Stops)) ? Math.max(0, Math.round(Number(j.Stops))) : null;
+  const stopsUnknown = declared === null && !Array.isArray(j.Connections);
+  const stops        = Math.max(declared ?? 0, connections.length);
   const stopDetails: StopDetail[] = connections.map((c) => ({
     airport:        str(first(c, ["Airport", "From", "To"])).toUpperCase(),
     arrivalTime:    str(c.ArrivalTime),
@@ -86,6 +90,7 @@ export function normalizeAkbarJourney(j: Raw, tui: string, cabinClass: string): 
     duration,
     stops,
     stopDetails,
+    ...(stopsUnknown ? { stopsUnknown: true } : {}),
     cabinClass:    CABIN[str(j.Cabin).toUpperCase()] ?? cabinClass,
     baseFare:      netFare,
     taxes:         0,

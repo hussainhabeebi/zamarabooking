@@ -19,6 +19,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Akbar stop counts in live search results (read-only)
+        run: node scripts/akbar-stops-diagnostic.mjs https://api.zamrabooking.com
+        continue-on-error: true
       - name: Website journey search and checkout baggage
         env:
           CHECK_CHECKOUT: '1'
@@ -26,6 +29,9 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/live-qa" --no-save --ignore-scripts @playwright/test@1.64.1
           node "$RUNNER_TEMP/live-qa/node_modules/playwright/cli.js" install --with-deps chromium
           node apps/web/test/journey-live-browser.cjs "$RUNNER_TEMP/live-qa" https://zamrabooking.com
+      - name: Stops filter on the live website (search only)
+        if: always()
+        run: node apps/web/test/stops-live-browser.cjs "$RUNNER_TEMP/live-qa" https://zamrabooking.com
       - uses: actions/upload-artifact@v4
         if: always()
         with:

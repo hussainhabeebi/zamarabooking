@@ -485,3 +485,16 @@ test("Akbar calls are recorded for API Logs with secrets blanked", async () => {
   assert.equal(recorded[1].responseBody, "error code: 504");
   assert.ok(!JSON.stringify(recorded).includes("jwt-secret") && !JSON.stringify(recorded).includes('"pw"'));
 });
+
+test("Akbar stops come from the stop count and connections; missing details are not non-stop", () => {
+  const n = (j: Record<string, unknown>) => normalizeAkbarSearch({ TUI: "t", Trips: [{ Journey: [{ ...akbarJourney, ...j }] }] }, "ECONOMY")[0];
+  const conn = { Airport: "BLR", Duration: "02h 40m" };
+  assert.equal(n({ Stops: 0, Connections: [] }).stops, 0);
+  assert.equal(n({ Stops: 0, Connections: [] }).stopsUnknown, undefined);
+  assert.equal(n({ Stops: "1", Connections: [conn] }).stops, 1);
+  assert.equal(n({ Stops: 0, Connections: [conn, { Airport: "HYD" }] }).stops, 2);       // never fewer than listed connections
+  assert.deepEqual(n({ Stops: 1, Connections: [conn] }).stopDetails.map((s) => [s.airport, s.layoverMinutes]), [["BLR", 160]]);
+  const unknown = n({ Stops: undefined, Connections: undefined });
+  assert.equal(unknown.stopsUnknown, true);
+  assert.equal(n({ Stops: "Non-Stop", Connections: undefined }).stopsUnknown, true);       // non-numeric label
+});

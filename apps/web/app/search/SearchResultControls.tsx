@@ -228,7 +228,7 @@ export default function SearchResultControls({ origin, destination, departureDat
       <div className="filter-section">
         <div className="filter-section-label">Stops</div>
         <div className="stops-btn-row">
-          {([{ label: "Any", val: null }, { label: "Nonstop", val: "0" }, { label: "1 stop", val: "1" }] as const).map(({ label, val }) => (
+          {([{ label: "Any", val: null }, { label: "Nonstop", val: "0" }, { label: "1 stop", val: "1" }, { label: "2+ stops", val: "2" }] as const).map(({ label, val }) => (
             <button
               key={label} type="button"
               className={`stops-btn${stops === val || (val === null && !stops) ? " active" : ""}`}

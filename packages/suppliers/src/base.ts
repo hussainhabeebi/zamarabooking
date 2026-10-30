@@ -50,6 +50,7 @@ export interface NormalizedFare {
   duration:      number;         // minutes
   stops:         number;
   stopDetails:   StopDetail[];
+  stopsUnknown?: boolean;    // supplier gave no stop count or connection list: never treat as non-stop
   cabinClass:    string;
   baseFare:      number;
   taxes:         number;
