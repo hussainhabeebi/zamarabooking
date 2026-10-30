@@ -6,6 +6,8 @@ import { ScanDocument, type ScannedTraveller } from "../components/ScanDocument"
 import SocialSignIn from "./SocialSignIn";
 import { bookingError } from "./booking-error";
 import { passengerNameProblem } from "./passenger-names";
+import PassengerDateInput from "../components/PassengerDateInput";
+import { passengerDatesProblem } from "../lib/passenger-dates";
 import { CURRENCY_EVENT, readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
 import { convertInr, fetchFxRates, formatIn, GCC, isDisplayCurrency, type DisplayCurrency, type FxRates } from "../lib/fx";
 
@@ -604,6 +606,10 @@ export default function BookPage() {
   // Request body for /api/book (also used to hold the fare).
   function bookingPayload(extra: Record<string, unknown> = {}) {
     if (!fare) throw new Error("No fare selected");
+    for (const [i, p] of passengers.entries()) {
+      const problem = passengerDatesProblem(p);
+      if (problem) throw new Error(`Traveller ${i + 1}: ${problem}`);
+    }
     return {
       fareId:        fare.fareId,
       supplier:      fare.supplier,
@@ -681,7 +687,7 @@ export default function BookPage() {
     if (!fare || submitting || fareExpired || bookingUncertain) return;
     // Names must be real (no TBA / Test) — the airline and TripJack reject placeholders.
     for (const [i, p] of passengers.entries()) {
-      const problem = passengerNameProblem(p.firstName, "First name") ?? passengerNameProblem(p.lastName, "Last name");
+      const problem = passengerNameProblem(p.firstName, "First name") ?? passengerNameProblem(p.lastName, "Last name") ?? passengerDatesProblem(p);
       if (problem) { setError(`Traveller ${i + 1}: ${problem}`); setReviewing(false); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     }
     if (cond) {
@@ -1160,8 +1166,10 @@ function Input({ l, v, c, t = "text", r = false, ph, max }: {
 }) {
   return (
     <label>{l}
-      <input type={t} value={v} onChange={(e) => c(e.target.value)}
-        required={r} placeholder={ph} maxLength={max} />
+      {t === "date" ? <PassengerDateInput value={v} onChange={c} required={r}
+        kind={l === "Date of birth" ? "birth" : l === "Passport issue date" ? "issue" : "expiry"} />
+        : <input type={t} value={v} onChange={(e) => c(e.target.value)}
+          required={r} placeholder={ph} maxLength={max} />}
     </label>
   );
 }
