@@ -165,7 +165,11 @@ test('actual results filter and booking handoff preserve unknown baggage', async
   const functions = ast.statements.filter((s) => ts.isFunctionDeclaration(s) && ['filterAndSortFares', 'buildBookUrl'].includes(s.name?.text));
   assert.equal(functions.length, 2);
   const js = ts.transpileModule(functions.map((f) => f.getText(ast)).join('\n'), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  const { filterAndSortFares, buildBookUrl } = new Function(js + ';return { filterAndSortFares, buildBookUrl };')();
+  // filterAndSortFares uses the shared stop helper the page imports.
+  const stopsFile = path.resolve(__dirname, '../../../apps/web/app/lib/stops.ts');
+  const stopsJs = ts.transpileModule(fs.readFileSync(stopsFile, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const stops = {}; new Function('exports', stopsJs)(stops);
+  const { filterAndSortFares, buildBookUrl } = new Function('matchesStops', js + ';return { filterAndSortFares, buildBookUrl };')(stops.matchesStops);
   const unknown = normalizeTripjackFare({ id: 'unknown', totalPriceInfo: {} });
   const known = normalizeTripjackFare({ id: 'known', totalPriceInfo: { fd: { ADULT: { bI: { iB: '20 KG' } } } } });
   assert.deepEqual(filterAndSortFares([unknown, known], { baggage: '1' }).map((f) => f.id), ['known']);
