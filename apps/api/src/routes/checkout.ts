@@ -322,7 +322,7 @@ checkoutRoutes.get("/session/:token/baggage",async c=>{
  const ctx=await baggageContext(c);
  const pax=(ctx.booking.flightData as any).tripjack.pax;
  const picks=ctx.passengers.map((p:any)=>({passengerId:p.id,baggage:pax.find((x:any)=>(x.passengerId ? x.passengerId===p.id : x.firstName.trim().toUpperCase()===p.firstName.trim().toUpperCase()&&x.lastName.trim().toUpperCase()===p.lastName.trim().toUpperCase())&&x.type===p.passengerType)?.ssr?.baggage??[]}));
- try {const quote=quoteBaggage({...ctx,picks});return c.json({...quote,picks,segments:ctx.review.summary.segments.map(s=>({key:s.key,origin:s.origin,destination:s.destination,options:s.ssr.baggage}))});}
+ try {const quote=quoteBaggage({...ctx,picks});return c.json({...quote,picks,segments:ctx.review.summary.segments.map(s=>({key:s.key,origin:s.origin,destination:s.destination,includedBaggage:s.includedBaggage,options:s.ssr.baggage}))});}
  catch(e){throw new HTTPException(409,{message:e instanceof Error?e.message:"BAGGAGE_UNAVAILABLE"});}
 });
 checkoutRoutes.post("/session/:token/baggage-apply",zValidator("json",z.object({passengers:baggageChoices,revision:z.string().min(1)}).strict()),async c=>{

@@ -10,6 +10,7 @@ type Rec = Record<string, any>;
 export interface SsrOption { code: string; amount: number; desc: string }
 
 export interface ReviewSegment extends FareSegment {
+  includedBaggage?: Record<string,string>;
   key:   string;   // segment id — the SSR "key" in the Book request
   ssr: { baggage: SsrOption[]; meal: SsrOption[]; extra: SsrOption[] };
 }
@@ -84,15 +85,16 @@ export function reviewTotalFare(rr: Rec, pax?: { adults: number; children?: numb
 export function parseTripjackReview(result: Rec): ReviewSummary {
   const c = result?.conditions ?? {};
   const trips: Rec[] = Array.isArray(result?.tripInfos) ? result.tripInfos : [];
-  const segments: ReviewSegment[] = trips.flatMap((t) => (Array.isArray(t?.sI) ? t.sI : [])).map((s: Rec) => ({
+  const segments: ReviewSegment[] = trips.flatMap((t) => (Array.isArray(t?.sI) ? t.sI : []).map((s: Rec) => ({
     ...normalizeTripjackSegment(s),
     key: String(s?.id ?? ""),
+    includedBaggage: Object.fromEntries(Object.entries(t?.totalPriceList?.[0]?.fd ?? {}).filter(([kind,fd]:[string,any]) => ["ADULT","CHILD","INFANT"].includes(kind) && typeof fd?.bI?.iB === "string" && fd.bI.iB.trim()).map(([kind,fd]:[string,any]) => [kind,fd.bI.iB])),
     ssr: {
       baggage: ssrList(s?.ssrInfo?.BAGGAGE),
       meal:    ssrList(s?.ssrInfo?.MEAL),
       extra:   ssrList(s?.ssrInfo?.EXTRASERVICES),
     },
-  }));
+  })));
   const alert = (Array.isArray(result?.alerts) ? result.alerts : []).find((a: Rec) => a?.type === "FAREALERT");
   const tf = reviewTotalFare(result);
   const fareIdentifiers = trips.flatMap((t) => (Array.isArray(t?.totalPriceList) ? t.totalPriceList : []))

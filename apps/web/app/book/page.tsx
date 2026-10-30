@@ -24,7 +24,7 @@ type Passenger = {
 };
 
 type SsrOption = { code: string; amount: number; desc: string };
-type ReviewSegment = { key: string; airline: string; airlineName?: string; flightNumber: string; origin: string; destination: string; departureTime: string; arrivalTime?: string; duration?: number; isReturn?: boolean; ssr: { baggage: SsrOption[]; meal: SsrOption[]; extra: SsrOption[] } };
+type ReviewSegment = { key: string; airline: string; airlineName?: string; flightNumber: string; origin: string; destination: string; departureTime: string; arrivalTime?: string; duration?: number; isReturn?: boolean; ssr: { baggage: SsrOption[]; meal: SsrOption[]; extra: SsrOption[] }; includedBaggage?: Record<string,string> };
 type Review = {
   bookingId: string; totalFare?: number; displayTotal?: number; currency?: string; expiresAt?: string;
   fareIdentifiers: string[];
@@ -1017,14 +1017,14 @@ export default function BookPage() {
                       v={p.documentId} c={(v) => upd(i, "documentId", v.replace(/[^A-Za-z0-9]/g, ""))} r={cond.documentIdMandatory} />
                   )}
                 </div>
-                {p.type !== "INFANT" && !reviewLoading && ssrSegments.length === 0 && <p className="checkoutProgress">Additional baggage options are unavailable for this fare. {reviewError ? "Fare review failed; retry before continuing." : "No supplier baggage options were returned. Included allowance is unchanged."}</p>}
-                {p.type === "INFANT" && <p className="checkoutProgress">Additional baggage selection is not supported for infants in this booking flow.</p>}
+                {p.type !== "INFANT" && !reviewLoading && ssrSegments.length === 0 && <p className="checkoutProgress">Additional baggage not available. {reviewError ? "Fare review failed; retry before continuing." : "Included allowance is unchanged."}</p>}
+                {p.type === "INFANT" && <p className="checkoutProgress">Additional baggage not available. Infant baggage remains subject to the airline’s included allowance.</p>}
                 {p.type !== "INFANT" && ssrSegments.length > 0 && (
                   <div className="ssrBox">
                     <div className="ssrHead">
-                      <b>Baggage &amp; meals</b>
+                      <b>Add Baggage &amp; Meals</b>
                       <span>Optional · per traveller and flight segment</span>
-                      <p style={{fontSize:12,margin:"4px 0",width:"100%"}}>Fare summary checked baggage: {fare?.cabinChecked || "Allowance not provided; check the fare details"}. Only supplier-returned extras are listed below.</p>
+                      <p style={{fontSize:12,margin:"4px 0",width:"100%"}}>Fare summary checked baggage: {fare?.cabinChecked || "Allowance not provided; check the fare details"}. Choose extra baggage for this traveller below.</p>
                     </div>
                     {ssrSegments.map((seg) => {
                       const bag = seg.ssr.baggage.find((o) => o.code === p.bag[seg.key]);
@@ -1032,6 +1032,7 @@ export default function BookPage() {
                       return (
                         <div key={seg.key} className="ssrSeg">
                           <div className="ssrFlight"><span aria-hidden="true">✈</span> {seg.origin} → {seg.destination}<small>{seg.airline} {seg.flightNumber}</small></div>
+                          <p style={{fontSize:12,color:"#667085"}}>Included checked baggage: {seg.includedBaggage?.[p.type] || "Allowance not provided by the airline"}</p>
                           <div className="ssrGrid">
                             <BaggageSelection options={seg.ssr.baggage} value={p.bag[seg.key] ?? ""}
                               label={`Traveller ${i+1} additional baggage ${seg.origin} to ${seg.destination} ${seg.key}`}

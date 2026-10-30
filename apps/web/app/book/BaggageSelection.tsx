@@ -8,13 +8,13 @@ export default function BaggageSelection({ options, value, onChange, format, lab
 }) {
   const valid = availableBaggage(options);
   const selected = valid.find(o=>o.code===value);
-  return <label>Additional baggage
+  return <label>Add Baggage
     {valid.length ? <>
       <select aria-label={label} value={selected?.code ?? ""} onChange={e=>onChange(e.target.value)}>
         <option value="">No additional baggage</option>
         {valid.map(o=><option key={o.code} value={o.code}>{o.desc} · {format(o.amount)}</option>)}
       </select>
       <small className="ssrPick">{selected ? `${selected.desc} · + ${format(selected.amount)}` : "No extra baggage charge"}</small>
-    </> : <small>Additional baggage is not offered in this supplier fare response. Included allowance is unchanged.</small>}
+    </> : <small>Additional baggage not available.</small>}
   </label>;
 }
