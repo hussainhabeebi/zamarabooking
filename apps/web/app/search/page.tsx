@@ -4,6 +4,7 @@ import SearchResultControls, { ChangeDatesAction } from "./SearchResultControls"
 import { FareTools } from "./FareTools";
 import FareOptionsList from "./FareOptionsList";
 import { altOptions, fareLabel, flightKey, groupFareOptions, optionPerks, optionPrice } from "../lib/fare-options";
+import { matchesStops, stopCount, stopsLabel, viaText } from "../lib/stops";
 import { convertInr, currencyMeta, fetchFxRates, formatIn, isDisplayCurrency, type FxRates } from "../lib/fx";
 
 type SearchParams = {
@@ -290,8 +291,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
 function filterAndSortFares(fares: any[], params: SearchParams): any[] {
   const airlineFilter = (params.airlines ?? "").split(",").filter(Boolean);
   const filtered = fares.filter((fare) => {
-    if (params.stops === "0" && Number(fare.stops ?? 0) !== 0) return false;
-    if (params.stops === "1" && Number(fare.stops ?? 0) !== 1) return false;
+    if (!matchesStops(fare, params.stops)) return false;
     if (params.refundable === "1" && !fare.isRefundable) return false;
     if (params.baggage === "1" && !fare.baggage?.checked) return false;
     if (airlineFilter.length > 0 && !airlineFilter.includes(fare.airlineName)) return false;
@@ -428,8 +428,8 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
             <div className="fare-card-v2-duration-bar">
               <div className="fare-card-v2-duration">{durationH}h {durationM}m</div>
               <div className="fare-card-v2-line" />
-              <div className={`fare-card-v2-stops-label${fare.stops === 0 ? " nonstop" : ""}`}>
-                {fare.stops === 0 ? "Nonstop" : `${fare.stops} stop${fare.stops > 1 ? "s" : ""}`}
+              <div className={`fare-card-v2-stops-label${stopCount(fare) === 0 ? " nonstop" : ""}`}>
+                {stopsLabel(fare)}
               </div>
             </div>
             <div>
@@ -440,8 +440,8 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
               <div className="fare-card-v2-airport">{fare.destination}</div>
             </div>
           </div>
-          {fare.layoverAirports?.length > 0 && (
-            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Via {fare.layoverAirports.join(" · ")}</div>
+          {viaText(fare) && (
+            <div className="fare-card-v2-via" style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{viaText(fare)}</div>
           )}
         </div>
 

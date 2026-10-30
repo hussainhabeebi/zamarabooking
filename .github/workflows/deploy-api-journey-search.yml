@@ -34,6 +34,7 @@ env:
     apps/api/src/routes/book.ts
     packages/suppliers/src/akbar/adapter.ts
     packages/suppliers/src/index.ts
+    packages/suppliers/src/base.ts
     apps/api/test/flight-sources.test.ts
     apps/api/test/journey-search-logs.test.ts
     apps/api/test/akbar-journey-booking.test.ts

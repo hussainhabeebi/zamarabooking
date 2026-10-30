@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import SearchResultControls from "../SearchResultControls";
 import { journeyResponse } from "./response";
 import { filterJourneyFares } from "./filters";
+import { stopsLabel, viaText } from "../../lib/stops";
 import { readPrefCurrency } from "../../lib/currency-pref";
 import { convertInr, fetchFxRates, formatIn, type FxRates } from "../../lib/fx";
 
@@ -22,6 +23,7 @@ type Fare = {
   origin: string; destination: string; departureTime: string; arrivalTime: string; duration: number; stops: number;
   totalFare: number; displayPrice?: number; currency: string; isRefundable: boolean;
   baggage?: { cabin?: string; checked?: string };
+  stopsUnknown?: boolean; stopDetails?: { airport?: string; layoverMinutes?: number }[];
   tripKey?: string; legIndex?: number; fareIdentifier?: string; sri?: string; msri?: string[]; segments?: Segment[];
 };
 
@@ -303,7 +305,7 @@ function FareRow({ fare, selected, onPick, showSegments, travellers = 1, show = 
         <div>
           <b>{fare.airlineName} · {fare.flightNumber ? `${fare.airline} ${fare.flightNumber}` : ""}</b>
           <div style={{ fontSize: 13, color: "#344054" }}>
-            {time(fare.departureTime)} {fare.origin} → {time(fare.arrivalTime)} {fare.destination} · {hm(fare.duration)} · {fare.stops ? `${fare.stops} stop${fare.stops > 1 ? "s" : ""}` : "Non-stop"}
+            {time(fare.departureTime)} {fare.origin} → {time(fare.arrivalTime)} {fare.destination} · {hm(fare.duration)} · {fare.tripKey === "COMBO" ? (fare.stops ? `${fare.stops} stop${fare.stops > 1 ? "s" : ""}` : "Non-stop") : stopsLabel(fare)}{fare.tripKey !== "COMBO" && viaText(fare) ? ` · ${viaText(fare)}` : ""}
           </div>
           {showSegments && inbound.length > 0 && (
             <div style={{ fontSize: 13, color: "#344054" }}>
