@@ -70,7 +70,7 @@ settingsAdminRoutes.get("/payments", async (c) => {
   if (!saved) {
     return c.json({
       razorpay: { enabled: false, keyId: "", keySecret: "", webhookSecret: "", configured: false },
-      nomod: { enabled: false, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production", allowTabby: true, allowTamara: true, configured: false },
+      nomod: { enabled: true, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production", allowTabby: true, allowTamara: true, configured: false },
       defaultGateway: "NOMOD",
     });
   }
@@ -86,6 +86,7 @@ settingsAdminRoutes.get("/payments", async (c) => {
     },
     nomod: {
       ...saved.nomod,
+      enabled: saved.nomod?.enabled !== false,
       apiKey: "",
       apiSecret: "",
       webhookSecret: "",
@@ -139,7 +140,7 @@ settingsAdminRoutes.post("/payments/test-nomod", async (c) => {
   const tenantId = c.get("tenantId");
   const saved = await getSettings<any>(c.env, tenantId, "payments");
   const apiKey = saved?.nomod?.apiKey || c.env.NOMOD_API_KEY;
-  if (!saved?.nomod?.enabled || !apiKey) {
+  if (saved?.nomod?.enabled === false || !apiKey) {
     return c.json({ ok: false, message: "Enable Nomod and save an API key first" }, 400);
   }
 

@@ -76,7 +76,7 @@ function PaymentSettings() {
   const [s, setS] = useState({
     defaultGateway: "NOMOD" as "RAZORPAY" | "NOMOD",
     razorpay: { enabled: false, keyId: "", keySecret: "", webhookSecret: "" },
-    nomod:    { enabled: false, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production" as "sandbox" | "production", allowTabby: true, allowTamara: true, configured: false, aedRate: null as number | null },
+    nomod:    { enabled: true, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production" as "sandbox" | "production", allowTabby: true, allowTamara: true, configured: false, aedRate: null as number | null },
   });
 
   useEffect(() => {

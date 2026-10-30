@@ -12,7 +12,7 @@ import { bookings, payments } from "@zamrabooking/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { issueTripToken } from "./trips.js";
-import { RAZORPAY_ENABLED } from "../lib/payment-gateway.js";
+import { RAZORPAY_ENABLED, nomodEnabled } from "../lib/payment-gateway.js";
 import { convertAmount, getAedRate } from "../lib/fx.js";
 
 export const paymentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -44,7 +44,7 @@ paymentRoutes.get("/config", async (c) => {
   const tenantId = c.get("tenantId");
   const settings = await getTenantPaymentSettings(c.env, tenantId);
   const razorpayConfigured = RAZORPAY_ENABLED && Boolean(settings?.razorpay?.enabled && (settings.razorpay.keyId || c.env.RAZORPAY_KEY_ID));
-  const nomodConfigured = Boolean(settings?.nomod?.enabled && (settings.nomod.apiKey || c.env.NOMOD_API_KEY));
+  const nomodConfigured = nomodEnabled(settings) && Boolean(settings?.nomod?.apiKey || c.env.NOMOD_API_KEY);
   const preferred = settings?.defaultGateway === "NOMOD" && nomodConfigured
     ? "NOMOD"
     : razorpayConfigured ? "RAZORPAY" : nomodConfigured ? "NOMOD" : null;
@@ -162,8 +162,12 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
 
   if (gateway === "NOMOD") {
     const { apiKey } = resolvePaymentKeys(c.env, settings, "NOMOD") as { apiKey: string };
-    if (!settings?.nomod?.enabled || !apiKey) {
-      throw new HTTPException(503, { message: "Nomod is not enabled or its API key is missing" });
+    if (!nomodEnabled(settings)) {
+      throw new HTTPException(503, { message: "Nomod is switched off in Admin → Settings → Payments" });
+    }
+    if (!apiKey) {
+      console.error("[payments] Nomod API key missing: set it in Admin → Settings → Payments or the NOMOD_API_KEY secret");
+      throw new HTTPException(503, { message: "Nomod API key is missing" });
     }
 
     const checkoutToken = c.req.header("X-Checkout-Token") ?? "";
@@ -184,8 +188,8 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
         note: `Payment for booking ${bookingId}`,
         shipping_address_required: false,
         allow_tip: false,
-        allow_tabby: settings.nomod.allowTabby ?? true,
-        allow_tamara: settings.nomod.allowTamara ?? true,
+        allow_tabby: settings?.nomod?.allowTabby ?? true,
+        allow_tamara: settings?.nomod?.allowTamara ?? true,
         allow_service_fee: false,
         payment_expiry_limit: 1,
         success_url: `${resultUrl}&result=success`,
