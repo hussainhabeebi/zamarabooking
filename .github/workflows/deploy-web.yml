@@ -70,6 +70,8 @@ jobs:
         run: node apps/web/test/journey-filters-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
       - name: Akbar round-trip / multi-city journey browser checks
         run: node apps/web/test/journey-akbar-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Akbar checkout baggage browser checks
+        run: node apps/web/test/akbar-baggage-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
       - run: pnpm --filter @zamrabooking/web typecheck
       - name: Build public website only
         working-directory: apps/web

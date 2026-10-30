@@ -183,7 +183,7 @@ function Journey() {
     if (!selection.length) return;
     const firstFare = selection[0];
     const lastFare = selection[selection.length - 1];
-    const summary = selection.map((f) => ({ id: f.id, tripKey: f.tripKey, airlineName: f.airlineName, flightNumber: f.flightNumber, origin: f.origin, destination: f.destination, departureTime: f.departureTime, arrivalTime: f.arrivalTime, stops: f.stops, fareIdentifier: f.fareIdentifier, segments: f.segments }));
+    const summary = selection.map((f) => ({ id: f.id, tripKey: f.tripKey, airlineName: f.airlineName, flightNumber: f.flightNumber, origin: f.origin, destination: f.destination, departureTime: f.departureTime, arrivalTime: f.arrivalTime, stops: f.stops, fareIdentifier: f.fareIdentifier, segments: f.segments, baggage: f.baggage }));
     try { sessionStorage.setItem(`journey:${selection.map((f) => f.id).join(",")}`, JSON.stringify(summary)); } catch {}
     const p = new URLSearchParams({
       fareId: firstFare.id, priceIds: selection.map((f) => f.id).join(","), supplier: firstFare.supplier, tripType,
@@ -192,7 +192,7 @@ function Journey() {
       from: legs[0].origin, to: tripType === "ROUNDTRIP" ? legs[0].destination : legs[legs.length - 1].destination,
       dep: firstFare.departureTime, arr: lastFare.arrivalTime, dur: String(firstFare.duration ?? 0), stops: String(firstFare.stops ?? 0),
       price: String(Math.round(total * 100) / 100), cur: currency, ref: selection.every((f) => f.isRefundable) ? "1" : "0",
-      bag: firstFare.baggage?.checked ?? "", ...(searchId ? { sid: searchId } : {}), ...(q.get("pc") ? { pc: q.get("pc")! } : {}),
+      bag: firstFare.baggage?.checked ?? "", cab: firstFare.baggage?.cabin ?? "", ...(searchId ? { sid: searchId } : {}), ...(q.get("pc") ? { pc: q.get("pc")! } : {}),
     });
     window.location.href = `/book?${p}`;
   }
