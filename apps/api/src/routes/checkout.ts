@@ -5,7 +5,8 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
+import { bookings, bookingPassengers, payments } from "@zamrabooking/db/schema";
+import { quoteBaggage } from "../lib/baggage-quote.js";
 import { eq, and } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 
@@ -300,6 +301,24 @@ checkoutRoutes.put("/session/:token/passengers", zValidator("json", passengerUpd
   }).where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, c.get("tenantId"))));
 
   return c.json({ ok: true });
+});
+
+// Read-only server-priced preview; no booking/payment records are changed.
+// Applying a quote is deliberately unavailable pending a shared atomic payment guard.
+checkoutRoutes.post("/session/:token/baggage-quote", zValidator("json", z.object({
+  passengers:z.array(z.object({passengerId:z.string().min(1),baggage:z.array(z.object({key:z.string().min(1),code:z.string().min(1)}).strict()).max(6)}).strict()).max(9),
+}).strict()), async c => {
+  const bookingId=await checkoutBookingId(c,c.req.param("token")), db=c.get("db"), tenantId=c.get("tenantId");
+  const [booking]=await db.select().from(bookings).where(and(eq(bookings.id,bookingId),eq(bookings.tenantId,tenantId))).limit(1);
+  if(!booking) throw new HTTPException(404,{message:"Booking not found"});
+  const sessionId=(booking.flightData as any)?.tripjack?.reviewBookingId;
+  if(typeof sessionId!=="string") throw new HTTPException(409,{message:"Baggage repricing unavailable for this booking"});
+  const review=await c.env.SESSIONS_KV.get(`flight_review:${tenantId}:${sessionId}`,"json") as Parameters<typeof quoteBaggage>[0]["review"]|null;
+  if(!review) throw new HTTPException(409,{message:"Fare review expired; search again"});
+  const passengers=await db.select().from(bookingPassengers).where(eq(bookingPassengers.bookingId,bookingId));
+  const ledger=await db.select({id:payments.id}).from(payments).where(eq(payments.bookingId,bookingId)).limit(1);
+  try {return c.json(quoteBaggage({booking,passengers,review,picks:c.req.valid("json").passengers,hasPayments:ledger.length>0}));}
+  catch(error){throw new HTTPException(409,{message:error instanceof Error?error.message:"BAGGAGE_QUOTE_UNAVAILABLE"});}
 });
 
 // POST /api/checkout/session/:token/mark-paid — called after successful payment to invalidate token
