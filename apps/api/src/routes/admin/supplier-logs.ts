@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { supplierApiLogs, supplierExchanges } from "@zamrabooking/db/schema";
 import { eq, and, desc, gte, inArray, like, lte, or, asc } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
+import { searchStopLabel } from "../../lib/log-stop-labels.js";
 import { buildZip } from "../../lib/zip.js";
 import { certificationRequest, tripjackHost } from "../../lib/certification.js";
 import { tripjackEnvironment } from "../../lib/hotels.js";
@@ -171,6 +172,14 @@ async function exchangeFile(c: any, id: string, part: "request" | "response") {
 supplierLogsAdminRoutes.get("/exchanges.zip", async (c) => {
   const ids = (c.req.query("ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 100);
   if (!ids.length) throw new HTTPException(400, { message: "Pass ?ids=" });
+  // This is a search/exchange archive, not an individual selected flight.
+  // UI filtering happens after search; absent an explicitly supplied filter, it is ALL-STOPS.
+  const scope = c.req.query("scope");
+  let suffix = "";
+  if (scope === "flight" || scope === "akbar") {
+    try { suffix = `-${searchStopLabel(c.req.query("stops"))}`; }
+    catch { throw new HTTPException(400, { message: "Invalid stop filter" }); }
+  }
   const files: { name: string; data: Uint8Array; date: Date }[] = [];
   const used = new Map<string, number>();
   const rows = await c.get("db").select({ id: supplierExchanges.id }).from(supplierExchanges)
@@ -188,7 +197,7 @@ supplierLogsAdminRoutes.get("/exchanges.zip", async (c) => {
   if (!files.length) throw new HTTPException(404, { message: "No log files found" });
   return new Response(buildZip(files), { headers: {
     "Content-Type": "application/zip",
-    "Content-Disposition": `attachment; filename="${c.req.query("name")?.replace(/[^A-Za-z0-9-]+/g, "") || "api-logs"}.zip"`,
+    "Content-Disposition": `attachment; filename="${c.req.query("name")?.replace(/[^A-Za-z0-9-]+/g, "") || "api-logs"}${suffix}.zip"`,
     "Cache-Control": "private, no-store",
   } });
 });

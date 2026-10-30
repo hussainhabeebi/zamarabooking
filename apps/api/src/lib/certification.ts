@@ -20,6 +20,7 @@ import { bookingPassengers, supplierExchanges, type bookings } from "@zamrabooki
 import { and, asc, desc, eq, gte, lte, or } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { passengerNameProblem } from "./passenger-names.js";
+import { normalizedStopCount, resultStopLabel } from "./log-stop-labels.js";
 
 type Booking = typeof bookings.$inferSelect;
 type Db = Variables["db"];
@@ -215,7 +216,7 @@ export async function certificationCoverage(env: Env, db: Db, b: Booking, exchan
 }
 
 // TripJack's certification folder layout:
-//   oneway/DEL-BOM-1A-DIRECT/, oneway/BOM-SIN-2A-2C-CONNECTING/, roundtrip/…
+//   oneway/DEL-BOM-1A-DIRECT/, oneway/BOM-SIN-2A-2C-1-STOP/, roundtrip/…
 // Passenger counts that are zero are left out.
 export function tripFolderName(b: Booking) {
   return b.tripType === "ROUNDTRIP" ? "roundtrip" : b.tripType === "MULTICITY" ? "multicity" : "oneway";
@@ -225,22 +226,40 @@ export function caseName(b: Booking) {
   const clean = (v: string) => v.replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
   const fd = (b.flightData ?? {}) as Record<string, any>;
   const segments: any[] = Array.isArray(fd.tripjack?.segments) ? fd.tripjack.segments : Array.isArray(fd.segments) ? fd.segments : [];
-  let connecting: boolean;
-  if (segments.length) {
-    if (b.tripType === "MULTICITY") {
-      const legs = Array.isArray(fd.legs) ? fd.legs.length : Array.isArray(fd.tripjack?.priceIds) ? fd.tripjack.priceIds.length : 1;
-      connecting = segments.length > Math.max(legs, 1);
-    } else {
-      const outbound = segments.filter((s) => !s?.isReturn).length;
-      const inbound = segments.length - outbound;
-      connecting = b.tripType === "ROUNDTRIP" && inbound === 0 ? segments.length > 2 : outbound > 1 || inbound > 1;
+  // Akbar/offline bookings keep the normalized fare under offline.fare, not fd.stops.
+  // A complete journey has one normalized fare per requested leg.
+  let counts: (number | null)[];
+  const offlineLegs = Array.isArray(fd.offline?.legs) ? fd.offline.legs : [];
+  if (offlineLegs.length) {
+    counts = offlineLegs.map((leg: Record<string, any>) => normalizedStopCount(leg));
+  } else if (fd.offline?.fare) {
+    counts = [normalizedStopCount(fd.offline.fare)];
+  } else if (segments.length && b.tripType === "ONEWAY") {
+    counts = [normalizedStopCount({ ...fd, segments })];
+  } else if (segments.length && b.tripType === "ROUNDTRIP" && segments.some(s => s?.isReturn)) {
+    counts = [segments.filter(s => !s?.isReturn).length - 1, segments.filter(s => s?.isReturn).length - 1];
+  } else if (segments.length && Array.isArray(fd.legs) && fd.legs.length) {
+    // Split actual segments at the recorded requested route boundaries.
+    let index = 0;
+    const lengths = fd.legs.map(() => 0);
+    for (const segment of segments) {
+      if (index >= lengths.length) break;
+      lengths[index]++;
+      if (segment.destination === fd.legs[index].destination) index++;
     }
+    counts = index === fd.legs.length ? lengths.map((n: number) => n - 1) : [null];
   } else {
-    connecting = Number(fd.stops ?? 0) > 0;
+    // Without per-leg evidence, do not guess that two segments form a direct return.
+    counts = [b.tripType === "ONEWAY" ? normalizedStopCount(fd) : null];
   }
+  const labels = [...new Set(counts.map(resultStopLabel))];
+  const stopLabel = labels.includes("UNKNOWN-STOPS") ? "UNKNOWN-STOPS" : labels.length === 1 ? labels[0] : "MIXED-STOPS";
+  const route = offlineLegs.length
+    ? [offlineLegs[0].origin, ...offlineLegs.map((leg: Record<string, any>) => leg.destination)].map(v => clean(String(v ?? "")))
+    : [clean(b.origin), clean(b.destination)];
   const pax = [[b.adultCount, "A"], [b.childCount, "C"], [b.infantCount, "I"]]
     .filter(([n]) => Number(n) > 0).map(([n, t]) => `${n}${t}`);
-  return [clean(b.origin), clean(b.destination), ...pax, connecting ? "CONNECTING" : "DIRECT"].join("-");
+  return [...route, ...pax, stopLabel].join("-");
 }
 
 // Folder for one booking in a multi-booking ZIP; a repeated case gets "-2", "-3" …

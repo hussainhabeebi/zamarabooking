@@ -36,7 +36,7 @@ test("certification folders follow TripJack's layout", async () => {
   const seg = (o: string, d: string, isReturn = false) => ({ origin: o, destination: d, ...(isReturn ? { isReturn } : {}) });
   const b = (x: any): any => ({ tripType: "ONEWAY", adultCount: 1, childCount: 0, infantCount: 0, flightData: { tripjack: { segments: [seg("DEL", "BOM")] } }, ...x });
   assert.equal(caseName(b({ origin: "DEL", destination: "BOM" })), "DEL-BOM-1A-DIRECT");
-  assert.equal(caseName(b({ origin: "BOM", destination: "SIN", adultCount: 2, childCount: 2, flightData: { tripjack: { segments: [seg("BOM", "MAA"), seg("MAA", "SIN")] } } })), "BOM-SIN-2A-2C-CONNECTING");
+  assert.equal(caseName(b({ origin: "BOM", destination: "SIN", adultCount: 2, childCount: 2, flightData: { tripjack: { segments: [seg("BOM", "MAA"), seg("MAA", "SIN")] } } })), "BOM-SIN-2A-2C-1-STOP");
   assert.equal(caseName(b({ origin: "BOM", destination: "MAA", adultCount: 5, childCount: 4, infantCount: 3 })), "BOM-MAA-5A-4C-3I-DIRECT");
   const rt = b({ origin: "DEL", destination: "DXB", tripType: "ROUNDTRIP", flightData: { tripjack: { segments: [seg("DEL", "DXB"), seg("DXB", "DEL", true)] } } });
   assert.equal(caseName(rt), "DEL-DXB-1A-DIRECT");
