@@ -37,6 +37,24 @@ const journeys = {
       await page.screenshot({ path: `journey-live-${trip}.png`, fullPage: true });
       console.log(JSON.stringify({ trip, url, fareCardsShown: shown, notice, apiSearches: searches }));
       if (!shown) failed = true;
+      // Pick the first fare of each leg and open checkout. Stops on the traveller form:
+      // nothing is reviewed, booked or paid.
+      if (shown && process.env.CHECK_CHECKOUT === '1') {
+        const legs = await page.locator('[id^="leg-"]').count();
+        for (let i = 0; i < legs; i++) await page.locator('[id^="leg-"]').nth(i).getByRole('button').filter({ hasText: ' · ' }).first().click();
+        await page.getByRole('button', { name: 'Continue', exact: true }).click();
+        await page.waitForURL('**/book?**', { timeout: 30000 });
+        const card = page.getByRole('region', { name: 'Baggage' });
+        await card.waitFor({ timeout: 30000 }).catch(() => {});
+        const bookUrl = new URL(page.url());
+        console.log(JSON.stringify({ trip, checkout: {
+          supplier: bookUrl.searchParams.get('supplier'), legs: (bookUrl.searchParams.get('priceIds') ?? '').split(',').length,
+          baggageCard: await card.isVisible() ? (await card.innerText()).replace(/\s+/g, ' ').trim() : null,
+          addBaggageOffered: await page.getByText(/Add Baggage/).count(),
+        } }));
+        await page.screenshot({ path: `checkout-live-${trip}.png`, fullPage: true });
+        if (!(await card.isVisible())) failed = true;
+      }
       await page.close();
     }
   } finally { await browser.close(); }
