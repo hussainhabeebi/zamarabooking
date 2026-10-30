@@ -44,9 +44,29 @@ const { build } = qaRequire('esbuild');
       await expect(card.getByText('Check-in: 30 Kg')).toBeVisible();
       // A leg Akbar gave no allowance for is never filled in with a made-up value.
       await expect(card.getByText('Check-in: As per airline')).toBeVisible();
-      await expect(card.getByText(/can't be added online for this fare/)).toBeVisible();
+      await expect(card.getByText(/can't be bought online for this fare/)).toBeVisible();
       await expect(card.getByRole('link', { name: /WhatsApp/ })).toHaveAttribute('href', /wa\.me/);
-      await expect(page.getByText('Extra baggage: arranged by our team after booking (see Baggage above).')).toHaveCount(2);
+      // Each traveller must choose with or without additional baggage.
+      const choices = page.getByRole('group', { name: /Traveller \d additional baggage/ });
+      await expect(choices).toHaveCount(2);
+      const t1 = page.getByRole('group', { name: 'Traveller 1 additional baggage' });
+      await expect(t1.getByRole('radio')).toHaveCount(2);
+      await expect(t1.getByRole('radio', { checked: true })).toHaveCount(0);
+      await t1.getByRole('radio', { name: /Request additional baggage/ }).check();
+      const out = page.getByRole('combobox', { name: 'Traveller 1 extra baggage request BOM to DXB' });
+      await expect(out).toBeVisible();
+      await expect(page.getByRole('combobox', { name: 'Traveller 1 extra baggage request DXB to BOM' })).toBeVisible();
+      // Requests carry no price: every option says the price is still to be confirmed.
+      assert.ok((await out.locator('option').allTextContents()).slice(1).every((t) => /price to be confirmed/.test(t) && !/₹|INR/.test(t)));
+      await out.selectOption('10');
+      const summary = page.getByRole('region', { name: 'Requested additional baggage' });
+      await expect(summary.getByText(/Traveller 1 · BOM → DXB · \+10 kg · Pending staff confirmation/)).toBeVisible();
+      await expect(summary.getByText(/Not charged now and not included in the total/)).toBeVisible();
+      await expect(page.locator('.pay')).toContainText('18,000');
+      // Switching back to "Without additional baggage" clears the request.
+      await t1.getByRole('radio', { name: /Without additional baggage/ }).check();
+      await expect(out).toHaveCount(0);
+      await expect(summary).toHaveCount(0);
       // No baggage options or prices are offered, and no TripJack review is requested.
       await expect(page.getByRole('combobox', { name: /additional baggage/ })).toHaveCount(0);
       await expect(page.getByText(/Add Baggage/)).toHaveCount(0);

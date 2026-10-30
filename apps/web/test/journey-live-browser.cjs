@@ -10,6 +10,17 @@ const journeys = {
   ROUNDTRIP: `tripType=ROUNDTRIP&origin=BOM&destination=DEL&departureDate=${day(21)}&returnDate=${day(28)}&adults=1&cabinClass=ECONOMY`,
   MULTICITY: `tripType=MULTICITY&legs=BOM-DEL-${day(21)},DEL-BLR-${day(25)}&adults=1&cabinClass=ECONOMY`,
 };
+// The required with / without additional baggage choice for traveller 1 (not submitted).
+async function baggageChoice(page) {
+  const group = page.getByRole('group', { name: 'Traveller 1 additional baggage' });
+  if (!(await group.count())) return { baggageChoice: null };
+  const options = (await group.getByRole('radio').evaluateAll((els) => els.map((e) => e.closest('label')?.innerText.replace(/\s+/g, ' ').trim())));
+  const preselected = await group.getByRole('radio', { checked: true }).count();
+  await group.getByRole('radio', { name: /Request additional baggage|With baggage/ }).check();
+  const weights = await page.getByRole('combobox', { name: /Traveller 1 extra baggage request/ }).first().locator('option').allTextContents().catch(() => []);
+  return { baggageChoice: { options, preselected, requestWeights: weights } };
+}
+
 (async () => {
   const browser = await chromium.launch();
   let failed = false;
@@ -51,6 +62,7 @@ const journeys = {
           supplier: bookUrl.searchParams.get('supplier'), legs: (bookUrl.searchParams.get('priceIds') ?? '').split(',').length,
           baggageCard: await card.isVisible() ? (await card.innerText()).replace(/\s+/g, ' ').trim() : null,
           addBaggageOffered: await page.getByText(/Add Baggage/).count(),
+          ...(await baggageChoice(page)),
         } }));
         await page.screenshot({ path: `checkout-live-${trip}.png`, fullPage: true });
         if (!(await card.isVisible())) failed = true;
@@ -74,6 +86,7 @@ const journeys = {
           supplier: new URL(page.url()).searchParams.get('supplier'),
           baggageCard: await card.isVisible() ? (await card.innerText()).replace(/\s+/g, ' ').trim() : null,
           addBaggageOffered: await page.getByText(/Add Baggage/).count(),
+          ...(await baggageChoice(page)),
         };
         await page.screenshot({ path: 'checkout-live-ONEWAY.png', fullPage: true });
       }

@@ -29,6 +29,7 @@ import { sendWhatsApp, buildBookingConfirmationMessage } from "./lib/notify.js";
 import { emailLayout, getEmailSettings, sendMail } from "./lib/email.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "./lib/customer-notify.js";
 import { isOfflineSupplier, takeManualSeats } from "./lib/flight-sources.js";
+import { baggageRequestSummary } from "./lib/baggage-request.js";
 
 // ── Message type discriminated union ─────────────────────────────
 
@@ -507,8 +508,9 @@ async function recordOfflinePayment(
   }).where(eq(payments.gatewayOrderId, data.orderId));
   const label = OFFLINE_LABEL[booking.supplier ?? ""] ?? String(booking.supplier);
   await logBookingEvent(env, booking.id, "BOOK", "info",
-    `Payment received for a ${label} fare — issue the ticket${ISSUE_ON[booking.supplier ?? ""] ?? ""} and enter the PNR in Admin → Bookings`,
-    { orderId: data.orderId, amount: data.amount });
+    `Payment received for a ${label} fare — issue the ticket${ISSUE_ON[booking.supplier ?? ""] ?? ""} and enter the PNR in Admin → Bookings`
+      + (offline.baggageRequest ? `. ${baggageRequestSummary(offline.baggageRequest)} — confirm the price with the customer before adding it` : ""),
+    { orderId: data.orderId, amount: data.amount, ...(offline.baggageRequest ? { baggageRequest: offline.baggageRequest } : {}) });
 
   // Never let follow-up steps fail (and re-run) a paid booking.
   if (booking.supplier === "MANUAL" && typeof flightData.id === "string") {
@@ -528,8 +530,8 @@ async function recordOfflinePayment(
     idempotencyKey: `offline-paid-${booking.id}`,
     subject: `Booking received: ${route} on ${date}`,
     html: emailShell("We've received your booking", `<p>Thank you — your payment of <b>${escapeHtml(money(Number(booking.totalAmount), booking.currency))}</b> for ${escapeHtml(route)}${flight ? ` (${escapeHtml(flight)})` : ""} on ${escapeHtml(date)} is confirmed.</p>
-<p>Our team is issuing your ticket now. You'll receive the e-ticket with the airline PNR by email shortly.</p>`, { label: "View my trip", href: tripsLink }),
-    whatsapp: `✅ *Booking received* — ${route} on ${date}${flight ? ` (${flight})` : ""}\nPayment confirmed. Our team is issuing your ticket; the e-ticket with your PNR will follow shortly.`,
+<p>Our team is issuing your ticket now. You'll receive the e-ticket with the airline PNR by email shortly.</p>${offline.baggageRequest ? "<p>Your additional baggage request is <b>pending</b>: it is not confirmed or charged yet. We'll contact you with the airline's price before adding it.</p>" : ""}`, { label: "View my trip", href: tripsLink }),
+    whatsapp: `✅ *Booking received* — ${route} on ${date}${flight ? ` (${flight})` : ""}\nPayment confirmed. Our team is issuing your ticket; the e-ticket with your PNR will follow shortly.${offline.baggageRequest ? "\nExtra baggage request: pending — not confirmed or charged yet. We'll contact you with the airline's price." : ""}`,
   }).catch((err) => console.error(`[offline-paid] customer message ${booking.id}:`, err));
 
   // Ops alert: the operations inbox from Admin → Settings → Email, else the tenant's support email.
