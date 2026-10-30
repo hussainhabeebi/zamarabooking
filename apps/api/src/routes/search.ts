@@ -211,11 +211,13 @@ function logSearchOutcome(
   params: z.infer<typeof searchSchema> & { currency?: string },
   enabledSuppliers: string[],
   diagnostics: Record<string, SupplierDiagnostic>,
+  fares: JourneyFare[] = [],
 ) {
   const db = c.get("db");
   const requestSummary = {
     origin: params.origin, destination: params.destination, departureDate: params.departureDate,
     returnDate: params.returnDate, tripType: params.tripType, cabinClass: params.cabinClass,
+    ...(params.legs ? { legs: params.legs } : {}), fareType: params.fareType,
     pax: { adults: params.adults, children: params.children, infants: params.infants },
     currency: params.currency, enabledSuppliers,
   };
@@ -246,12 +248,87 @@ function logSearchOutcome(
     }));
   }
 
+  // Round trip / multi-city results can only be booked from TripJack journey fares
+  // (fares carrying a tripKey). Anything else is dropped by the website's journey
+  // page, so record why the customer saw "No flights found for this journey".
+  const journey = journeyOutcome(params, fares, diagnostics);
+  if (journey) {
+    writes.push(logSupplierCall(db, {
+      tenantId, supplier: "TRIPJACK", endpoint: "flight-search/journey", level: journey.level, requestId: searchId,
+      requestSummary: { ...requestSummary, ...journey.summary },
+      errorCode: journey.errorCode, errorMessage: journey.errorMessage,
+    }));
+  }
+
   if (writes.length) c.executionCtx.waitUntil(Promise.all(writes));
+}
+
+type JourneyFare = { supplier?: string; tripKey?: string };
+
+export function journeyOutcome(
+  params: { tripType: string; returnDate?: string; legs?: unknown[] },
+  fares: JourneyFare[],
+  diagnostics: Record<string, SupplierDiagnostic>,
+): { level: "WARN" | "ERROR"; errorCode: string; errorMessage: string; summary: Record<string, unknown> } | null {
+  if (params.tripType !== "ROUNDTRIP" && params.tripType !== "MULTICITY") return null;
+
+  const faresBySupplier: Record<string, number> = {};
+  const tripKeys: Record<string, number> = {};
+  for (const f of fares) {
+    const supplier = f.supplier ?? "UNKNOWN";
+    faresBySupplier[supplier] = (faresBySupplier[supplier] ?? 0) + 1;
+    if (supplier === "TRIPJACK" && f.tripKey) tripKeys[f.tripKey] = (tripKeys[f.tripKey] ?? 0) + 1;
+  }
+  const bookable = Object.values(tripKeys).reduce((n, v) => n + v, 0);
+  const tripjack = diagnostics.TRIPJACK;
+  const summary = {
+    totalFares: fares.length, journeyBookableFares: bookable, faresBySupplier, tripKeys,
+    tripjack: tripjack ? { ok: tripjack.ok, fareCount: tripjack.fareCount, errorCode: tripjack.errorCode } : "NOT_SEARCHED",
+  };
+
+  if (bookable === 0) {
+    const reason = !tripjack
+      ? "TripJack was not searched (switched off or no credentials). Round trip / multi-city can only be booked through TripJack."
+      : !tripjack.ok
+        ? `TripJack failed: ${tripjack.errorMessage ?? tripjack.errorCode ?? "unknown error"}.`
+        : fares.length
+          ? "Other sources returned fares, but none are TripJack journey fares the journey page can book."
+          : "TripJack responded successfully but returned no journey fares for these legs / dates.";
+    return { level: "ERROR", errorCode: "JOURNEY_NO_BOOKABLE_FARES", errorMessage: `Customer saw "No flights found for this journey". ${reason}`, summary };
+  }
+
+  // Split journeys (domestic return / multi-city) need one list per leg; COMBO covers all legs at once.
+  if (!tripKeys.COMBO) {
+    const legCount = params.legs?.length ?? (params.returnDate ? 2 : 1);
+    const expected = params.tripType === "ROUNDTRIP" && !params.legs
+      ? ["ONWARD", "RETURN"]
+      : Array.from({ length: legCount }, (_, i) => String(i));
+    const missing = expected.filter((k) => !tripKeys[k] && !(k === "0" && tripKeys.ONWARD) && !(k === "1" && tripKeys.RETURN));
+    if (missing.length) {
+      return { level: "WARN", errorCode: "JOURNEY_LEG_MISSING", errorMessage: `TripJack returned no fares for leg(s) ${missing.join(", ")}; the journey cannot be completed.`, summary: { ...summary, missingLegs: missing } };
+    }
+  }
+  return null;
 }
 
 export const searchRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-searchRoutes.post("/", zValidator("json", searchSchema), async (c) => {
+searchRoutes.post("/", zValidator("json", searchSchema, (result, c: Context<{ Bindings: Env; Variables: Variables }>) => {
+  if (!result.success) {
+    const body = result.data as Record<string, unknown> | undefined;
+    const issues = result.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`);
+    console.error("[search] invalid request:", issues.join("; "));
+    c.executionCtx.waitUntil(logSupplierCall(c.get("db"), {
+      tenantId: c.get("tenantId"), supplier: "TRIPJACK", endpoint: "flight-search", level: "WARN",
+      requestSummary: body ? {
+        origin: body.origin, destination: body.destination, departureDate: body.departureDate,
+        returnDate: body.returnDate, tripType: body.tripType, legs: body.legs,
+      } : undefined,
+      errorCode: "SEARCH_INVALID_REQUEST", errorMessage: issues.join("; ").slice(0, 500),
+    }));
+    return c.json(result, 400);
+  }
+}), async (c) => {
   const { agentNumber, ...params } = c.req.valid("json");
   const tenantId = c.get("tenantId");
   const searchId = crypto.randomUUID();
@@ -265,7 +342,10 @@ searchRoutes.post("/", zValidator("json", searchSchema), async (c) => {
     console.error(`[search] ${searchId} failed:`, err);
     c.executionCtx.waitUntil(logSupplierCall(c.get("db"), {
       tenantId, supplier: "TRIPJACK", endpoint: "flight-search", level: "ERROR", requestId: searchId,
-      requestSummary: { origin: params.origin, destination: params.destination, departureDate: params.departureDate },
+      requestSummary: {
+        origin: params.origin, destination: params.destination, departureDate: params.departureDate,
+        returnDate: params.returnDate, tripType: params.tripType, ...(params.legs ? { legs: params.legs } : {}),
+      },
       errorCode: "SEARCH_CRASHED", errorMessage: message,
       responseSnippet: err instanceof Error ? err.stack?.slice(0, 800) : undefined,
     }));
@@ -420,7 +500,7 @@ async function runSearch(
     console.error("[search] markup unavailable; returning raw supplier prices", err);
   }
 
-  logSearchOutcome(c, tenantId, searchId, { ...params, currency: searchCurrency }, availableSuppliers, result.diagnostics ?? {});
+  logSearchOutcome(c, tenantId, searchId, { ...params, currency: searchCurrency }, availableSuppliers, result.diagnostics ?? {}, pricedFares);
 
   const hasErrors = Object.keys(result.errors).length > 0;
   const response = {

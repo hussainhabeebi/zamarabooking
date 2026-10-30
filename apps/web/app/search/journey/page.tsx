@@ -84,6 +84,7 @@ function Journey() {
   };
   const [searchId, setSearchId] = useState<string>();
   const [error, setError] = useState("");
+  const [emptyReason, setEmptyReason] = useState("");
   const [picked, setPicked] = useState<Record<string, Fare>>({});
   const [comboPick, setComboPick] = useState<Fare | null>(null);
   const [limit, setLimit] = useState<Record<string, number>>({});
@@ -91,7 +92,7 @@ function Journey() {
   useEffect(() => {
     const first = legs[0];
     if (!first?.origin) { setError("Missing journey details. Please search again."); return; }
-    setFares(null); setPicked({}); setComboPick(null); setLimit({}); setError("");
+    setFares(null); setPicked({}); setComboPick(null); setLimit({}); setError(""); setEmptyReason("");
     const c = new AbortController();
     fetch(`${API}/api/search`, {
       method: "POST", signal: c.signal,
@@ -105,8 +106,24 @@ function Journey() {
       }),
     })
       .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error((typeof d.error === "string" ? d.error : d.error?.issues?.[0]?.message) ?? `Search failed (${r.status})`); return d; })
-      .then((d) => { setFares((d.fares ?? []).filter((f: Fare) => f.supplier === "TRIPJACK" && f.tripKey)); setSearchId(d.searchId); })
-      .catch((e) => { if (e.name !== "AbortError") setError(e.message); });
+      .then((d) => {
+        const all: Fare[] = d.fares ?? [];
+        const bookable = all.filter((f) => f.supplier === "TRIPJACK" && f.tripKey);
+        setFares(bookable); setSearchId(d.searchId);
+        if (!bookable.length) {
+          // The API records the full reason under this search id (Admin → Supplier Logs).
+          const errors = Object.entries((d.supplierErrors ?? {}) as Record<string, string>);
+          console.error("[journey-search] no bookable journey fares", { searchId: d.searchId, tripType, legs, totalFares: all.length, suppliers: d.usedSuppliers, supplierErrors: d.supplierErrors });
+          setEmptyReason(errors.length
+            ? "Live fares could not be loaded right now. Please try again in a moment."
+            : all.length ? "Flights were found, but none can be booked as a single journey online." : "");
+        }
+      })
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        console.error("[journey-search] search failed", { tripType, legs, message: e.message });
+        setError(e.message);
+      });
     return () => c.abort();
   }, [searchKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -196,7 +213,12 @@ function Journey() {
 
       {error && <div style={errBox}>{error}</div>}
       {!fares && !error && <p style={{ padding: "40px 0", textAlign: "center", color: "#667085" }}>Searching live fares for every leg…</p>}
-      {fares && !fares.length && !error && <p style={{ padding: "40px 0", textAlign: "center", color: "#667085" }}>No flights found for this journey. Try other dates.</p>}
+      {fares && !fares.length && !error && (
+        <div style={{ padding: "40px 0", textAlign: "center", color: "#667085" }}>
+          <p style={{ margin: 0 }}>{emptyReason || "No flights found for this journey. Try other dates."}</p>
+          {searchId && <p style={{ margin: "8px 0 0", fontSize: 12 }}>Search reference: {searchId}</p>}
+        </div>
+      )}
 
       {fares && fares.length > 0 && <div className="search-results-layout">
         <SearchResultControls journey journeyLegs={legs} origin={legs[0]?.origin ?? ""} destination={legs[0]?.destination ?? ""} departureDate={legs[0]?.departureDate ?? ""} fares={fares} />
