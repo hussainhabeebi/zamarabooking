@@ -19,6 +19,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Akbar stop counts in live search results (read-only)
+        run: node scripts/akbar-stops-diagnostic.mjs https://api.zamrabooking.com
+        continue-on-error: true
       - name: Website journey search and checkout baggage
         env:
           CHECK_CHECKOUT: '1'
