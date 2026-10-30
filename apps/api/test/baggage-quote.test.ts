@@ -40,3 +40,23 @@ test('HTTP quote route enforces signed session, tenant and strict request fields
  const apply=await app.request(`/checkout/session/${token}/baggage-apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:f.booking.updatedAt.toISOString(),passengers:[{passengerId:'p1',baggage:[{key:'out',code:'B5'}]}]})},env);
  assert.equal(apply.status,200);assert.equal((await apply.json() as any).totalAmount,'10500.00');assert.equal(writes,1);
 });
+test('Nomod starts only after SQL price freeze, blocks stale amounts, and reuses known links',async(t)=>{
+ const {Hono}=await import('hono');const {paymentRoutes}=await import('../src/routes/payments.js');const {bookings}=await import('@zamrabooking/db/schema');
+ const old=global.fetch;t.after(()=>global.fetch=old);let freezeOK=false,frozen=false,calls=0,ledger:any[]=[];
+ const booking={id:'b1',status:'PAYMENT_PENDING',totalAmount:'105.00',currency:'INR',heldUntil:null,flightData:{checkoutPriceProtocol:1},contactEmail:'fixture@example.invalid',contactPhone:'0000000000'};
+ const db:any={
+   execute:async()=>{frozen=freezeOK;return {rows:freezeOK?[{id:'b1'}]:[]};},
+   select:()=>({from:(table:any)=>({where:()=>{
+     const rows=table===bookings?[booking]:ledger;
+     return {limit:async()=>rows,then:(resolve:any)=>Promise.resolve(rows).then(resolve)};
+   }})}),
+   insert:()=>({values:async(p:any)=>{ledger.push(p);}}),
+ };
+ const app=new Hono();app.use('*',async(c,next)=>{c.set('db',db);c.set('tenantId','t');c.set('userRole','CHECKOUT');c.set('checkoutBookingId','b1');await next()});app.route('/payments',paymentRoutes);
+ global.fetch=async(url,init)=>{assert.ok(frozen);calls++;assert.equal(url,'https://api.nomod.com/v1/links');const body=JSON.parse(String(init?.body));assert.equal(body.items[0].amount,'105.00');return Response.json({id:'link-fixture',url:'https://pay.nomod.com/fixture',amount:'105.00',currency:'INR'})};
+ const env:any={TENANT_CACHE_KV:{get:async()=>JSON.stringify({nomod:{enabled:true,apiKey:'fixture'}})}};
+ const send=()=>app.request('/payments/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bookingId:'b1',gateway:'NOMOD'})},env);
+ assert.equal((await send()).status,409);assert.equal(calls,0);
+ freezeOK=true;assert.equal((await send()).status,200);assert.equal(calls,1);
+ freezeOK=false;assert.equal((await send()).status,200);assert.equal(calls,1,'known link reuse must not call provider twice');
+});

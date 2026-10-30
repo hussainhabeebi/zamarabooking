@@ -306,6 +306,7 @@ checkoutRoutes.put("/session/:token/passengers", zValidator("json", passengerUpd
 
 const baggageChoices = z.array(z.object({passengerId:z.string().min(1),baggage:z.array(z.object({key:z.string().min(1),code:z.string().min(1)}).strict()).max(6)}).strict()).max(9);
 async function baggageContext(c:any) {
+ c.header("Cache-Control","no-store");
  const bookingId=await checkoutBookingId(c,c.req.param("token")),db=c.get("db"),tenantId=c.get("tenantId");
  const [booking]=await db.select().from(bookings).where(and(eq(bookings.id,bookingId),eq(bookings.tenantId,tenantId))).limit(1);
  if(!booking)throw new HTTPException(404,{message:"Booking not found"});
@@ -333,7 +334,7 @@ checkoutRoutes.post("/session/:token/baggage-apply",zValidator("json",z.object({
  const base=Number(ctx.booking.baseFare)+delta,ssr=Number(fd.tripjack.ssrAmount??0)+delta;
  if(!Number.isFinite(base)||base<=0||!Number.isFinite(ssr)||ssr<0)throw new Error("ANCILLARY_TOTAL_INVALID");
  const version=crypto.randomUUID();
- const flightData={...fd,baggageVersion:version,tripjack:{...fd.tripjack,ssrAmount:ssr,pax:fd.tripjack.pax.map((p:any,i:number)=>({...p,passengerId:quote.selected[i].passengerId,ssr:quote.selected[i].ssr}))}};
+ const flightData={...fd,...(fd.agentPricing && Number.isFinite(Number(fd.agentPricing.selling)) ? {agentPricing:{...fd.agentPricing,selling:Math.round((Number(fd.agentPricing.selling)+delta)*100)/100}} : {}),baggageVersion:version,tripjack:{...fd.tripjack,ssrAmount:ssr,pax:fd.tripjack.pax.map((p:any,i:number)=>({...p,passengerId:quote.selected[i].passengerId,ssr:quote.selected[i].ssr}))}};
  await applyBookingBaggage(c.get("db"),c.get("tenantId"),ctx.booking,{total:quote.total.toFixed(2),baseFare:base.toFixed(2),flightData,expiresAt:quote.expiresAt});
  return c.json({applied:true,totalAmount:quote.total.toFixed(2),currency:quote.currency,revision:version});
  }catch(e){if(e instanceof HTTPException)throw e;throw new HTTPException(409,{message:e instanceof Error?e.message:"BAGGAGE_NOT_APPLIED"});}
@@ -344,6 +345,7 @@ checkoutRoutes.post("/session/:token/baggage-apply",zValidator("json",z.object({
 checkoutRoutes.post("/session/:token/baggage-quote", zValidator("json", z.object({
   passengers:z.array(z.object({passengerId:z.string().min(1),baggage:z.array(z.object({key:z.string().min(1),code:z.string().min(1)}).strict()).max(6)}).strict()).max(9),
 }).strict()), async c => {
+  c.header("Cache-Control","no-store");
   const bookingId=await checkoutBookingId(c,c.req.param("token")), db=c.get("db"), tenantId=c.get("tenantId");
   const [booking]=await db.select().from(bookings).where(and(eq(bookings.id,bookingId),eq(bookings.tenantId,tenantId))).limit(1);
   if(!booking) throw new HTTPException(404,{message:"Booking not found"});
