@@ -73,10 +73,12 @@ function PaymentSettings() {
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState("");
   const [nomodStatus, setNomodStatus] = useState<"idle" | "testing" | "connected" | "failed">("idle");
+  const [phonePeStatus, setPhonePeStatus] = useState<"idle" | "testing" | "connected" | "failed">("idle");
   const [s, setS] = useState({
-    defaultGateway: "NOMOD" as "RAZORPAY" | "NOMOD",
+    defaultGateway: "NOMOD" as "RAZORPAY" | "NOMOD" | "PHONEPE",
     razorpay: { enabled: false, keyId: "", keySecret: "", webhookSecret: "" },
     nomod:    { enabled: true, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production" as "sandbox" | "production", allowTabby: true, allowTamara: true, configured: false, aedRate: null as number | null },
+    phonepe:  { enabled: true, clientId: "", clientSecret: "", clientVersion: "1", environment: "production" as "sandbox" | "production", webhookUsername: "", webhookPassword: "", configured: false, secretsFromWorker: false },
   });
 
   useEffect(() => {
@@ -120,12 +122,33 @@ function PaymentSettings() {
     }
   }
 
+  async function testPhonePe() {
+    setPhonePeStatus("testing"); setError("");
+    try {
+      const saveRes = await fetch(`${API}/api/admin/settings/payments`, {
+        method: "PUT", headers: apiHeaders(), body: JSON.stringify(s),
+      });
+      if (!saveRes.ok) throw new Error("Save the PhonePe settings first");
+      const res = await fetch(`${API}/api/admin/settings/payments/test-phonepe`, {
+        method: "POST", headers: apiHeaders(),
+      });
+      const data = await res.json() as { ok?: boolean; message?: string };
+      if (!res.ok || !data.ok) throw new Error(data.message || "PhonePe connection failed");
+      setPhonePeStatus("connected");
+      setS((p) => ({ ...p, phonepe: { ...p.phonepe, configured: true } }));
+    } catch (err: any) {
+      setPhonePeStatus("failed"); setError(err.message);
+    }
+  }
+  const setPe = (patch: Partial<typeof s.phonepe>) => setS((p) => ({ ...p, phonepe: { ...p.phonepe, ...patch } }));
+
   if (loading) return <div style={{ color: "#64748b", fontSize: 13 }}>Loading…</div>;
 
   return (
     <form onSubmit={save}>
       <div style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: "rgba(124,58,237,.12)", border: "1px solid #5b21b6", color: "#c4b5fd", fontSize: 13 }}>
-        Nomod is the only active payment gateway. Razorpay is disabled for new payments; refunds on earlier Razorpay payments still work.
+        Nomod (cards, AED, Tabby / Tamara) and PhonePe (UPI, cards, net banking — INR only) are both on by default; customers choose at checkout.
+        Razorpay is disabled for new payments; refunds on earlier Razorpay payments still work.
       </div>
 
       {/* Nomod */}
@@ -190,6 +213,76 @@ function PaymentSettings() {
             </div>
           </>
         )}
+      </div>
+
+      {/* PhonePe */}
+      <div style={{ background: "#0f172a", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+        <Toggle label="Enable PhonePe" description="UPI, cards and net banking through PhonePe's hosted checkout (INR only)"
+          checked={s.phonepe.enabled} onChange={(v) => setPe({ enabled: v })} color="#5f259f" />
+        {s.phonepe.enabled && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <Label>Client ID</Label>
+                <input placeholder={s.phonepe.secretsFromWorker ? "Using the PHONEPE_CLIENT_ID secret" : "From the PhonePe Business dashboard"}
+                  value={s.phonepe.clientId} onChange={(e) => setPe({ clientId: e.target.value })} style={inputStyle} />
+              </div>
+              <div>
+                <Label>Client Version</Label>
+                <input value={s.phonepe.clientVersion} onChange={(e) => setPe({ clientVersion: e.target.value })} style={inputStyle} />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <Label>Client Secret</Label>
+                <input type="password" placeholder={s.phonepe.configured ? "Saved — enter only to replace" : "Client secret"}
+                  value={s.phonepe.clientSecret} onChange={(e) => setPe({ clientSecret: e.target.value })}
+                  style={inputStyle} autoComplete="new-password" />
+                <Hint>PhonePe Business dashboard → Developer Settings → API Keys. The secret stays on the server.</Hint>
+              </div>
+              <div>
+                <Label>Mode</Label>
+                <select value={s.phonepe.environment} onChange={(e) => setPe({ environment: e.target.value as "sandbox" | "production" })} style={inputStyle}>
+                  <option value="sandbox">Sandbox (test)</option>
+                  <option value="production">Live payments</option>
+                </select>
+              </div>
+              <div />
+              <div>
+                <Label>Webhook username</Label>
+                <input value={s.phonepe.webhookUsername} onChange={(e) => setPe({ webhookUsername: e.target.value })} style={inputStyle} autoComplete="off" />
+              </div>
+              <div>
+                <Label>Webhook password</Label>
+                <input type="password" placeholder={s.phonepe.webhookUsername ? "Saved — enter only to replace" : ""}
+                  value={s.phonepe.webhookPassword} onChange={(e) => setPe({ webhookPassword: e.target.value })}
+                  style={inputStyle} autoComplete="new-password" />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <Hint>
+                  Webhook URL: <code style={codeStyle}>https://api.zamrabooking.com/webhooks/phonepe</code> — enter the same username and
+                  password in the PhonePe dashboard. Payments are also confirmed when the customer returns, so a missing webhook only delays confirmation.
+                </Hint>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+              <button type="button" onClick={testPhonePe} disabled={phonePeStatus === "testing"}
+                style={{ ...saveBtn(phonePeStatus === "testing"), background: "#5f259f" }}>
+                {phonePeStatus === "testing" ? "Testing…" : "Save & Test PhonePe"}
+              </button>
+              {phonePeStatus === "connected" && <span style={{ color: "#4ade80", fontSize: 13 }}>✓ Connected</span>}
+              {phonePeStatus === "failed" && <span style={{ color: "#f87171", fontSize: 13 }}>✗ Connection failed</span>}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <Label>Pre-selected at checkout</Label>
+        <select value={s.defaultGateway === "RAZORPAY" ? "NOMOD" : s.defaultGateway}
+          onChange={(e) => setS((p) => ({ ...p, defaultGateway: e.target.value as "NOMOD" | "PHONEPE" }))} style={{ ...inputStyle, maxWidth: 260 }}>
+          <option value="NOMOD">Nomod</option>
+          <option value="PHONEPE">PhonePe</option>
+        </select>
+        <Hint>Customers can still pick the other method. AED payments always use Nomod.</Hint>
       </div>
 
       {error && <ErrorBanner>{error}</ErrorBanner>}

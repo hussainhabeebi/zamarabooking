@@ -17,7 +17,7 @@ const REFUND_STATUS: Record<string, { label: string; color: string }> = {
   DONE: { label: "Refunded", color: "#4ade80" }, FAILED: { label: "Refund failed — retry or refund manually", color: "#f87171" },
   MANUAL_REQUIRED: { label: "Refund manually (check provider first)", color: "#f87171" },
 };
-const METHOD: Record<string, string> = { WALLET: "wallet", NOMOD: "card via Nomod", MANUAL: "manual" };
+const METHOD: Record<string, string> = { WALLET: "wallet", NOMOD: "card via Nomod", PHONEPE: "PhonePe", MANUAL: "manual" };
 const money = (v: string | null, cur: string) => v === null ? "—" : `${cur === "INR" ? "₹" : cur + " "}${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 export default function CancellationsPage() {

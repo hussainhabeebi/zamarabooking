@@ -45,7 +45,7 @@ export default function Receipt({ mode, id }: { mode: "customer" | "guest"; id?:
             {trip.serviceFee > 0 && <tr><td style={td}>Service fee</td><td style={tdR}>{inr(trip.serviceFee, trip.currency)}</td></tr>}
             <tr><td style={{ ...td, fontWeight: 800 }}>Total paid</td><td style={{ ...tdR, fontWeight: 800 }}>{inr(trip.totalAmount, trip.currency)}</td></tr>
             {refunds.map((r: any) => (
-              <tr key={r.id}><td style={td}>Refund ({r.refundMethod === "WALLET" ? "to ZamraBooking wallet" : r.refundMethod === "NOMOD" ? "to card via Nomod" : "to original payment method"}) {new Date(r.refundedAt).toLocaleDateString("en-IN")}</td><td style={tdR}>−{inr(r.refundAmount ?? 0, trip.currency)}</td></tr>
+              <tr key={r.id}><td style={td}>Refund ({r.refundMethod === "WALLET" ? "to ZamraBooking wallet" : r.refundMethod === "NOMOD" ? "to card via Nomod" : r.refundMethod === "PHONEPE" ? "via PhonePe" : "to original payment method"}) {new Date(r.refundedAt).toLocaleDateString("en-IN")}</td><td style={tdR}>−{inr(r.refundAmount ?? 0, trip.currency)}</td></tr>
             ))}
           </tbody>
         </table>

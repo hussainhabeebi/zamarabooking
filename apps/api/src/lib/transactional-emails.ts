@@ -26,6 +26,7 @@ const REFUND_TO: Record<string, string> = {
   WALLET: "your ZamraBooking wallet — available straight away",
   AGENT_WALLET: "your agency wallet — available straight away",
   NOMOD: "the card / account you paid with — usually 5–10 working days, depending on your bank",
+  PHONEPE: "the UPI / card / bank account you paid with via PhonePe — usually 3–7 working days",
   MANUAL: "your original payment method — our team will process it and confirm",
 };
 

@@ -6,15 +6,15 @@ import { saveGuestToken } from "../../lib/customer-api";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
-export default function NomodPaymentResultPage() {
+export default function PaymentResultPage() {
   return (
     <Suspense fallback={<main style={{ minHeight: "100vh", background: "#f8fafc", display: "grid", placeItems: "center" }}>Confirming payment…</main>}>
-      <NomodPaymentResult />
+      <PaymentResult />
     </Suspense>
   );
 }
 
-function NomodPaymentResult() {
+function PaymentResult() {
   const params = useSearchParams();
   const bookingId = params.get("bookingId") ?? "";
   const token = params.get("token") ?? "";
@@ -91,7 +91,7 @@ function NomodPaymentResult() {
             ? "Your payment has been received. We're confirming your seat with the airline — this usually takes under a minute."
             : failed
               ? "No charge was confirmed. You can return to checkout and try again."
-              : "Nomod has returned you to ZamraBooking. Keep this page open while we verify the payment securely."}
+              : "You have been returned to ZamraBooking. Keep this page open while we verify the payment securely."}
         </p>
         {ticketed || bookingFailed ? (
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>

@@ -27,7 +27,7 @@ const CANCEL_LABEL: Record<string, string> = {
   SUCCESS: "Cancelled", REJECTED: "Cancellation was not accepted by the airline", FAILED: "Cancellation request failed",
 };
 
-const REFUND_TO: Record<string, string> = { WALLET: "your ZamraBooking wallet", NOMOD: "your original card / payment method", MANUAL: "your original payment method" };
+const REFUND_TO: Record<string, string> = { WALLET: "your ZamraBooking wallet", NOMOD: "your original card / payment method", PHONEPE: "your original UPI / card / bank account (via PhonePe)", MANUAL: "your original payment method" };
 
 const fmtTime = (s: string) => { const d = new Date(s); return isNaN(+d) ? s : d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }); };
 const fmtDate = (s: string | null) => { if (!s) return "—"; const d = new Date(s); return isNaN(+d) ? s : d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); };

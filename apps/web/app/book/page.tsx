@@ -197,6 +197,8 @@ function getToken(): string {
   } catch { return ""; }
 }
 
+type PayGateway = "NOMOD" | "PHONEPE";
+
 export default function BookPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
   const [fare, setFare] = useState<FareInfo | null>(null);
@@ -222,6 +224,20 @@ export default function BookPage() {
     return () => window.removeEventListener(CURRENCY_EVENT, onChange);
   }, []);
   const aedRate = rates.AED ?? null;
+  // Online payment methods switched on in Admin (Nomod: cards / AED; PhonePe: UPI, INR only).
+  const [gateways, setGateways] = useState<{ NOMOD: boolean; PHONEPE: boolean; preferred: PayGateway }>({ NOMOD: true, PHONEPE: false, preferred: "NOMOD" });
+  const [payMethod, setPayMethod] = useState<PayGateway | null>(null);
+  useEffect(() => {
+    fetch(`${apiUrl}/api/payments/config`, { headers: { "x-tenant-slug": "zamra" } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: { defaultGateway?: string; gateways?: Record<string, boolean> } | null) => {
+        if (!d?.gateways) return;
+        const NOMOD = Boolean(d.gateways.NOMOD), PHONEPE = Boolean(d.gateways.PHONEPE);
+        const preferred: PayGateway = d.defaultGateway === "PHONEPE" && PHONEPE ? "PHONEPE" : NOMOD ? "NOMOD" : PHONEPE ? "PHONEPE" : "NOMOD";
+        setGateways({ NOMOD, PHONEPE, preferred });
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState("");
   const [fareExpired, setFareExpired] = useState(false);
@@ -428,6 +444,10 @@ export default function BookPage() {
   const shownCur: DisplayCurrency = fareInInr && displayCurrency !== "INR" && rates[displayCurrency] ? displayCurrency : "INR";
   const payCurrency: "INR" | "AED" = shownCur !== "INR" && (GCC as readonly string[]).includes(shownCur) && aedRate ? "AED" : "INR";
   const inForeign = shownCur !== "INR";
+  // AED is charged through Nomod only; PhonePe takes INR.
+  const phonePeUsable = gateways.PHONEPE && payCurrency === "INR";
+  const gateway: PayGateway = !phonePeUsable ? "NOMOD"
+    : payMethod === "PHONEPE" || (!payMethod && gateways.preferred === "PHONEPE") || !gateways.NOMOD ? "PHONEPE" : "NOMOD";
   const amt = (inr: number) => {
     const v = inForeign ? convertInr(inr, shownCur, rates) : null;
     return v === null ? money.format(inr) : formatIn(v, shownCur);
@@ -532,11 +552,11 @@ export default function BookPage() {
   const t = (s?: string) =>
     s ? new Date(s).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--";
 
-  async function startNomodPayment(bookingId: string, checkoutToken: string) {
+  async function startOnlinePayment(bookingId: string, checkoutToken: string) {
     const res = await fetch(`${apiUrl}/api/payments/checkout`, {
       method:  "POST",
       headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", "X-Checkout-Token": checkoutToken },
-      body:    JSON.stringify({ bookingId, gateway: "NOMOD", ...(payCurrency === "AED" && aedRate ? { currency: "AED" } : {}) }),
+      body:    JSON.stringify({ bookingId, gateway, ...(gateway === "NOMOD" && payCurrency === "AED" && aedRate ? { currency: "AED" } : {}) }),
     }).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) as { paymentUrl?: string; error?: string } : {};
     if (!res?.ok || !data.paymentUrl) {
@@ -708,7 +728,7 @@ export default function BookPage() {
     setSubmitting(true);
     if (pendingPayment) {
       try {
-        await startNomodPayment(pendingPayment.bookingId, pendingPayment.checkoutToken);
+        await startOnlinePayment(pendingPayment.bookingId, pendingPayment.checkoutToken);
       } catch (x: any) {
         setError(x?.message ?? "The payment page couldn't open. Please try again.");
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -751,7 +771,7 @@ export default function BookPage() {
           window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         }
-        await startNomodPayment(d.bookingId, d.checkoutToken);
+        await startOnlinePayment(d.bookingId, d.checkoutToken);
         return;
       }
       if (d.success !== true || typeof d.bookingReference !== "string" || !d.bookingReference) {
@@ -787,7 +807,7 @@ export default function BookPage() {
           <button type="button" disabled={submitting} style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 10, padding: "12px 18px", fontWeight: 800, cursor: "pointer" }}
             onClick={async () => {
               setSubmitting(true); setError("");
-              try { await startNomodPayment(held.bookingId, held.checkoutToken); }
+              try { await startOnlinePayment(held.bookingId, held.checkoutToken); }
               catch (x: any) { setError(x?.message ?? "The payment page couldn't open."); setSubmitting(false); }
             }}>{submitting ? "Opening payment…" : "Pay now"}</button>
           <a href={payLater} style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: "12px 18px", fontWeight: 700, color: "#0f172a", textDecoration: "none" }}>Save payment link</a>
@@ -855,7 +875,7 @@ export default function BookPage() {
             <button type="button" disabled={submitting}
               onClick={async () => {
                 setSubmitting(true); setError("");
-                try { await startNomodPayment(pendingPayment.bookingId, pendingPayment.checkoutToken); }
+                try { await startOnlinePayment(pendingPayment.bookingId, pendingPayment.checkoutToken); }
                 catch (x: any) { setError(x?.message ?? "The payment page couldn't open."); setSubmitting(false); }
               }}
               style={{ flex: "1 1 180px", background: "#fff", color: "#0f172a", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "12px 14px", fontWeight: 800, cursor: "pointer" }}>
@@ -1146,6 +1166,24 @@ export default function BookPage() {
             <div><b>🔒 Not ready to pay?</b><span>Hold this fare free and pay later — before the airline&apos;s time limit (often a few hours). Your ticket is issued after payment.</span></div>
             <button type="button" disabled={submitting} onClick={(e) => void holdFare(e.currentTarget.form)}>{submitting ? "Holding…" : "Hold fare, pay later"}</button>
           </div>
+        )}
+
+        {reviewing && phonePeUsable && gateways.NOMOD && !walletOffer && !bookingUncertain && (
+          <section className="card" aria-label="Payment method">
+            <h2 style={{ margin: "0 0 10px" }}>Pay with</h2>
+            <div style={{ display: "grid", gap: 8 }}>
+              {([
+                ["PHONEPE", "PhonePe", "UPI, cards, net banking"],
+                ["NOMOD", "Card", "Credit / debit card, Apple Pay, Google Pay"],
+              ] as const).map(([id, label, hint]) => (
+                <label key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                  border: `1.5px solid ${gateway === id ? "#0D4B96" : "#e2e8f0"}`, background: gateway === id ? "#eff6ff" : "#fff" }}>
+                  <input type="radio" name="payMethod" checked={gateway === id} onChange={() => setPayMethod(id)} />
+                  <span><b>{label}</b><br /><span style={{ fontSize: 12, color: "#64748b" }}>{hint}</span></span>
+                </label>
+              ))}
+            </div>
+          </section>
         )}
 
         <div className="spacer" />

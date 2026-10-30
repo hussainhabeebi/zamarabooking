@@ -41,6 +41,13 @@ export interface Env {
   NOMOD_API_KEY:          string;
   NOMOD_API_SECRET:       string;
   NOMOD_WEBHOOK_SECRET:   string;
+  // PhonePe (optional when set in Admin → Settings → Payments)
+  PHONEPE_CLIENT_ID?:        string;
+  PHONEPE_CLIENT_SECRET?:    string;
+  PHONEPE_CLIENT_VERSION?:   string;
+  PHONEPE_ENV?:              string;   // "sandbox" | "production" (default)
+  PHONEPE_WEBHOOK_USERNAME?: string;
+  PHONEPE_WEBHOOK_PASSWORD?: string;
   RESEND_API_KEY:         string;
   EMAIL_FROM?:            string;   // default sender address (must be verified in Resend), e.g. bookings@zamrabooking.com
   EMAIL_REPLY_TO?:        string;   // default reply-to address
