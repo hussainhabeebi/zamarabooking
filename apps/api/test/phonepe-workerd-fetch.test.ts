@@ -34,7 +34,7 @@ export default {
   },
 };`;
 
-type Seen = { method?: string; host?: string; url?: string; body: string };
+type Seen = { method?: string; host?: string; url?: string; body: string; ua?: string; accept?: string };
 let respond: (res: http.ServerResponse) => void;
 const seen: Seen[] = [];
 let mock: http.Server;
@@ -65,7 +65,7 @@ before(async () => {
   mock = http.createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c)).on("end", () => {
-      seen.push({ method: req.method, host: req.headers.host, url: req.url, body });
+      seen.push({ method: req.method, host: req.headers.host, url: req.url, body, ua: req.headers["user-agent"], accept: req.headers.accept });
       respond(res);
     });
   });
@@ -125,6 +125,27 @@ test("in the Workers runtime the sandbox OAuth request is actually sent and succ
   assert.equal(seen[0].host, "api-preprod.phonepe.com");
   assert.equal(seen[0].url, "/apis/pg-sandbox/v1/oauth/token");
   assert.equal(new URLSearchParams(seen[0].body).get("grant_type"), "client_credentials");
+  // Workers sends neither by default; PhonePe's edge answered the bare request with 403.
+  assert.equal(seen[0].ua, "ZamraBooking-API/1.0");
+  assert.equal(seen[0].accept, "application/json");
+});
+
+test("a 403 is classified (provider JSON code or firewall HTML) without logging its text", async () => {
+  for (const [type, body] of [
+    ["application/json", JSON.stringify({ code: "AUTHORIZATION_FAILED", message: `denied ${SECRET}` })],
+    ["text/html", `<html><body>Access Denied ${SECRET} Reference #18.abc</body></html>`],
+  ]) {
+    respond = (res) => {
+      res.statusCode = 403;
+      res.setHeader("content-type", type);
+      res.end(body);
+    };
+    assert.deepEqual(await get(), { ok: false, error: "HTTP_ERROR", httpStatus: 403 });
+  }
+  await new Promise((r) => setTimeout(r, 200));
+  assert.match(output, /"category":"HTTP_ERROR","ms":\d+,"status":403,"bodyKind":"json","providerCode":"AUTHORIZATION_FAILED"/);
+  assert.match(output, /"category":"HTTP_ERROR","ms":\d+,"status":403,"bodyKind":"html"\}/);
+  for (const s of ["denied", "Access Denied", "Reference", SECRET]) assert.ok(!output.includes(s), `log leaked ${s}`);
 });
 
 test("a redirect is not followed and fails as HTTP_ERROR", async () => {

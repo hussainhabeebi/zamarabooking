@@ -177,7 +177,9 @@ test("provider failures return only a sanitized error code", async () => {
       console.log = log;
       // Safe diagnostics: one line with category, elapsed ms and status/error class only.
       const diag = logged.filter((l) => l.startsWith("[phonepe]"));
-      assert.equal(diag.length, 1, logged.join("\n"));
+      assert.equal(diag.length, error === "INVALID_AUTH_RESPONSE" ? 2 : 1, logged.join("\n"));
+      if (error === "INVALID_AUTH_RESPONSE") assert.match(diag[1], /"category":"INVALID_AUTH_RESPONSE","invalid":\["(token_missing|expiry_past|token_kind)"\]/);
+      if (httpStatus === 401) assert.match(diag[0], /"bodyKind":"json","providerCode":"invalid_client"/);
       assert.match(diag[0], /"op":"oauth","environment":"sandbox","category":"(OK|HTTP_ERROR|FETCH_ERROR|TIMEOUT)","ms":\d+/);
       assertNoSecrets(logged.join("\n"));
       assert.ok(!/socket|slow/.test(logged.join("\n")));

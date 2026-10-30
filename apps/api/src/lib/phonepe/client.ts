@@ -143,6 +143,27 @@ export function orderEvidence(
     transactionId: paid[0]?.transactionId as string | undefined,
   };
 }
+const USER_AGENT = "ZamraBooking-API/1.0";
+/** Classifies a provider error body without keeping or returning its text. */
+async function errorKind(res: Response): Promise<{ bodyKind: string; providerCode?: string }> {
+  let text = "";
+  try {
+    text = (await limitedText(res, 4096)).trim();
+  } catch {
+    await res.body?.cancel().catch(() => {});
+    return { bodyKind: "unreadable" };
+  }
+  if (!text) return { bodyKind: "empty" };
+  try {
+    const d = JSON.parse(text);
+    const code = d?.code ?? d?.errorCode ?? d?.error;
+    return typeof code === "string" && /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(code)
+      ? { bodyKind: "json", providerCode: code }
+      : { bodyKind: "json" };
+  } catch {
+    return { bodyKind: text.startsWith("<") ? "html" : "text" };
+  }
+}
 const tokens = new Map<string, { token: string; expiresAt: number }>();
 const refreshing = new Map<string, Promise<string>>();
 export class PhonePeClient {
@@ -190,14 +211,17 @@ export class PhonePeClient {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: body.toString(),
       });
-      if (
-        typeof d.access_token !== "string" ||
-        !d.access_token ||
-        !Number.isSafeInteger(d.expires_at) ||
-        d.expires_at * 1000 <= this.now() + 60000 ||
-        d.token_type !== "O-Bearer"
-      )
+      const invalid = [
+        (typeof d.access_token !== "string" || !d.access_token) && "token_missing",
+        !Number.isSafeInteger(d.expires_at) && "expiry_type",
+        Number.isSafeInteger(d.expires_at) && d.expires_at * 1000 <= this.now() + 60000 && "expiry_past",
+        d.token_type !== "O-Bearer" && "token_kind",
+      ].filter(Boolean);
+      if (invalid.length) {
+        // Field names only, never values.
+        console.log(`[phonepe] ${JSON.stringify({ op: "oauth", environment: this.c.environment, category: "INVALID_AUTH_RESPONSE", invalid })}`);
         throw new PhonePeError("INVALID_AUTH_RESPONSE");
+      }
       if (tokens.size >= 64) tokens.delete(tokens.keys().next().value!);
       tokens.set(key, {
         token: d.access_token,
@@ -213,18 +237,23 @@ export class PhonePeClient {
     }
   }
   private async request(url: string, init: RequestInit) {
-    // Diagnostics: operation, outcome category, elapsed ms, HTTP status and the
-    // error class only. Never the URL path, headers, body, token or credentials.
+    // Diagnostics: operation, outcome category, elapsed ms, HTTP status, error
+    // class and, for a provider error, only its kind (json/html/text/empty) and
+    // an allow-listed error-code enum. Never the URL path, headers, message
+    // text, token or credentials.
     const started = Date.now();
     const op = url === bases[this.c.environment].auth ? "oauth" : "api";
-    const log = (category: string, extra: { status?: number; errorName?: string } = {}) =>
+    const log = (category: string, extra: { status?: number; errorName?: string; bodyKind?: string; providerCode?: string } = {}) =>
       console.log(`[phonepe] ${JSON.stringify({ op, environment: this.c.environment, category, ms: Date.now() - started, ...extra })}`);
     let res: Response;
     try {
       // Workers fetch rejects redirect "error" (TypeError before any I/O), so
       // use "manual": a 3xx is then a non-ok response and fails as HTTP_ERROR.
+      // Workers sends no User-Agent or Accept by default (curl, Postman and Node
+      // do); provider edge firewalls commonly answer such requests with 403.
       res = await this.fetcher(url, {
         ...init,
+        headers: { Accept: "application/json", "User-Agent": USER_AGENT, ...(init.headers as Record<string, string>) },
         redirect: "manual",
         signal: AbortSignal.timeout(10000),
       });
@@ -234,8 +263,7 @@ export class PhonePeClient {
       throw new PhonePeError("TRANSPORT_UNKNOWN");
     }
     if (!res.ok) {
-      log("HTTP_ERROR", { status: res.status });
-      await res.body?.cancel();
+      log("HTTP_ERROR", { status: res.status, ...(await errorKind(res)) });
       throw new PhonePeError("HTTP_ERROR", res.status);
     }
     log("OK", { status: res.status });
