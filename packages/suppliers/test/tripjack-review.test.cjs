@@ -228,7 +228,7 @@ for (const trip of ['ONEWAY', 'ROUNDTRIP']) for (const extra of [false, true]) {
 }
 test('missing/malformed baggage prices are unavailable and duplicate segment picks fail',async()=>{
   const {parseTripjackReview,ssrTotal}=await import(moduleUrl('../src/tripjack/review.ts'));
-  const summary=parseTripjackReview({tripInfos:[{sI:[{id:'out',ssrInfo:{BAGGAGE:[{code:'missing'},{code:'negative',amount:-1},{code:'invalid',amount:'invalid'},{code:'zero',amount:0},{code:'valid',amount:100}]}}]}]});
+  const summary=parseTripjackReview({tripInfos:[{sI:[{id:'out',ssrInfo:{BAGGAGE:[{code:'missing'},{code:'blank',amount:'  '},{code:'bool',amount:false},{code:'negative',amount:-1},{code:'invalid',amount:'invalid'},{code:'zero',amount:0},{code:'valid',amount:100}]}}]}]});
   assert.deepEqual(summary.segments[0].ssr.baggage.map(o=>o.code),['zero','valid']);
   assert.ok(ssrTotal(summary.segments,[{ssr:{baggage:[{key:'out',code:'valid'},{key:'out',code:'zero'}]}}]).invalid.length);
   assert.ok(ssrTotal(summary.segments,[{ssr:{baggage:[{key:'out',code:'invented'}]}}]).invalid.length);

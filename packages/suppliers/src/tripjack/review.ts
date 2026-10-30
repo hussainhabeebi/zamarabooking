@@ -47,7 +47,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : N
 
 function ssrList(v: unknown): SsrOption[] {
   return Array.isArray(v)
-    ? v.filter((x: Rec) => x?.code && x.amount !== null && x.amount !== undefined && x.amount !== "" && Number.isFinite(Number(x.amount)) && Number(x.amount) >= 0).map((x: Rec) => ({ code: String(x.code), amount: num(x.amount), desc: String(x.desc ?? x.code) }))
+    ? v.filter((x: Rec) => x?.code && x.amount !== null && x.amount !== undefined && (typeof x.amount === "number" || (typeof x.amount === "string" && x.amount.trim() !== "")) && Number.isFinite(Number(x.amount)) && Number(x.amount) >= 0).map((x: Rec) => ({ code: String(x.code), amount: num(x.amount), desc: String(x.desc ?? x.code) }))
     : [];
 }
 
