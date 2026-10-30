@@ -6,6 +6,7 @@ import { ScanDocument, type ScannedTraveller } from "../components/ScanDocument"
 import SocialSignIn from "./SocialSignIn";
 import { bookingError } from "./booking-error";
 import BaggageSelection from "./BaggageSelection";
+import { BUSINESS } from "../lib/business";
 import { passengerNameProblem } from "./passenger-names";
 import PassengerDateInput from "../components/PassengerDateInput";
 import { passengerDatesProblem } from "../lib/passenger-dates";
@@ -97,6 +98,32 @@ function withRebookTravellers(list: Passenger[], from: string, to: string): Pass
   } catch {
     return list;
   }
+}
+
+// Included baggage for each flight, as the supplier's search returned it.
+type LegBaggage = { origin: string; destination: string; checked: string; cabin: string };
+
+// Fares ticketed by Zamra staff (Akbar, Poomas, manual): the supplier API offers no
+// online baggage purchase in this flow, so show what is included and how to add more.
+// No baggage options or prices are shown here: staff confirm the airline's price.
+function StaffBaggageNotice({ legs }: { legs: LegBaggage[] }) {
+  const shown = (v: string) => v.trim() || "As per airline";
+  return (
+    <section className="card staffBaggage" aria-label="Baggage">
+      <h2>Baggage</h2>
+      <ul>
+        {legs.map((l, i) => (
+          <li key={i}>
+            <b>{l.origin} → {l.destination}</b>
+            <span>Check-in: {shown(l.checked)}</span>
+            <span>Cabin: {shown(l.cabin)}</span>
+          </li>
+        ))}
+      </ul>
+      <p><b>Need extra baggage?</b> It can&apos;t be added online for this fare. After you book, our team can add it with the airline. We confirm the airline&apos;s price with you first and it is paid separately.</p>
+      <p>Message us on <a href={BUSINESS.whatsappHref} target="_blank" rel="noreferrer">WhatsApp {BUSINESS.phone}</a> or email <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a> with your booking ID.</p>
+    </section>
+  );
 }
 
 type HandoffSession = {
@@ -230,6 +257,7 @@ export default function BookPage() {
   const [held, setHeld] = useState<{ bookingId: string; pnr: string | null; heldUntil: string; amount: number; currency: string; checkoutToken: string } | null>(null);
   // TripJack review (run on load): conditions, SSR options, fare alerts.
   const [review, setReview] = useState<Review | null>(null);
+  const [legBaggage, setLegBaggage] = useState<LegBaggage[]>([]);
   const [seatMaps, setSeatMaps] = useState<SegmentSeatMap[] | null>(null);
   const [seatLoading, setSeatLoading] = useState(false);
   const [seatError, setSeatError] = useState("");
@@ -321,6 +349,15 @@ export default function BookPage() {
 
     const tt = q.get("tripType");
     if (tt === "ROUNDTRIP" || tt === "MULTICITY") setTripType(tt);
+    // Included baggage per flight: journeys keep each leg's allowance from the results page.
+    let legs: LegBaggage[] = [];
+    try {
+      const ids = q.get("priceIds");
+      const saved = ids ? JSON.parse(sessionStorage.getItem(`journey:${ids}`) ?? "null") as { origin: string; destination: string; baggage?: { checked?: string; cabin?: string } }[] | null : null;
+      if (Array.isArray(saved)) legs = saved.map((l) => ({ origin: l.origin, destination: l.destination, checked: l.baggage?.checked ?? "", cabin: l.baggage?.cabin ?? "" }));
+    } catch {}
+    if (!legs.length) legs = [{ origin: q.get("from") ?? "", destination: q.get("to") ?? "", checked: q.get("bag") ?? "", cabin: q.get("cab") ?? "" }];
+    setLegBaggage(legs);
     if (supplier.toUpperCase() === "TRIPJACK") {
       const priceIds = (q.get("priceIds") ?? fareId).split(",").filter(Boolean);
       setReviewLoading(true);
@@ -927,6 +964,8 @@ export default function BookPage() {
         </section>
       )}
 
+      {fare && fare.supplier.toUpperCase() !== "TRIPJACK" && legBaggage.length > 0 && <StaffBaggageNotice legs={legBaggage} />}
+
       {reviewLoading && <div className="prebook-banner" style={{ background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 13 }}>Checking live availability and fare rules with the airline…</div>}
       {reviewError && <div className="err"><b>Couldn't confirm this fare</b><span>{reviewError} You can still continue; availability is re-checked when you book.</span></div>}
       {review?.fareAlert && (
@@ -1019,7 +1058,8 @@ export default function BookPage() {
                       v={p.documentId} c={(v) => upd(i, "documentId", v.replace(/[^A-Za-z0-9]/g, ""))} r={cond.documentIdMandatory} />
                   )}
                 </div>
-                {p.type !== "INFANT" && !reviewLoading && ssrSegments.length === 0 && <p className="checkoutProgress">Additional baggage not available. {reviewError ? "Fare review failed; retry before continuing." : "Included allowance is unchanged."}</p>}
+                {p.type !== "INFANT" && fare?.supplier.toUpperCase() !== "TRIPJACK" && <p className="checkoutProgress">Extra baggage: arranged by our team after booking (see Baggage above).</p>}
+                {p.type !== "INFANT" && fare?.supplier.toUpperCase() === "TRIPJACK" && !reviewLoading && ssrSegments.length === 0 && <p className="checkoutProgress">Additional baggage not available. {reviewError ? "Fare review failed; retry before continuing." : "Included allowance is unchanged."}</p>}
                 {p.type === "INFANT" && <p className="checkoutProgress">Additional baggage not available. Infant baggage remains subject to the airline’s included allowance.</p>}
                 {p.type !== "INFANT" && ssrSegments.length > 0 && (
                   <div className="ssrBox">
@@ -1181,6 +1221,6 @@ function Row({ l, v }: { l: string; v: string }) {
   return <div className="row"><span>{l}</span><b>{v}</b></div>;
 }
 
-const checkoutCss = `.ssrBox{margin-top:14px;padding:14px;border:1px solid #eaecf0;border-radius:14px;background:#f9fafb;max-width:100%;overflow:hidden}.ssrHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px}.ssrHead b{font-size:14px;color:#101828}.ssrHead span{font-size:12px;color:#667085}.ssrSeg{margin-top:12px}.ssrSeg+.ssrSeg{padding-top:12px;border-top:1px solid #eaecf0}.ssrFlight{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#344054;margin-bottom:8px}.ssrFlight small{font-weight:600;color:#98a2b3}.ssrGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ssrGrid label{min-width:0}.ssrGrid select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;font-size:15px}.ssrPick{font-size:12px;font-weight:600;color:#067647;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:560px){.ssrGrid{grid-template-columns:minmax(0,1fr)}}.ck header{position:static;z-index:auto}.checkoutProgress{font-size:13px;color:#667085;margin:16px 0}.socialButtons{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}.appleButton{background:#000;color:#fff;border:1px solid #000;min-height:44px;border-radius:6px;padding:10px 20px;font:600 15px system-ui;cursor:pointer}.signinNote{font-size:13px;color:#667085;line-height:1.5}.passportSection{margin-top:16px}.intlBadge{font-size:12px;font-weight:700;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 11px;margin-bottom:12px}.ck .card h2{font-size:18px}.loginBanner{background:#fff;border-color:#eaecf0;color:#344054}.seatLoad{height:44px;padding:0 18px;border:1px solid #0D4B96;border-radius:12px;background:#EEF4FB;color:#be123c;font-weight:800;font-size:14px;cursor:pointer}.seatLoad:disabled{opacity:.6}.seatError{font-size:13px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:9px 11px;margin:10px 0 0}.curSwitch{display:inline-flex;background:#f2f4f7;border-radius:999px;padding:3px;gap:2px}.curSwitch button{border:0;background:transparent;color:#475467;font-weight:800;font-size:12px;border-radius:999px;padding:5px 12px;cursor:pointer;min-height:28px}.curSwitch button.on{background:#fff;color:#0D4B96;box-shadow:0 1px 3px rgba(16,24,40,.15)}.paySwitch{margin-top:4px}.paySwitch .curSwitch button{padding:3px 9px;font-size:11px;min-height:24px}.holdOffer{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:12px 14px;margin:14px 0}.holdOffer div{display:flex;flex-direction:column;gap:3px;flex:1 1 240px;font-size:13px;color:#78350f}.holdOffer b{font-size:14px;color:#451a03}.holdOffer button{height:44px;padding:0 16px;border:1px solid #d97706;border-radius:12px;background:#fff;color:#92400e;font-weight:800;font-size:14px;cursor:pointer}.holdOffer button:disabled{opacity:.6}${seatCss}`;
+const checkoutCss = `.ssrBox{margin-top:14px;padding:14px;border:1px solid #eaecf0;border-radius:14px;background:#f9fafb;max-width:100%;overflow:hidden}.ssrHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px}.ssrHead b{font-size:14px;color:#101828}.ssrHead span{font-size:12px;color:#667085}.ssrSeg{margin-top:12px}.ssrSeg+.ssrSeg{padding-top:12px;border-top:1px solid #eaecf0}.ssrFlight{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#344054;margin-bottom:8px}.ssrFlight small{font-weight:600;color:#98a2b3}.ssrGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ssrGrid label{min-width:0}.ssrGrid select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;font-size:15px}.ssrPick{font-size:12px;font-weight:600;color:#067647;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:560px){.ssrGrid{grid-template-columns:minmax(0,1fr)}}.ck header{position:static;z-index:auto}.checkoutProgress{font-size:13px;color:#667085;margin:16px 0}.socialButtons{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}.appleButton{background:#000;color:#fff;border:1px solid #000;min-height:44px;border-radius:6px;padding:10px 20px;font:600 15px system-ui;cursor:pointer}.signinNote{font-size:13px;color:#667085;line-height:1.5}.passportSection{margin-top:16px}.intlBadge{font-size:12px;font-weight:700;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 11px;margin-bottom:12px}.ck .card h2{font-size:18px}.loginBanner{background:#fff;border-color:#eaecf0;color:#344054}.seatLoad{height:44px;padding:0 18px;border:1px solid #0D4B96;border-radius:12px;background:#EEF4FB;color:#be123c;font-weight:800;font-size:14px;cursor:pointer}.seatLoad:disabled{opacity:.6}.seatError{font-size:13px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:9px 11px;margin:10px 0 0}.curSwitch{display:inline-flex;background:#f2f4f7;border-radius:999px;padding:3px;gap:2px}.curSwitch button{border:0;background:transparent;color:#475467;font-weight:800;font-size:12px;border-radius:999px;padding:5px 12px;cursor:pointer;min-height:28px}.curSwitch button.on{background:#fff;color:#0D4B96;box-shadow:0 1px 3px rgba(16,24,40,.15)}.paySwitch{margin-top:4px}.paySwitch .curSwitch button{padding:3px 9px;font-size:11px;min-height:24px}.holdOffer{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:12px 14px;margin:14px 0}.holdOffer div{display:flex;flex-direction:column;gap:3px;flex:1 1 240px;font-size:13px;color:#78350f}.holdOffer b{font-size:14px;color:#451a03}.holdOffer button{height:44px;padding:0 16px;border:1px solid #d97706;border-radius:12px;background:#fff;color:#92400e;font-weight:800;font-size:14px;cursor:pointer}.holdOffer button:disabled{opacity:.6}.staffBaggage ul{list-style:none;margin:10px 0 12px;padding:0;display:grid;gap:8px}.staffBaggage li{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:10px 12px;border:1px solid #eaecf0;border-radius:12px;background:#f9fafb;font-size:13px;color:#344054}.staffBaggage li b{flex:1 0 100%;font-size:14px;color:#101828}.staffBaggage p{font-size:13px;line-height:1.5;color:#475467;margin:8px 0 0}.staffBaggage a{color:#0D4B96;font-weight:700}${seatCss}`;
 
 const css = `.checkBanner{display:flex;align-items:center;gap:8px;background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;padding:11px 14px;border-radius:12px;font-size:13px;font-weight:700;margin-bottom:14px}.checkError{justify-content:space-between;background:#fff7ed;border-color:#fed7aa;color:#9a3412}.checkError button{border:0;background:#ea580c;color:#fff;border-radius:8px;padding:7px 12px;font-weight:800;cursor:pointer}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #bae6fd;border-top-color:#0369a1;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}@keyframes spin{to{transform:rotate(360deg)}}body{background:#f5f7fb}.ck{max-width:760px;margin:auto;min-height:100vh;padding:0 14px 32px;color:#101828}.ck header{position:sticky;top:0;z-index:30;margin:0 -14px;padding:12px 14px;background:#fff;display:flex;gap:12px;align-items:center;border-bottom:1px solid #eaecf0}.ck header button{width:44px;height:44px;border:0;border-radius:14px;background:#f2f4f7;font-size:31px}.ck header div{display:flex;flex-direction:column}.ck header div span{font-size:11px;color:#667085}.ck header i{margin-left:auto;font-style:normal}.steps{display:flex;align-items:center;padding:18px 24px 4px}.steps b{width:28px;height:28px;border-radius:50%;background:#0D4B96;color:#fff;display:grid;place-items:center;font-size:12px}.steps b.off{background:#e4e7ec;color:#667085}.steps em{height:3px;flex:1;background:#0D4B96}.steps em.off{background:#e4e7ec}.stepLabels{display:flex;justify-content:space-between;padding:0 10px 16px;color:#667085;font-size:11px;font-weight:700}.err{display:flex;flex-direction:column;background:#EEF4FB;border:1px solid #fecdd3;color:#9f1239;padding:13px;border-radius:14px;margin-bottom:14px}.loginBanner{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;padding:12px 14px;border-radius:14px;margin-bottom:14px;font-size:13px}.linkBtn{background:none;border:none;color:#1d4ed8;font-weight:700;cursor:pointer;text-decoration:underline;padding:0;font-size:inherit}.loginCard{border-color:#bfdbfe}.loginBtn{flex:1;height:44px;border:0;border-radius:12px;background:#1d4ed8;color:#fff;font-size:14px;font-weight:700;cursor:pointer}.loginBtn:disabled{opacity:.55}.cancelBtn{height:44px;padding:0 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;font-size:14px;cursor:pointer}.profileSelect{height:36px;border:1px solid #d0d5dd;border-radius:10px;padding:0 10px;background:#fff;font-size:13px;color:#344054;cursor:pointer}.saveCheck{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13px;color:#344054;cursor:pointer}.saveCheck input{width:16px;height:16px;accent-color:#0D4B96}.card{background:white;border:1px solid #eaecf0;border-radius:18px;padding:16px;margin-bottom:14px}.fh{display:flex;justify-content:space-between}.fh>div{display:flex;flex-direction:column}.fh span,.route span,.meta,.flight small{font-size:12px;color:#667085}.fh strong{font-size:20px;color:#0D4B96}.route{display:grid;grid-template-columns:1fr 1.2fr 1fr;align-items:center;margin:20px 0 12px}.route>div{display:flex;flex-direction:column}.route .end{text-align:right;align-items:flex-end}.plane{text-align:center;border-bottom:1px solid #d0d5dd;height:10px;color:#0D4B96}.meta{display:flex;justify-content:space-between;border-top:1px dashed #eaecf0;padding-top:10px;gap:8px}.title{display:flex;gap:10px}.title h2{font-size:17px;margin:0}.title p{font-size:12px;color:#667085;margin:3px 0 14px}.pax+.pax{border-top:1px solid #f2f4f7;margin-top:16px;padding-top:16px}.chip{display:inline-block;background:#EEF4FB;color:#be123c;padding:6px 10px;border-radius:99px;font-size:11px;font-weight:800}.typeSelect{height:32px;border:1px solid #fecdd3;border-radius:99px;padding:0 10px;background:#EEF4FB;color:#be123c;font-size:11px;font-weight:800;cursor:pointer;appearance:none;-webkit-appearance:none;padding-right:22px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23be123c'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}.typeSelect:focus{outline:none;box-shadow:0 0 0 3px rgba(13,75,150,.08)}.grid{display:grid;grid-template-columns:1fr;gap:12px}.grid label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:#344054}.grid input,.grid select{height:50px;border:1px solid #d0d5dd;border-radius:12px;padding:0 13px;background:#fff;font-size:16px}.grid input:focus,.grid select:focus{outline:none;border-color:#0D4B96;box-shadow:0 0 0 3px rgba(13,75,150,.08)}.spacer{height:96px}.pay{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid #eaecf0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:12px;align-items:center}.pay>div{display:flex;flex-direction:column;min-width:110px}.pay span{font-size:11px;color:#667085}.pay button{flex:1;height:52px;border:0;border-radius:14px;background:#0D4B96;color:#fff;font-size:16px;font-weight:800}.pay button:disabled{opacity:.55}.success{text-align:center;padding-top:48px}.ok{width:72px;height:72px;border-radius:50%;background:#dcfce7;color:#15803d;display:grid;place-items:center;margin:auto;font-size:36px}.success h1{font-size:24px;margin:16px 0 8px}.success p{color:#667085}.receipt{background:#fff;border:1px solid #eaecf0;border-radius:16px;margin:22px 0;text-align:left}.row{display:flex;justify-content:space-between;padding:14px;border-bottom:1px solid #f2f4f7}.row:last-child{border-bottom:0}.home{display:block;background:#111827;color:#fff;text-decoration:none;padding:14px;border-radius:14px;font-weight:800;margin-top:8px}.ck button,.home{touch-action:manipulation;-webkit-tap-highlight-color:transparent}@media(min-width:640px){.grid{grid-template-columns:repeat(2,1fr)}.pay{left:50%;transform:translateX(-50%);max-width:760px;border-radius:18px 18px 0 0}}`;
