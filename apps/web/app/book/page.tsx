@@ -233,6 +233,7 @@ function getToken(): string {
 }
 
 type PayGateway = "NOMOD" | "PHONEPE";
+type PayMethod = PayGateway | "WALLET";
 
 export default function BookPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
@@ -244,8 +245,8 @@ export default function BookPage() {
   const [bookingUncertain, setBookingUncertain] = useState(false);
   // Booking saved as PAYMENT_PENDING; retrying only restarts the payment, never re-books.
   const [pendingPayment, setPendingPayment] = useState<{ bookingId: string; checkoutToken: string } | null>(null);
-  // Offered when a signed-in customer's wallet covers the whole (INR) fare.
-  const [walletOffer, setWalletOffer] = useState<{ amount: number; balance: number } | null>(null);
+  // Signed-in customer's ZamraBooking wallet balance (INR); null = unknown / signed out.
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   // Prices are shown in the visitor's currency (automatic exchange rates, INR per 1 unit).
   // Cards are charged in INR, or in AED for the GCC currencies.
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("INR");
@@ -260,15 +261,16 @@ export default function BookPage() {
   }, []);
   const aedRate = rates.AED ?? null;
   // Online payment methods switched on in Admin (Nomod: cards / AED; PhonePe: UPI, INR only).
-  const [gateways, setGateways] = useState<{ NOMOD: boolean; PHONEPE: boolean; preferred: PayGateway }>({ NOMOD: true, PHONEPE: false, preferred: "NOMOD" });
-  const [payMethod, setPayMethod] = useState<PayGateway | null>(null);
+  const [gateways, setGateways] = useState<{ NOMOD: boolean; PHONEPE: boolean; preferred: PayGateway }>({ NOMOD: true, PHONEPE: false, preferred: "PHONEPE" });
+  const [payMethod, setPayMethod] = useState<PayMethod | null>(null);
   useEffect(() => {
     fetch(`${apiUrl}/api/payments/config`, { headers: { "x-tenant-slug": "zamra" } })
       .then((r) => r.ok ? r.json() : null)
       .then((d: { defaultGateway?: string; gateways?: Record<string, boolean> } | null) => {
         if (!d?.gateways) return;
         const NOMOD = Boolean(d.gateways.NOMOD), PHONEPE = Boolean(d.gateways.PHONEPE);
-        const preferred: PayGateway = d.defaultGateway === "PHONEPE" && PHONEPE ? "PHONEPE" : NOMOD ? "NOMOD" : PHONEPE ? "PHONEPE" : "NOMOD";
+        // PhonePe is pre-selected whenever it is available.
+        const preferred: PayGateway = PHONEPE ? "PHONEPE" : "NOMOD";
         setGateways({ NOMOD, PHONEPE, preferred });
       })
       .catch(() => {});
@@ -489,10 +491,10 @@ export default function BookPage() {
   const shownCur: DisplayCurrency = fareInInr && displayCurrency !== "INR" && rates[displayCurrency] ? displayCurrency : "INR";
   const payCurrency: "INR" | "AED" = shownCur !== "INR" && (GCC as readonly string[]).includes(shownCur) && aedRate ? "AED" : "INR";
   const inForeign = shownCur !== "INR";
-  // AED is charged through Nomod only; PhonePe takes INR.
+  // AED is charged through Nomod only; PhonePe and the wallet take INR.
   const phonePeUsable = gateways.PHONEPE && payCurrency === "INR";
   const gateway: PayGateway = !phonePeUsable ? "NOMOD"
-    : payMethod === "PHONEPE" || (!payMethod && gateways.preferred === "PHONEPE") || !gateways.NOMOD ? "PHONEPE" : "NOMOD";
+    : payMethod === "PHONEPE" || (payMethod !== "NOMOD" && gateways.preferred === "PHONEPE") || !gateways.NOMOD ? "PHONEPE" : "NOMOD";
   const amt = (inr: number) => {
     const v = inForeign ? convertInr(inr, shownCur, rates) : null;
     return v === null ? money.format(inr) : formatIn(v, shownCur);
@@ -572,6 +574,10 @@ export default function BookPage() {
   const seatPrice = (key: string, code: string) => seatMaps?.find((m) => m.key === key)?.seats.find((s) => s.code === code)?.amount ?? 0;
   const seatSum = passengers.reduce((n, p) => n + (p.type === "INFANT" ? 0 : Object.entries(p.seat).reduce((m, [k, c]) => m + (c ? seatPrice(k, c) : 0), 0)), 0);
   const grandTotal = (fare?.totalFare ?? 0) + ssrSum + seatSum;
+  const walletUsable = Boolean(token) && fare?.currency === "INR" && payCurrency === "INR" && walletBalance !== null;
+  const walletCovers = walletUsable && walletBalance! >= grandTotal && grandTotal > 0;
+  const method: PayMethod = payMethod === "WALLET" && walletCovers ? "WALLET" : gateway;
+  const onlineAvailable = phonePeUsable || gateways.NOMOD;
 
   // A new fare session invalidates the seat map and any seats picked from it.
   useEffect(() => {
@@ -619,37 +625,32 @@ export default function BookPage() {
     window.location.assign(data.paymentUrl);
   }
 
-  // Wallet can pay only when it covers the full INR fare; otherwise Nomod is used.
-  async function walletCovering(amount: number, currency: string): Promise<number | null> {
-    if (!token || currency !== "INR") return null;
-    try {
-      const res = await fetch(`${apiUrl}/api/profile/wallet`, {
-        headers: { "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return null;
-      const w = await res.json() as { balance?: number };
-      return typeof w.balance === "number" && w.balance >= amount ? w.balance : null;
-    } catch { return null; }
+  // Signed-in customers can pay from their ZamraBooking wallet (INR, full fare only).
+  useEffect(() => {
+    if (!token) { setWalletBalance(null); return; }
+    fetch(`${apiUrl}/api/profile/wallet`, { headers: { "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` } })
+      .then((res) => res.ok ? res.json() : null)
+      .then((w: { balance?: number } | null) => setWalletBalance(typeof w?.balance === "number" ? w.balance : null))
+      .catch(() => setWalletBalance(null));
+  }, [token, reviewing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Throws with a customer-facing message; the booking stays saved and unpaid.
+  async function payWithWallet(bookingId: string, checkoutToken: string) {
+    const res = await fetch(`${apiUrl}/api/profile/wallet/pay`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ bookingId }),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) as { error?: string } : {};
+    if (!res?.ok) throw new Error(`Your booking is saved but the wallet payment didn't go through${data.error ? ` (${data.error})` : ""}. You have not been charged — choose a payment method and try again.`);
+    const q = new URLSearchParams({ bookingId, token: checkoutToken, result: "success" });
+    window.location.assign(`/checkout/payment-result?${q}`);
   }
 
-  async function payWithWallet() {
-    if (!pendingPayment || submitting) return;
-    setSubmitting(true); setError("");
-    try {
-      const res = await fetch(`${apiUrl}/api/profile/wallet/pay`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ bookingId: pendingPayment.bookingId }),
-      });
-      const data = await res.json().catch(() => ({})) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Wallet payment failed. You have not been charged.");
-      const q = new URLSearchParams({ bookingId: pendingPayment.bookingId, token: pendingPayment.checkoutToken, result: "success" });
-      window.location.assign(`/checkout/payment-result?${q}`);
-    } catch (x: any) {
-      setError(x?.message ?? "Wallet payment failed. You have not been charged.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      setSubmitting(false);
-    }
+  // Pays a saved booking with the method selected under "Pay with".
+  async function payBooking(bookingId: string, checkoutToken: string) {
+    if (method === "WALLET") await payWithWallet(bookingId, checkoutToken);
+    else await startOnlinePayment(bookingId, checkoutToken);
   }
 
   function saveTravellerDetails() {
@@ -796,13 +797,11 @@ export default function BookPage() {
     const bagProblem = baggageChoiceProblem();
     if (bagProblem) { setError(bagProblem); setReviewing(false); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     if (!reviewing) { setReviewing(true); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
-    // The main button pays from the wallet while the wallet choice is showing.
-    if (pendingPayment && walletOffer) { await payWithWallet(); return; }
     setError("");
     setSubmitting(true);
     if (pendingPayment) {
       try {
-        await startOnlinePayment(pendingPayment.bookingId, pendingPayment.checkoutToken);
+        await payBooking(pendingPayment.bookingId, pendingPayment.checkoutToken);
       } catch (x: any) {
         setError(x?.message ?? "The payment page couldn't open. Please try again.");
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -838,14 +837,7 @@ export default function BookPage() {
           throw new Error("Your booking is saved but the payment page couldn't open. You have not been charged; please contact support.");
         }
         setPendingPayment({ bookingId: d.bookingId, checkoutToken: d.checkoutToken });
-        const amount = Number(d.amount ?? fare.totalFare);
-        const balance = await walletCovering(amount, String(d.currency ?? fare.currency));
-        if (balance !== null) {
-          setWalletOffer({ amount, balance });
-          window.scrollTo({ top: 0, behavior: "smooth" });
-          return;
-        }
-        await startOnlinePayment(d.bookingId, d.checkoutToken);
+        await payBooking(d.bookingId, d.checkoutToken);
         return;
       }
       if (d.success !== true || typeof d.bookingReference !== "string" || !d.bookingReference) {
@@ -935,29 +927,6 @@ export default function BookPage() {
       )}
 
       {error && <div className="err"><b>Couldn't continue</b><span>{error}</span></div>}
-      {walletOffer && pendingPayment && (
-        <div style={{ background: "#fff", border: "1.5px solid #fecaca", borderRadius: 14, padding: 16, margin: "0 0 14px" }}>
-          <b style={{ display: "block", fontSize: 16, marginBottom: 4 }}>Choose how to pay</b>
-          <span style={{ display: "block", color: "#64748b", fontSize: 13, marginBottom: 12 }}>
-            Your booking is saved. Wallet balance ₹{walletOffer.balance.toLocaleString("en-IN")} covers this fare of ₹{walletOffer.amount.toLocaleString("en-IN")}.
-          </span>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" onClick={payWithWallet} disabled={submitting}
-              style={{ flex: "1 1 180px", background: "#0D4B96", color: "#fff", border: 0, borderRadius: 10, padding: "12px 14px", fontWeight: 800, cursor: "pointer", opacity: submitting ? .7 : 1 }}>
-              {submitting ? "Paying…" : `Pay ₹${walletOffer.amount.toLocaleString("en-IN")} from wallet`}
-            </button>
-            <button type="button" disabled={submitting}
-              onClick={async () => {
-                setSubmitting(true); setError("");
-                try { await startOnlinePayment(pendingPayment.bookingId, pendingPayment.checkoutToken); }
-                catch (x: any) { setError(x?.message ?? "The payment page couldn't open."); setSubmitting(false); }
-              }}
-              style={{ flex: "1 1 180px", background: "#fff", color: "#0f172a", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "12px 14px", fontWeight: 800, cursor: "pointer" }}>
-              Pay with card (Nomod)
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Login banner — shown when not logged in */}
       {!token && !reviewing && (
@@ -1297,23 +1266,39 @@ export default function BookPage() {
           </div>
         )}
 
-        {reviewing && phonePeUsable && gateways.NOMOD && !walletOffer && !bookingUncertain && (
-          <section className="card" aria-label="Payment method">
-            <h2 style={{ margin: "0 0 10px" }}>Pay with</h2>
-            <div style={{ display: "grid", gap: 8 }}>
-              {([
-                ["PHONEPE", "PhonePe", "UPI, cards, net banking"],
-                ["NOMOD", "Card", "Credit / debit card, Apple Pay, Google Pay"],
-              ] as const).map(([id, label, hint]) => (
-                <label key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
-                  border: `1.5px solid ${gateway === id ? "#0D4B96" : "#e2e8f0"}`, background: gateway === id ? "#eff6ff" : "#fff" }}>
-                  <input type="radio" name="payMethod" checked={gateway === id} onChange={() => setPayMethod(id)} />
-                  <span><b>{label}</b><br /><span style={{ fontSize: 12, color: "#64748b" }}>{hint}</span></span>
-                </label>
-              ))}
-            </div>
-          </section>
-        )}
+        {reviewing && !bookingUncertain && (() => {
+          const options: { id: PayMethod; label: string; hint: string; disabled?: boolean }[] = [];
+          if (phonePeUsable) options.push({ id: "PHONEPE", label: "PhonePe", hint: "UPI, cards, net banking" });
+          if (walletUsable) options.push({
+            id: "WALLET", label: "ZamraBooking wallet",
+            hint: walletCovers ? `Balance ₹${walletBalance!.toLocaleString("en-IN")}` : `Balance ₹${walletBalance!.toLocaleString("en-IN")} — not enough for this fare`,
+            disabled: !walletCovers,
+          });
+          if (gateways.NOMOD) options.push({ id: "NOMOD", label: "Card", hint: payCurrency === "AED" ? "Charged in AED · cards, Apple Pay, Google Pay" : "Credit / debit card, Apple Pay, Google Pay" });
+          return (
+            <section className="card" aria-label="Payment method">
+              <h2 style={{ margin: "0 0 10px" }}>Pay with</h2>
+              {options.length === 0 ? (
+                <p style={{ margin: 0, color: "#b91c1c", fontSize: 14 }}>
+                  Online payment isn&apos;t available right now. Please contact us to complete this booking.
+                </p>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {options.map(({ id, label, hint, disabled }) => (
+                    <label key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? .6 : 1,
+                      border: `1.5px solid ${method === id ? "#0D4B96" : "#e2e8f0"}`, background: method === id ? "#eff6ff" : "#fff" }}>
+                      <input type="radio" name="payMethod" checked={method === id} disabled={disabled} onChange={() => setPayMethod(id)} />
+                      <span><b>{label}</b><br /><span style={{ fontSize: 12, color: "#64748b" }}>{hint}</span></span>
+                    </label>
+                  ))}
+                  {!token && fare?.currency === "INR" && (
+                    <span style={{ fontSize: 12, color: "#64748b" }}>Sign in to pay from your ZamraBooking wallet.</span>
+                  )}
+                </div>
+              )}
+            </section>
+          );
+        })()}
 
         <div className="spacer" />
         <div className="pay">
@@ -1322,8 +1307,8 @@ export default function BookPage() {
             <b>{fare ? shownTotal(grandTotal) : "—"}</b>
             {currencySwitch && <div className="paySwitch">{currencySwitch}</div>}
           </div>
-          <button disabled={!fare || submitting || fareExpired || bookingUncertain}>
-            {submitting ? (walletOffer ? "Paying from wallet…" : pendingPayment ? "Opening payment…" : "Checking availability…") : bookingUncertain ? "Contact support to check status" : walletOffer ? `Pay ₹${walletOffer.amount.toLocaleString("en-IN")} from wallet` : pendingPayment ? "Try payment again" : reviewing ? "Continue to payment" : "Review booking"}
+          <button disabled={!fare || submitting || fareExpired || bookingUncertain || (reviewing && !onlineAvailable && method !== "WALLET")}>
+            {submitting ? (method === "WALLET" && reviewing ? "Paying from wallet…" : pendingPayment ? "Opening payment…" : "Checking availability…") : bookingUncertain ? "Contact support to check status" : reviewing && method === "WALLET" ? `Pay ${money.format(grandTotal)} from wallet` : pendingPayment ? "Try payment again" : reviewing ? (method === "PHONEPE" ? "Pay with PhonePe" : "Continue to payment") : "Review booking"}
           </button>
         </div>
       </form>

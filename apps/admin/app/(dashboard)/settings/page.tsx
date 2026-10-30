@@ -75,7 +75,7 @@ function PaymentSettings() {
   const [nomodStatus, setNomodStatus] = useState<"idle" | "testing" | "connected" | "failed">("idle");
   const [phonePeStatus, setPhonePeStatus] = useState<"idle" | "testing" | "connected" | "failed">("idle");
   const [s, setS] = useState({
-    defaultGateway: "NOMOD" as "RAZORPAY" | "NOMOD" | "PHONEPE",
+    defaultGateway: "PHONEPE" as "RAZORPAY" | "NOMOD" | "PHONEPE",
     razorpay: { enabled: false, keyId: "", keySecret: "", webhookSecret: "" },
     nomod:    { enabled: true, apiKey: "", apiSecret: "", webhookSecret: "", environment: "production" as "sandbox" | "production", allowTabby: true, allowTamara: true, configured: false, aedRate: null as number | null },
     phonepe:  { enabled: true, clientId: "", clientSecret: "", clientVersion: "1", environment: "production" as "sandbox" | "production", webhookUsername: "", webhookPassword: "", configured: false, secretsFromWorker: false },
@@ -147,7 +147,8 @@ function PaymentSettings() {
   return (
     <form onSubmit={save}>
       <div style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: "rgba(124,58,237,.12)", border: "1px solid #5b21b6", color: "#c4b5fd", fontSize: 13 }}>
-        Nomod (cards, AED, Tabby / Tamara) and PhonePe (UPI, cards, net banking — INR only) are both on by default; customers choose at checkout.
+        PhonePe (UPI, cards, net banking — INR only) is pre-selected at checkout once its credentials are saved. Nomod (cards, AED, Tabby / Tamara)
+        and the customer&apos;s ZamraBooking wallet are offered alongside it.
         Razorpay is disabled for new payments; refunds on earlier Razorpay payments still work.
       </div>
 
@@ -273,16 +274,6 @@ function PaymentSettings() {
             </div>
           </>
         )}
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <Label>Pre-selected at checkout</Label>
-        <select value={s.defaultGateway === "RAZORPAY" ? "NOMOD" : s.defaultGateway}
-          onChange={(e) => setS((p) => ({ ...p, defaultGateway: e.target.value as "NOMOD" | "PHONEPE" }))} style={{ ...inputStyle, maxWidth: 260 }}>
-          <option value="NOMOD">Nomod</option>
-          <option value="PHONEPE">PhonePe</option>
-        </select>
-        <Hint>Customers can still pick the other method. AED payments always use Nomod.</Hint>
       </div>
 
       {error && <ErrorBanner>{error}</ErrorBanner>}

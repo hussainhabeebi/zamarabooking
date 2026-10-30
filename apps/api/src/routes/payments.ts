@@ -49,10 +49,8 @@ paymentRoutes.get("/config", async (c) => {
   const nomodConfigured = nomodEnabled(settings) && Boolean(settings?.nomod?.apiKey || c.env.NOMOD_API_KEY);
   const phonePeConfigured = phonePeEnabled(settings) && Boolean(resolvePhonePeConfig(c.env, settings));
   const configured = { RAZORPAY: razorpayConfigured, NOMOD: nomodConfigured, PHONEPE: phonePeConfigured } as const;
-  const wanted = settings?.defaultGateway as keyof typeof configured | undefined;
-  const preferred = wanted && configured[wanted]
-    ? wanted
-    : nomodConfigured ? "NOMOD" : phonePeConfigured ? "PHONEPE" : razorpayConfigured ? "RAZORPAY" : null;
+  // PhonePe is pre-selected whenever it is configured; Nomod otherwise.
+  const preferred = phonePeConfigured ? "PHONEPE" : nomodConfigured ? "NOMOD" : razorpayConfigured ? "RAZORPAY" : null;
   const aedRate = await getAedRate(c.env, tenantId, c.executionCtx);
   return c.json({
     defaultGateway: preferred, gateways: configured,
