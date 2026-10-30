@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import CheckoutClient from "./CheckoutClient";
+import PassengerDateInput from "../../components/PassengerDateInput";
+import { dateOnly, passengerDatesProblem } from "../../lib/passenger-dates";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
@@ -45,7 +47,7 @@ export default function CheckoutFlow(props: Props) {
 
   const valid = useMemo(() => passengers.length > 0 && passengers.every((p) =>
     p.firstName.trim() && p.lastName.trim() && p.passportNumber?.trim() &&
-    p.nationality?.trim() && p.dob && p.passportExpiry
+    p.nationality?.trim() && p.dob && p.passportExpiry && !passengerDatesProblem(p)
   ) && /\S+@\S+\.\S+/.test(email) && phone.replace(/\D/g, "").length >= 8, [passengers, email, phone]);
 
   function patch(id: string, values: Partial<EditablePassenger>) {
@@ -92,7 +94,8 @@ export default function CheckoutFlow(props: Props) {
 
   async function saveAndReview() {
     if (!valid) {
-      setError("Complete the contact and required passport fields for every passenger.");
+      const dateError = passengers.map((p, i) => { const problem = passengerDatesProblem(p); return problem ? `Traveller ${i + 1}: ${problem}` : null; }).find(Boolean);
+      setError(dateError || "Complete the contact and required passport fields for every passenger.");
       return;
     }
     setSaving(true);
@@ -163,11 +166,11 @@ export default function CheckoutFlow(props: Props) {
               <div className="grid">
                 <Field label="Given names"><input value={p.firstName} onChange={(e) => patch(p.id, { firstName: e.target.value })} /></Field>
                 <Field label="Surname"><input value={p.lastName} onChange={(e) => patch(p.id, { lastName: e.target.value })} /></Field>
-                <Field label="Date of birth"><input type="date" value={dateValue(p.dob)} onChange={(e) => patch(p.id, { dob: e.target.value })} /></Field>
+                <Field label="Date of birth"><PassengerDateInput required kind="birth" value={dateValue(p.dob)} onChange={(dob) => patch(p.id, { dob })} /></Field>
                 <Field label="Gender"><select value={p.gender || ""} onChange={(e) => patch(p.id, { gender: e.target.value })}><option value="">Select</option><option value="M">Male</option><option value="F">Female</option><option value="X">Other</option></select></Field>
                 <Field label="Passport number"><input value={p.passportNumber || ""} onChange={(e) => patch(p.id, { passportNumber: e.target.value.toUpperCase() })} /></Field>
                 <Field label="Nationality"><input value={p.nationality || ""} maxLength={3} onChange={(e) => patch(p.id, { nationality: e.target.value.toUpperCase() })} placeholder="IND" /></Field>
-                <Field label="Passport expiry"><input type="date" value={dateValue(p.passportExpiry)} onChange={(e) => patch(p.id, { passportExpiry: e.target.value })} /></Field>
+                <Field label="Passport expiry"><PassengerDateInput required kind="expiry" value={dateValue(p.passportExpiry)} onChange={(passportExpiry) => patch(p.id, { passportExpiry })} /></Field>
                 <Field label="Issuing country"><input value={p.passportCountry || ""} maxLength={3} onChange={(e) => patch(p.id, { passportCountry: e.target.value.toUpperCase() })} placeholder="IND" /></Field>
               </div>
             </section>
@@ -222,7 +225,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function dateValue(value?: string | null) {
-  return value ? String(value).slice(0, 10) : "";
+  return dateOnly(value);
 }
 function maskPassport(value: string) {
   if (value.length <= 4) return value;
