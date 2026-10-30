@@ -23,6 +23,8 @@ import { fallbackHoldDeadline, findHoldDeadline, holdLabel } from "../lib/fare-h
 import { parseBookingDetails } from "../lib/trips.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "../lib/customer-notify.js";
 import { isOfflineSupplier, quoteOfflineFare, type OfflineSupplier } from "../lib/flight-sources.js";
+import { baggageRequestSummary, buildBaggageRequest } from "../lib/baggage-request.js";
+import { logBookingEvent } from "../lib/booking-recovery.js";
 
 const ssrPick = z.object({ key: z.string().min(1), code: z.string().min(1) });
 
@@ -75,6 +77,14 @@ const directBookSchema = z.object({
   tripType:      z.enum(["ONEWAY", "ROUNDTRIP", "MULTICITY"]).default("ONEWAY"),
   // Akbar round trip / multi-city: one fare ID per leg, in leg order (fareId is the first).
   priceIds:      z.array(z.string().min(1)).min(1).max(6).optional(),
+  // Staff-ticketed fares: each traveller's additional baggage choice, and the extra
+  // weight requested per flight. Requests are never priced or charged here.
+  baggageChoices:  z.array(z.enum(["NONE", "REQUEST"])).max(18).optional(),
+  baggageRequests: z.array(z.object({
+    passengerIndex: z.number().int().min(0).max(17),
+    legIndex:       z.number().int().min(0).max(5),
+    extraKg:        z.number().int(),
+  })).max(108).optional(),
   gstInfo: z.object({
     gstNumber:      z.string().regex(/^\d{2}[A-Za-z0-9]{13}$/, "GSTIN must be 15 characters"),
     registeredName: z.string().min(2).max(35),
@@ -748,6 +758,10 @@ async function bookOfflineFare(
     return c.json({ error: "This fare is no longer available. Please search again.", errorCode: "FARE_EXPIRED", requestId }, 409);
   }
 
+  // Additional baggage can only be requested here: staff confirm and price it later.
+  const baggage = buildBaggageRequest(body.passengers, legs, body.baggageChoices, body.baggageRequests);
+  if ("problem" in baggage) return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: baggage.problem, requestId }, 400);
+
   const supplierAmount = Math.round(legs.reduce((n, f) => n + f.totalFare, 0) * 100) / 100;
   // Markup per leg, the same way search priced each leg the customer picked.
   const legPrices = await Promise.all(legs.map((leg) => customerPrice(db, tenantId, leg.totalFare, {
@@ -792,6 +806,7 @@ async function bookOfflineFare(
           sourceRef: raw,
           // Each leg is ticketed by staff on Akbar with its own TUI / Index.
           ...(journey ? { legs: legs.map(({ raw: legRef, ...leg }) => ({ ...leg, sourceRef: legRef })) } : {}),
+          ...(baggage.request ? { baggageRequest: baggage.request } : {}),
           ...(body.gstInfo ? { gstInfo: body.gstInfo } : {}),
           ...(body.emergencyContact ? { emergencyContact: body.emergencyContact } : {}),
           pax: body.passengers.map((p) => ({
@@ -833,10 +848,16 @@ async function bookOfflineFare(
     return c.json({ errorCode: "BOOKING_SAVE_FAILED", requestId }, 500);
   }
 
+  if (baggage.request) {
+    c.executionCtx.waitUntil(logBookingEvent(c.env, booking!.id, "BOOK", "warn", baggageRequestSummary(baggage.request), { baggageRequest: baggage.request })
+      .catch((err) => console.error("[baggage-request] log", err)));
+  }
+
   const now = Math.floor(Date.now() / 1000);
   const checkoutToken = await signToken({ sub: booking!.id, tenantId, iat: now, exp: now + 20 * 60 }, c.env.JWT_SECRET);
   return c.json({
     success: true, bookingId: booking!.id, amount: supplierAmount + markupAmount, currency: body.currency,
+    ...(baggage.request ? { baggageRequest: { status: baggage.request.status, charged: false } } : {}),
     requiresPayment: true, checkoutToken, requestId,
   }, 201);
 }

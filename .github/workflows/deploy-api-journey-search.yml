@@ -1,4 +1,4 @@
-name: API-only release - Akbar journey search (no migrations)
+name: API-only release - Akbar journey search and baggage requests (no migrations)
 
 # Deploys ONLY the zamra-api Worker, built from the last deployed API commit plus the
 # Akbar round-trip / multi-city search files. No database migrations, no web /
@@ -37,6 +37,9 @@ env:
     apps/api/test/flight-sources.test.ts
     apps/api/test/journey-search-logs.test.ts
     apps/api/test/akbar-journey-booking.test.ts
+    apps/api/src/lib/baggage-request.ts
+    apps/api/src/queue-consumer.ts
+    apps/api/test/baggage-request.test.ts
 
 jobs:
   release-api:
@@ -70,8 +73,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @zamrabooking/api typecheck
-      - name: Akbar journey search / booking tests
-        run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/flight-sources.test.ts apps/api/test/journey-search-logs.test.ts apps/api/test/akbar-journey-booking.test.ts
+      - name: Akbar journey search / booking / baggage request tests
+        run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/flight-sources.test.ts apps/api/test/journey-search-logs.test.ts apps/api/test/akbar-journey-booking.test.ts $(test -f apps/api/test/baggage-request.test.ts && echo apps/api/test/baggage-request.test.ts)
       - name: Deploy zamra-api Worker (no database migrations)
         working-directory: apps/api
         run: pnpm exec wrangler deploy --message "Akbar journey search ${{ inputs.fix_to }} on ${{ inputs.base_sha }}"
