@@ -1,3 +1,4 @@
+import { freezeBookingPrice } from "../lib/booking-price-lock.js";
 // POST /api/payments/checkout  — create Razorpay order or NoMod payment link
 // POST /api/payments/verify    — verify Razorpay signature and confirm booking
 // GET  /api/payments/checkout/:bookingId — poll payment status (used by queue-based flow)
@@ -80,6 +81,7 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
       contactEmail: bookings.contactEmail,
       contactPhone: bookings.contactPhone,
       heldUntil:   bookings.heldUntil,
+      flightData: bookings.flightData,
     })
     .from(bookings)
     .where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, tenantId)))
@@ -122,6 +124,7 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
 
     // Create Razorpay order (paise for INR, fils for AED)
     const amountMinor = Math.round(amountFull * 100);
+    await freezeBookingPrice(db, tenantId, booking);
     const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
       method:  "POST",
       headers: {
@@ -166,6 +169,11 @@ paymentRoutes.post("/checkout", zValidator("json", checkoutSchema), async (c) =>
     const checkoutToken = c.req.header("X-Checkout-Token") ?? "";
     const resultUrl = `https://zamrabooking.com/checkout/payment-result?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}`;
     const amount = amountFull.toFixed(2);
+    // A known pending link may be reused; an unknown outcome stays frozen.
+    const existing=await db.select().from(payments).where(and(eq(payments.bookingId,bookingId),eq(payments.gateway,"NOMOD"),eq(payments.status,"PENDING")));
+    const reusable=existing.find(p=>Number(p.amount)===amountFull&&p.currency===cur&&typeof (p.gatewayResponse as any)?.linkUrl==="string");
+    if(reusable)return c.json({paymentUrl:(reusable.gatewayResponse as any).linkUrl,orderId:reusable.gatewayOrderId,amount:amountFull,currency:cur});
+    await freezeBookingPrice(db, tenantId, booking);
     const linkRes = await fetch("https://api.nomod.com/v1/links", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-KEY": apiKey },

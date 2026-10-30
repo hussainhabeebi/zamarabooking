@@ -470,6 +470,7 @@ bookDirectRoutes.post("/", zValidator("json", directBookSchema, (result, c) => {
             selling: Math.round((agentQuote.selling + ssrAmount) * 100) / 100, shares: agentQuote.shares,
           } } : {}),
           // Everything the post-payment TripJack book needs beyond the passenger rows.
+          checkoutPriceProtocol: 1,
           tripjack: {
             priceIds: reviewedPriceIds,
             reviewBookingId: bookingSessionId,

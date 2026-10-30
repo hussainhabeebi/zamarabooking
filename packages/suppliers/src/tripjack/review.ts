@@ -10,6 +10,7 @@ type Rec = Record<string, any>;
 export interface SsrOption { code: string; amount: number; desc: string }
 
 export interface ReviewSegment extends FareSegment {
+  includedBaggage?: Record<string,string>;
   key:   string;   // segment id — the SSR "key" in the Book request
   ssr: { baggage: SsrOption[]; meal: SsrOption[]; extra: SsrOption[] };
 }
@@ -47,7 +48,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : N
 
 function ssrList(v: unknown): SsrOption[] {
   return Array.isArray(v)
-    ? v.filter((x: Rec) => x?.code).map((x: Rec) => ({ code: String(x.code), amount: num(x.amount), desc: String(x.desc ?? x.code) }))
+    ? v.filter((x: Rec) => x?.code && x.amount !== null && x.amount !== undefined && (typeof x.amount === "number" || (typeof x.amount === "string" && x.amount.trim() !== "")) && Number.isFinite(Number(x.amount)) && Number(x.amount) >= 0).map((x: Rec) => ({ code: String(x.code), amount: num(x.amount), desc: String(x.desc ?? x.code) }))
     : [];
 }
 
@@ -84,15 +85,16 @@ export function reviewTotalFare(rr: Rec, pax?: { adults: number; children?: numb
 export function parseTripjackReview(result: Rec): ReviewSummary {
   const c = result?.conditions ?? {};
   const trips: Rec[] = Array.isArray(result?.tripInfos) ? result.tripInfos : [];
-  const segments: ReviewSegment[] = trips.flatMap((t) => (Array.isArray(t?.sI) ? t.sI : [])).map((s: Rec) => ({
+  const segments: ReviewSegment[] = trips.flatMap((t) => (Array.isArray(t?.sI) ? t.sI : []).map((s: Rec) => ({
     ...normalizeTripjackSegment(s),
     key: String(s?.id ?? ""),
+    includedBaggage: Object.fromEntries(Object.entries(t?.totalPriceList?.[0]?.fd ?? {}).filter(([kind,fd]:[string,any]) => ["ADULT","CHILD","INFANT"].includes(kind) && typeof fd?.bI?.iB === "string" && fd.bI.iB.trim()).map(([kind,fd]:[string,any]) => [kind,fd.bI.iB])),
     ssr: {
       baggage: ssrList(s?.ssrInfo?.BAGGAGE),
       meal:    ssrList(s?.ssrInfo?.MEAL),
       extra:   ssrList(s?.ssrInfo?.EXTRASERVICES),
     },
-  }));
+  })));
   const alert = (Array.isArray(result?.alerts) ? result.alerts : []).find((a: Rec) => a?.type === "FAREALERT");
   const tf = reviewTotalFare(result);
   const fareIdentifiers = trips.flatMap((t) => (Array.isArray(t?.totalPriceList) ? t.totalPriceList : []))
@@ -138,7 +140,10 @@ export function ssrTotal(
   const invalid: string[] = [];
   passengers.forEach((p, i) => {
     for (const [kind, list] of [["baggage", p.ssr?.baggage], ["meal", p.ssr?.meal], ["extra", p.ssr?.extra]] as const) {
+      const seen = new Set<string>();
       for (const pick of list ?? []) {
+        if (seen.has(pick.key)) { invalid.push(`passenger ${i + 1} duplicate ${kind} on ${pick.key}`); continue; }
+        seen.add(pick.key);
         const option = byKey.get(pick.key)?.ssr[kind].find((o) => o.code === pick.code);
         if (!option) invalid.push(`passenger ${i + 1} ${kind} ${pick.code} on ${pick.key}`);
         else total += option.amount;

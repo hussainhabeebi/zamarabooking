@@ -5,7 +5,9 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
+import { bookings, bookingPassengers, payments } from "@zamrabooking/db/schema";
+import { applyBookingBaggage } from "../lib/booking-price-lock.js";
+import { quoteBaggage } from "../lib/baggage-quote.js";
 import { eq, and } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 
@@ -300,6 +302,61 @@ checkoutRoutes.put("/session/:token/passengers", zValidator("json", passengerUpd
   }).where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, c.get("tenantId"))));
 
   return c.json({ ok: true });
+});
+
+const baggageChoices = z.array(z.object({passengerId:z.string().min(1),baggage:z.array(z.object({key:z.string().min(1),code:z.string().min(1)}).strict()).max(6)}).strict()).max(9);
+async function baggageContext(c:any) {
+ c.header("Cache-Control","no-store");
+ const bookingId=await checkoutBookingId(c,c.req.param("token")),db=c.get("db"),tenantId=c.get("tenantId");
+ const [booking]=await db.select().from(bookings).where(and(eq(bookings.id,bookingId),eq(bookings.tenantId,tenantId))).limit(1);
+ if(!booking)throw new HTTPException(404,{message:"Booking not found"});
+ const sessionId=(booking.flightData as any)?.tripjack?.reviewBookingId;
+ if(typeof sessionId!=="string")throw new HTTPException(409,{message:"Additional baggage unavailable for this supplier booking"});
+ const review=await c.env.SESSIONS_KV.get(`flight_review:${tenantId}:${sessionId}`,"json") as Parameters<typeof quoteBaggage>[0]["review"]|null;
+ if(!review)throw new HTTPException(409,{message:"Fare review expired; search again"});
+ const passengers=await db.select().from(bookingPassengers).where(eq(bookingPassengers.bookingId,bookingId));
+ const ledger=await db.select({id:payments.id}).from(payments).where(eq(payments.bookingId,bookingId)).limit(1);
+ return {booking,passengers,review,hasPayments:ledger.length>0};
+}
+checkoutRoutes.get("/session/:token/baggage",async c=>{
+ const ctx=await baggageContext(c);
+ const pax=(ctx.booking.flightData as any).tripjack.pax;
+ const picks=ctx.passengers.map((p:any)=>({passengerId:p.id,baggage:pax.find((x:any)=>(x.passengerId ? x.passengerId===p.id : x.firstName.trim().toUpperCase()===p.firstName.trim().toUpperCase()&&x.lastName.trim().toUpperCase()===p.lastName.trim().toUpperCase())&&x.type===p.passengerType)?.ssr?.baggage??[]}));
+ try {const quote=quoteBaggage({...ctx,picks});return c.json({...quote,picks,segments:ctx.review.summary.segments.map(s=>({key:s.key,origin:s.origin,destination:s.destination,includedBaggage:s.includedBaggage,options:s.ssr.baggage}))});}
+ catch(e){throw new HTTPException(409,{message:e instanceof Error?e.message:"BAGGAGE_UNAVAILABLE"});}
+});
+checkoutRoutes.post("/session/:token/baggage-apply",zValidator("json",z.object({passengers:baggageChoices,revision:z.string().min(1)}).strict()),async c=>{
+ const ctx=await baggageContext(c),body=c.req.valid("json");
+ try {
+ const quote=quoteBaggage({...ctx,picks:body.passengers});
+ if(body.revision!==quote.bookingRevision)throw new HTTPException(409,{message:"Booking quote changed. Reload baggage options."});
+ const fd=ctx.booking.flightData as any,delta=quote.ancillaryDelta;
+ const base=Number(ctx.booking.baseFare)+delta,ssr=Number(fd.tripjack.ssrAmount??0)+delta;
+ if(!Number.isFinite(base)||base<=0||!Number.isFinite(ssr)||ssr<0)throw new Error("ANCILLARY_TOTAL_INVALID");
+ const version=crypto.randomUUID();
+ const flightData={...fd,...(fd.agentPricing && Number.isFinite(Number(fd.agentPricing.selling)) ? {agentPricing:{...fd.agentPricing,selling:Math.round((Number(fd.agentPricing.selling)+delta)*100)/100}} : {}),baggageVersion:version,tripjack:{...fd.tripjack,ssrAmount:ssr,pax:fd.tripjack.pax.map((p:any,i:number)=>({...p,passengerId:quote.selected[i].passengerId,ssr:quote.selected[i].ssr}))}};
+ await applyBookingBaggage(c.get("db"),c.get("tenantId"),ctx.booking,{total:quote.total.toFixed(2),baseFare:base.toFixed(2),flightData,expiresAt:quote.expiresAt});
+ return c.json({applied:true,totalAmount:quote.total.toFixed(2),currency:quote.currency,revision:version});
+ }catch(e){if(e instanceof HTTPException)throw e;throw new HTTPException(409,{message:e instanceof Error?e.message:"BAGGAGE_NOT_APPLIED"});}
+});
+
+// Read-only server-priced preview; no booking/payment records are changed.
+// Applying a quote is deliberately unavailable pending a shared atomic payment guard.
+checkoutRoutes.post("/session/:token/baggage-quote", zValidator("json", z.object({
+  passengers:z.array(z.object({passengerId:z.string().min(1),baggage:z.array(z.object({key:z.string().min(1),code:z.string().min(1)}).strict()).max(6)}).strict()).max(9),
+}).strict()), async c => {
+  c.header("Cache-Control","no-store");
+  const bookingId=await checkoutBookingId(c,c.req.param("token")), db=c.get("db"), tenantId=c.get("tenantId");
+  const [booking]=await db.select().from(bookings).where(and(eq(bookings.id,bookingId),eq(bookings.tenantId,tenantId))).limit(1);
+  if(!booking) throw new HTTPException(404,{message:"Booking not found"});
+  const sessionId=(booking.flightData as any)?.tripjack?.reviewBookingId;
+  if(typeof sessionId!=="string") throw new HTTPException(409,{message:"Baggage repricing unavailable for this booking"});
+  const review=await c.env.SESSIONS_KV.get(`flight_review:${tenantId}:${sessionId}`,"json") as Parameters<typeof quoteBaggage>[0]["review"]|null;
+  if(!review) throw new HTTPException(409,{message:"Fare review expired; search again"});
+  const passengers=await db.select().from(bookingPassengers).where(eq(bookingPassengers.bookingId,bookingId));
+  const ledger=await db.select({id:payments.id}).from(payments).where(eq(payments.bookingId,bookingId)).limit(1);
+  try {return c.json(quoteBaggage({booking,passengers,review,picks:c.req.valid("json").passengers,hasPayments:ledger.length>0}));}
+  catch(error){throw new HTTPException(409,{message:error instanceof Error?error.message:"BAGGAGE_QUOTE_UNAVAILABLE"});}
 });
 
 // POST /api/checkout/session/:token/mark-paid — called after successful payment to invalidate token

@@ -92,6 +92,7 @@ export interface DuffelOffer {
   slices: {
     duration: string;
     segments: {
+      id?: string;
       departing_at: string;
       arriving_at: string;
       marketing_carrier: { iata_code: string; name: string };

@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import CheckoutBaggage from "./CheckoutBaggage";
 import CheckoutClient from "./CheckoutClient";
 import PassengerDateInput from "../../components/PassengerDateInput";
 import { dateOnly, passengerDatesProblem } from "../../lib/passenger-dates";
@@ -37,6 +39,9 @@ type Step = "passengers" | "review" | "payment";
 type EditablePassenger = CheckoutPassenger & { confidence?: number; scanning?: boolean; scanError?: string };
 
 export default function CheckoutFlow(props: Props) {
+  const router=useRouter();
+  const [baggageDirty,setBaggageDirty]=useState(false);
+  const [totalAmount,setTotalAmount]=useState(props.totalAmount);
   const [step, setStep] = useState<Step>("passengers");
   const [email, setEmail] = useState(props.contactEmail);
   const [phone, setPhone] = useState(props.contactPhone || props.whatsappPhone);
@@ -93,6 +98,7 @@ export default function CheckoutFlow(props: Props) {
   }
 
   async function saveAndReview() {
+    if (baggageDirty) {setError("Apply or discard baggage changes before continuing.");return;}
     if (!valid) {
       const dateError = passengers.map((p, i) => { const problem = passengerDatesProblem(p); return problem ? `Traveller ${i + 1}: ${problem}` : null; }).find(Boolean);
       setError(dateError || "Complete the contact and required passport fields for every passenger.");
@@ -176,15 +182,16 @@ export default function CheckoutFlow(props: Props) {
             </section>
           ))}
 
+          <CheckoutBaggage token={props.token} passengers={passengers} onDirty={setBaggageDirty} onApplied={total=>{setTotalAmount(total);router.refresh();}} />
           {error && <div className="error">{error}</div>}
-          <button className="primary" disabled={saving} onClick={saveAndReview}>{saving ? "Saving…" : "Review booking →"}</button>
+          <button className="primary" disabled={saving || baggageDirty} onClick={saveAndReview}>{saving ? "Saving…" : "Review booking →"}</button>
         </>
       )}
 
       {step === "review" && (
         <section className="panel">
           <div className="eyebrow">Review before payment</div>
-          <h2>Confirm passenger details</h2>
+          <h2>Confirm passenger details</h2><p>Journey total including saved baggage: {props.currency} {totalAmount}</p>
           <p className="privacy">Names and passport numbers must exactly match the travel documents.</p>
           {passengers.map((p, i) => (
             <div className="review" key={p.id}>
@@ -209,7 +216,7 @@ export default function CheckoutFlow(props: Props) {
       {step === "payment" && (
         <>
           <button className="backLink" onClick={() => setStep("review")}>← Back to review</button>
-          <CheckoutClient {...props} contactEmail={email} contactPhone={phone} />
+          <CheckoutClient {...props} totalAmount={totalAmount} contactEmail={email} contactPhone={phone} />
         </>
       )}
 
