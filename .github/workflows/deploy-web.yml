@@ -44,6 +44,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Authorized public journey search diagnosis (no bookings)
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/journey-search-results'
+        run: python scripts/journey-search-diagnostic.py
       - run: pnpm install --frozen-lockfile
       - name: Supplier baggage fixture regressions (no live calls)
         run: node --test packages/suppliers/test/*.test.cjs
