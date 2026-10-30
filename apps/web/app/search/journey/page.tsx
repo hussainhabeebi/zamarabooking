@@ -1,6 +1,7 @@
 "use client";
 
-// Round trip / multi-city results (TripJack Flights v2):
+// Round trip / multi-city results (TripJack Flights v2, or Akbar searched one leg
+// at a time with the same ONWARD / RETURN / "0".."5" leg keys):
 //  • Domestic return → ONWARD + RETURN lists: pick one fare per leg (2 priceIds).
 //  • Domestic multi-city → indexed legs "0".."5": one fare per leg.
 //  • International return / multi-city → COMBO: one combined fare (1 priceId).
@@ -150,6 +151,8 @@ function Journey() {
 
   const pick = (key: string, f: Fare) => setPicked((p) => {
     const next = { ...p, [key]: f };
+    // A journey is booked with one supplier: drop legs picked from another source.
+    for (const k of Object.keys(next)) if (next[k].supplier !== f.supplier) delete next[k];
     // A new onward choice can invalidate the paired return fare.
     if (key === "ONWARD" && p.RETURN) {
       const r = p.RETURN;
@@ -183,7 +186,7 @@ function Journey() {
     const summary = selection.map((f) => ({ id: f.id, tripKey: f.tripKey, airlineName: f.airlineName, flightNumber: f.flightNumber, origin: f.origin, destination: f.destination, departureTime: f.departureTime, arrivalTime: f.arrivalTime, stops: f.stops, fareIdentifier: f.fareIdentifier, segments: f.segments }));
     try { sessionStorage.setItem(`journey:${selection.map((f) => f.id).join(",")}`, JSON.stringify(summary)); } catch {}
     const p = new URLSearchParams({
-      fareId: firstFare.id, priceIds: selection.map((f) => f.id).join(","), supplier: "TRIPJACK", tripType,
+      fareId: firstFare.id, priceIds: selection.map((f) => f.id).join(","), supplier: firstFare.supplier, tripType,
       adults: String(adults), children: String(children), infants: String(infants),
       airline: firstFare.airlineName, fn: firstFare.flightNumber,
       from: legs[0].origin, to: tripType === "ROUNDTRIP" ? legs[0].destination : legs[legs.length - 1].destination,

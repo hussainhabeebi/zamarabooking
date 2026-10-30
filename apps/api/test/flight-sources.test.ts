@@ -330,7 +330,55 @@ test("Akbar adapter searches one-way with the shared token, renewing it once on 
     const base = { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, currency: "INR" as const };
     assert.equal((await adapter.search({ ...base, tripType: "ONEWAY" })).length, 1);
     assert.deepEqual(tokens, [false, true]);
-    assert.deepEqual(await adapter.search({ ...base, tripType: "ROUNDTRIP", returnDate: "2026-12-05" }), []);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+// Akbar answers each one-way ExpressSearch with that leg's own TUI and flights.
+function akbarLegFetch(bodies: Record<string, unknown>[], fail?: string) {
+  return (async (url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    bodies.push(body);
+    const t = body.Trips[0];
+    if (`${t.From}-${t.To}` === fail) return new Response("Invalid sector", { status: 500 });
+    return json({ TUI: `tui-${t.From}-${t.To}`, Completed: true, Trips: [{ Journey: [{
+      ...akbarJourney, From: t.From, To: t.To, DepartureTime: `${t.OnwardDate}T06:00:00`, ArrivalTime: `${t.OnwardDate}T08:10:00`,
+    }] }] });
+  }) as unknown as typeof fetch;
+}
+
+test("Akbar round trip searches each leg one-way and tags ONWARD / RETURN", async () => {
+  const realFetch = globalThis.fetch;
+  const bodies: Record<string, unknown>[] = [];
+  globalThis.fetch = akbarLegFetch(bodies);
+  try {
+    const adapter = new AkbarAdapter({ ...akbarCreds, getToken: async () => ({ token: "jwt", clientId: "cid" }) });
+    const fares = await adapter.search({ origin: "BOM", destination: "DEL", departureDate: "2026-12-01", returnDate: "2026-12-05", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ROUNDTRIP", currency: "INR" });
+    assert.deepEqual(bodies.map((b) => [b.FareType, b.Trips]), [
+      ["ON", [{ From: "BOM", To: "DEL", OnwardDate: "2026-12-01", ReturnDate: "", TUI: "" }]],
+      ["ON", [{ From: "DEL", To: "BOM", OnwardDate: "2026-12-05", ReturnDate: "", TUI: "" }]],
+    ]);
+    assert.deepEqual(fares.map((f) => [f.id, f.tripKey, f.legIndex, f.origin, f.destination, f.totalFare]), [
+      ["AK|tui-BOM-DEL|6E|1", "ONWARD", 0, "BOM", "DEL", 4890.5],
+      ["AK|tui-DEL-BOM|6E|1", "RETURN", 1, "DEL", "BOM", 4890.5],
+    ]);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("Akbar multi-city searches every leg; a failed leg surfaces Akbar's error", async () => {
+  const realFetch = globalThis.fetch;
+  const bodies: Record<string, unknown>[] = [];
+  const legs = [{ origin: "BOM", destination: "DEL", date: "2026-12-01" }, { origin: "DEL", destination: "BLR", date: "2026-12-04" }, { origin: "BLR", destination: "BOM", date: "2026-12-08" }];
+  const params = { origin: "BOM", destination: "BOM", departureDate: "2026-12-01", legs, adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "MULTICITY" as const, currency: "INR" as const };
+  const adapter = new AkbarAdapter({ ...akbarCreds, getToken: async () => ({ token: "jwt", clientId: "cid" }) });
+  globalThis.fetch = akbarLegFetch(bodies);
+  try {
+    const fares = await adapter.search(params);
+    assert.deepEqual(fares.map((f) => [f.tripKey, f.origin, f.destination, f.departureTime.slice(0, 10)]), [
+      ["0", "BOM", "DEL", "2026-12-01"], ["1", "DEL", "BLR", "2026-12-04"], ["2", "BLR", "BOM", "2026-12-08"],
+    ]);
+    assert.ok(bodies.every((b) => b.FareType === "ON"));
+    globalThis.fetch = akbarLegFetch([], "DEL-BLR");
+    await assert.rejects(adapter.search(params), /ExpressSearch failed \(HTTP 500\)/);
   } finally { globalThis.fetch = realFetch; }
 });
 

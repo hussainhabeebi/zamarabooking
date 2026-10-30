@@ -623,6 +623,8 @@ export default function BookPage() {
       totalFare:     fare.totalFare,
       currency:      fare.currency,
       tripType,
+      // Akbar round trip / multi-city: every leg's fare, priced again on the server.
+      ...(fare.supplier !== "TRIPJACK" && tripType !== "ONEWAY" ? { priceIds: (new URLSearchParams(window.location.search).get("priceIds") ?? fare.fareId).split(",").filter(Boolean) } : {}),
       ...(review ? { reviewBookingId: review.bookingId } : {}),
       ...(useGst && gst.gstNumber.trim() ? { gstInfo: {
         gstNumber: gst.gstNumber.trim().toUpperCase(), registeredName: gst.registeredName.trim(),
