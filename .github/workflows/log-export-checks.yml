@@ -1,0 +1,35 @@
+name: Flight log export filename checks
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/lib/certification.ts'
+      - 'apps/api/src/lib/log-stop-labels.ts'
+      - 'apps/api/src/routes/admin/supplier-logs.ts'
+      - 'apps/api/test/*stop-labels*'
+      - 'apps/api/test/certification-pack.test.ts'
+      - 'apps/admin/app/**/supplier-logs/RawApiCalls.tsx'
+      - '.github/workflows/log-export-checks.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Export names and unchanged certification payloads
+        run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/log-stop-labels.test.ts apps/api/test/certification-pack.test.ts
+      - run: pnpm --filter @zamrabooking/api typecheck
+      - run: pnpm --filter @zamrabooking/admin typecheck
+      - name: Admin production build (validation only, no artifact or deployment)
+        run: pnpm --filter @zamrabooking/admin build
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:9

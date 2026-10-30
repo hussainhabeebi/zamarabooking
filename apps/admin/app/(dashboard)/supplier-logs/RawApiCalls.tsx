@@ -61,7 +61,7 @@ export function RawApiCalls({ initialScope = "flight" }: { initialScope?: Scope 
           </label>
           <button type="button" style={pill} onClick={() => void load()}>Reload</button>
           <button type="button" disabled={!picked.size} style={{ ...pill, background: picked.size ? "#2563eb" : "#1e293b", opacity: picked.size ? 1 : 0.6 }}
-            onClick={() => download(`/api/admin/supplier-logs/exchanges.zip?ids=${[...picked].join(",")}&name=${scope}-api-logs`, `${scope}-api-logs.zip`).catch((e) => setError(e.message))}>
+            onClick={() => download(`/api/admin/supplier-logs/exchanges.zip?scope=${scope}&ids=${[...picked].join(",")}&name=${scope}-api-logs`, `${scope}-api-logs.zip`).catch((e) => setError(e.message))}>
             Download selected ({picked.size})
           </button>
         </div>
