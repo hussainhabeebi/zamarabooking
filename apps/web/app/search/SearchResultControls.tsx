@@ -8,6 +8,8 @@ type Props = {
   destination: string;
   departureDate: string;
   fares?: any[];
+  journey?: boolean;
+  journeyLegs?: {origin:string; destination:string; departureDate:string}[];
 };
 
 const AIRPORT_GROUPS = [
@@ -64,7 +66,7 @@ export function ChangeDatesAction() {
   return <button type="button" className="no-results-secondary" onClick={focusDateControls}>Change dates</button>;
 }
 
-export default function SearchResultControls({ origin, destination, departureDate, fares = [] }: Props) {
+export default function SearchResultControls({ origin, destination, departureDate, fares = [], journey = false, journeyLegs = [] }: Props) {
   const router = useRouter();
   const current = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -105,7 +107,15 @@ export default function SearchResultControls({ origin, destination, departureDat
     });
     next.delete("all");
     setPendingQuery(next.toString());
-    startTransition(() => router.push(`/search?${next.toString()}`));
+    startTransition(() => router.push(`${journey ? "/search/journey" : "/search"}?${next.toString()}`));
+  }
+
+  function changeLeg(index: number, field: "origin" | "destination" | "departureDate", value: string) {
+    const next = journeyLegs.map((leg,i) => i === index ? {...leg,[field]:value} : {...leg});
+    if (next.some((l,i) => l.origin === l.destination || l.departureDate < today || (i > 0 && l.departureDate < next[i-1].departureDate))) return;
+    if (visible.get("tripType") === "MULTICITY") update({legs:next.map(l=>`${l.origin}-${l.destination}-${l.departureDate}`).join(",")});
+    else if (field === "departureDate") update(index === 0 ? {departureDate:value} : {returnDate:value});
+    else update(index === 0 ? {[field]:value} : {[field === "origin" ? "destination" : "origin"]:value});
   }
 
   function resetFilters() {
@@ -156,6 +166,14 @@ export default function SearchResultControls({ origin, destination, departureDat
       </div>
 
       {(isPending || pendingQuery !== null) && <div className="result-refresh" role="status"><span /> Updating flights…</div>}
+      {journey ? <>
+        <p style={{fontSize:13,color:"#667085"}}>Filters apply to each flight leg.</p>
+        {journeyLegs.map((leg,i) => <div className="filter-section" key={i}>
+          <div className="filter-section-label">Flight {i+1} · {leg.origin} → {leg.destination}</div>
+          <label className="airport-select"><span>Travel date</span><input aria-label={`Flight ${i+1} date`} type="date" value={leg.departureDate} min={i ? journeyLegs[i-1].departureDate : today} max={journeyLegs[i+1]?.departureDate ?? "9999-12-31"} onChange={e=>e.target.validity.valid && e.target.value && changeLeg(i,"departureDate",e.target.value)} /></label>
+          <div className="result-tool-row">{(["origin","destination"] as const).map(field => <label className="airport-select" key={field}><span>{field === "origin" ? "From" : "To"}</span><select aria-label={`Flight ${i+1} ${field}`} value={leg[field]} onChange={e=>changeLeg(i,field,e.target.value)}>{airportOptions(leg[field]).map(a=><option key={a.code} value={a.code}>{a.city} ({a.code})</option>)}</select></label>)}</div>
+        </div>)}
+      </> : <>
       <div className="filter-section-label">Travel dates</div>
       <div className="date-navigation">
         <button type="button" className="date-range-arrow" aria-label="Previous travel dates" disabled={windowStart <= today} onClick={() => setWindowStart(moveDate(windowStart, -1))}>‹</button>
@@ -194,6 +212,7 @@ export default function SearchResultControls({ origin, destination, departureDat
         </div>
       </div>
 
+      </>}
       {/* Stops */}
       <div className="filter-section">
         <div className="filter-section-label">Stops</div>

@@ -9,6 +9,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import SearchResultControls from "../SearchResultControls";
+import { filterJourneyFares } from "./filters";
 import { readPrefCurrency } from "../../lib/currency-pref";
 import { convertInr, fetchFxRates, formatIn, type FxRates } from "../../lib/fx";
 
@@ -40,7 +42,7 @@ const hm = (min: number) => `${Math.floor(min / 60)}h ${min % 60}m`;
 const price = (f: Fare) => f.displayPrice ?? f.totalFare;
 
 export default function JourneyPage() {
-  return <Suspense fallback={<main className="page-container" style={{ padding: 24 }}>Loading…</main>}><Journey /></Suspense>;
+  return <Suspense fallback={<main className="page-container flight-results-page" style={{ padding: 24 }}>Loading…</main>}><Journey /></Suspense>;
 }
 
 function parseLegs(q: URLSearchParams) {
@@ -65,7 +67,9 @@ function Journey() {
   const children = Number(q.get("children")) || 0;
   const infants = Number(q.get("infants")) || 0;
   const fareType = q.get("fareType") ?? "";
-  const directOnly = q.get("stops") === "0";
+  const searchQuery = new URLSearchParams(q.toString());
+  for (const key of ["stops", "depBand", "refundable", "baggage", "airlines", "sort"]) searchQuery.delete(key);
+  const searchKey = searchQuery.toString();
 
   const [fares, setFares] = useState<Fare[] | null>(null);
   // Prices in the visitor's chosen currency (automatic exchange rates); INR fares otherwise.
@@ -87,6 +91,7 @@ function Journey() {
   useEffect(() => {
     const first = legs[0];
     if (!first?.origin) { setError("Missing journey details. Please search again."); return; }
+    setFares(null); setPicked({}); setComboPick(null); setLimit({}); setError("");
     const c = new AbortController();
     fetch(`${API}/api/search`, {
       method: "POST", signal: c.signal,
@@ -103,25 +108,26 @@ function Journey() {
       .then((d) => { setFares((d.fares ?? []).filter((f: Fare) => f.supplier === "TRIPJACK" && f.tripKey)); setSearchId(d.searchId); })
       .catch((e) => { if (e.name !== "AbortError") setError(e.message); });
     return () => c.abort();
-  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const groups = useMemo(() => {
     const byKey: Record<string, Fare[]> = {};
     for (const f of fares ?? []) {
-      if (directOnly && f.stops > 0 && f.tripKey !== "COMBO") continue;
+
       (byKey[f.tripKey!] ??= []).push(f);
     }
     for (const k of Object.keys(byKey)) byKey[k].sort((a, b) => price(a) - price(b));
     return byKey;
-  }, [fares, directOnly]);
+  }, [fares]);
+  useEffect(() => { setPicked({}); setComboPick(null); setLimit({}); }, [q]);
 
-  const combo = groups.COMBO ?? [];
+  const combo = filterJourneyFares(groups.COMBO ?? [], new URLSearchParams(q.toString()), legs);
   const legKeys = Object.keys(groups).filter((k) => k !== "COMBO")
     .sort((a, b) => (a === "ONWARD" ? -1 : b === "ONWARD" ? 1 : a === "RETURN" ? 1 : b === "RETURN" ? -1 : Number(a) - Number(b)));
 
   // Special Return pairing on the return leg.
   const optionsFor = (key: string) => {
-    const list = groups[key] ?? [];
+    const list = filterJourneyFares(groups[key] ?? [], new URLSearchParams(q.toString()), legs);
     if (key !== "RETURN") return list;
     const onward = picked.ONWARD;
     if (!onward) return list.filter((f) => f.fareIdentifier !== "SPECIAL_RETURN");
@@ -180,7 +186,7 @@ function Journey() {
     : legs.map((l) => l.origin).concat(legs[legs.length - 1]?.destination ?? "").join(" → ");
 
   return (
-    <main className="page-container" style={{ paddingTop: 16, paddingBottom: 120 }}>
+    <main className="page-container flight-results-page" style={{ paddingTop: 16, paddingBottom: 120 }}>
       <h1 style={{ fontSize: "clamp(18px,4vw,24px)", fontWeight: 800, margin: "0 0 4px" }}>{title}</h1>
       <p style={{ margin: "0 0 12px", color: "#667085", fontSize: 14 }}>
         {legs.map((l) => day(l.departureDate)).join(" · ")} · {adults} adult{adults > 1 ? "s" : ""}{children ? `, ${children} child` : ""}{infants ? `, ${infants} infant` : ""}
@@ -192,10 +198,15 @@ function Journey() {
       {!fares && !error && <p style={{ padding: "40px 0", textAlign: "center", color: "#667085" }}>Searching live fares for every leg…</p>}
       {fares && !fares.length && !error && <p style={{ padding: "40px 0", textAlign: "center", color: "#667085" }}>No flights found for this journey. Try other dates.</p>}
 
-      {combo.length > 0 && (
+      {fares && fares.length > 0 && <div className="search-results-layout">
+        <SearchResultControls journey journeyLegs={legs} origin={legs[0]?.origin ?? ""} destination={legs[0]?.destination ?? ""} departureDate={legs[0]?.departureDate ?? ""} fares={fares} />
+        <div className="search-results-column">
+          <div className="sort-tabs" aria-label="Sort journey results">{[["price", "Cheapest"], ["duration", "Fastest"], ["departure", "Earliest"]].map(([value,label]) => <button type="button" key={value} className={`sort-tab${(q.get("sort") ?? "price") === value ? " active" : ""}`} onClick={() => { const next = new URLSearchParams(q.toString()); next.set("sort",value); window.history.pushState(null,"",`?${next}`); }}>{label}</button>)}</div>
+      {groups.COMBO && (
         <section style={{ marginTop: 16 }}>
           <h2 style={h2}>Complete journey fares</h2>
           <p style={muted}>One fare covers every flight in this journey.</p>
+          {!combo.length && <p role="status" style={muted}>No matching journey fares. Try resetting the filters.</p>}
           <div style={{ display: "grid", gap: 10 }}>
             {combo.slice(0, limit.COMBO ?? 20).map((f) => (
               <FareRow show={show} travellers={adults + children + infants} key={f.id} fare={f} selected={comboPick?.id === f.id} onPick={() => { setComboPick(f); setPicked({}); }} showSegments />
@@ -226,6 +237,7 @@ function Journey() {
         );
       })}
 
+        </div></div>}
       {(selection.length > 0 || Object.keys(picked).length > 0) && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid #e4e7ec", boxShadow: "0 -6px 20px rgba(16,24,40,.08)", padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, zIndex: 40 }}>
           <div style={{ minWidth: 0 }}>
