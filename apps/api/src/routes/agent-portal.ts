@@ -1,3 +1,4 @@
+import { freezeBookingPrice } from "../lib/booking-price-lock.js";
 // B2B agency portal API.
 //
 // Public  /api/agent-public/*  agency sign-up, invite acceptance, shared quotes,
@@ -634,6 +635,7 @@ agentPortalRoutes.post("/bookings/:id/pay", async (c) => {
   if (!wallet) return c.json({ error: "Wallet not found" }, 404);
   if (wallet.currency !== b.currency) return c.json({ error: `Your wallet is in ${wallet.currency}; this booking is in ${b.currency}.` }, 400);
 
+  await freezeBookingPrice(db, tenantId, b);
   const amount = roundMoney(Number(b.totalAmount));
   const orderId = `agentwallet_${id}`;
   // One wallet payment per booking (unique gateway payment id).

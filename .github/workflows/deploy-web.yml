@@ -24,6 +24,15 @@ concurrency:
 
 jobs:
   validate-web:
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: baggage_test
+          POSTGRES_USER: baggage_test
+          POSTGRES_PASSWORD: isolated-fixture-only
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U baggage_test -d baggage_test" --health-interval 5s --health-timeout 5s --health-retries 10
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -45,11 +54,15 @@ jobs:
       - name: Passenger date validation regression tests
         run: node --test apps/web/test/*.test.cjs
       - name: Install isolated browser test tools
-        run: npm install --prefix "$RUNNER_TEMP/passenger-date-qa" --no-save --ignore-scripts @playwright/test@1.64.1 esbuild@0.25.12
+        run: npm install --prefix "$RUNNER_TEMP/passenger-date-qa" --no-save --ignore-scripts @playwright/test@1.64.1 esbuild@0.25.12 pg@8.16.3
+      - name: Atomic booking price concurrency fixtures
+        run: node apps/api/test/booking-price-lock-postgres.cjs "$RUNNER_TEMP/passenger-date-qa"
       - name: Install test browser
         run: node "$RUNNER_TEMP/passenger-date-qa/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Native passenger date input browser regression
         run: node apps/web/test/passenger-dates-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Checkout baggage browser regression
+        run: node apps/web/test/checkout-baggage-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
       - name: Journey search filter browser regression
         run: node apps/web/test/journey-filters-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
       - run: pnpm --filter @zamrabooking/web typecheck

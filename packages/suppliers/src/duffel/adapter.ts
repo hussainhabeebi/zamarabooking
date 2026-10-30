@@ -2,6 +2,7 @@ import type {
   SupplierAdapter, SearchParams, NormalizedFare, SupplierCredentials,
   HoldParams, HoldResult, BookParams, BookResult, CancelResult,
 } from "../base.js";
+import { duffelBaggage } from "./baggage.js";
 import { DuffelClient } from "./client.js";
 import { normalizeDuffelOffer, type DuffelOffer } from "./normalizer.js";
 
@@ -42,18 +43,26 @@ export class DuffelAdapter implements SupplierAdapter {
     return (offers ?? []).map((o) => normalizeDuffelOffer(o, params.currency));
   }
 
+  async baggageOptions(fareId:string) {
+    const offer=await this.client.get<DuffelOffer>(`/air/offers/${encodeURIComponent(fareId)}`,{return_available_services:"true"});
+    if(offer.expires_at && Date.parse(offer.expires_at)<=Date.now())throw Error("Duffel: offer expired");
+    return (offer.available_services??[]).filter((s:any)=>{try{duffelBaggage(offer,[{id:s.id,quantity:1}]);return true;}catch{return false;}});
+  }
+
   async hold(params: HoldParams): Promise<HoldResult> {
-    const offer = await this.client.get<DuffelOffer>(`/air/offers/${params.fareId}`);
+    const offer = await this.client.get<DuffelOffer>(`/air/offers/${params.fareId}`, {return_available_services:"true"});
     const expiresAt = offer.expires_at ?? new Date(Date.now() + 15 * 60 * 1000).toISOString();
     return { success: true, holdId: params.fareId, expiresAt, fareSnapshot: normalizeDuffelOffer(offer, offer.total_currency) };
   }
 
   async book(params: BookParams): Promise<BookResult> {
     // Re-fetch immediately before order creation so price, expiry and passenger IDs are current.
-    const offer = await this.client.get<DuffelOffer>(`/air/offers/${params.fareId}`);
+    const offer = await this.client.get<DuffelOffer>(`/air/offers/${params.fareId}`, {return_available_services:"true"});
     if (!offer.total_amount || !offer.total_currency) throw new Error("Duffel: selected offer is missing total amount/currency");
     if (offer.expires_at && new Date(offer.expires_at).getTime() <= Date.now()) throw new Error("Duffel: selected offer has expired. Please search again.");
 
+    const baggage=duffelBaggage(offer,params.duffelServices??[]);
+    if(params.duffelServices?.length && (!Number.isFinite(params.paymentAmount)||Math.round(params.paymentAmount!*100)!==Math.round(Number(baggage.amount)*100)))throw Error("Duffel: baggage total changed; reprice before payment");
     const offerPassengers = offer.passengers ?? [];
     if (offerPassengers.length !== params.passengers.length) {
       throw new Error(`Duffel: passenger count changed (${offerPassengers.length} expected, ${params.passengers.length} supplied)`);
@@ -84,13 +93,15 @@ export class DuffelAdapter implements SupplierAdapter {
     const order = await this.client.post<{
       id: string;
       booking_reference: string;
-      documents?: { unique_identifier: string }[];
+      documents?: { unique_identifier: string; type?: string }[];
+      services?: unknown[];
     }>("/air/orders", {
       data: {
         type: "instant",
         selected_offers: [params.fareId],
         passengers,
-        payments: [{ type: "balance", currency: offer.total_currency, amount: offer.total_amount }],
+        ...(baggage.services.length ? {services:baggage.services}:{}),
+        payments: [{ type: "balance", currency: offer.total_currency, amount: baggage.amount }],
       },
     });
 
@@ -99,7 +110,8 @@ export class DuffelAdapter implements SupplierAdapter {
       bookingRef: order.id,
       pnr: order.booking_reference,
       status: "CONFIRMED",
-      ticketNumbers: (order.documents ?? []).map((d) => d.unique_identifier),
+      ticketNumbers: (order.documents ?? []).filter(d=>!d.type || d.type === "electronic_ticket").map((d) => d.unique_identifier),
+      ancillaryServices: order.services ?? [],
       raw: order,
     };
   }

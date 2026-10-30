@@ -1,3 +1,4 @@
+import { freezeBookingPrice } from "../lib/booking-price-lock.js";
 // Customer wallet (mounted at /api/profile/wallet, customer JWT required)
 //
 // GET  /                      balance + recent transactions
@@ -57,7 +58,7 @@ customerWalletRoutes.post("/pay", zValidator("json", z.object({ bookingId: z.str
 
   const [booking] = await db.select({
     id: bookings.id, status: bookings.status, userId: bookings.userId,
-    totalAmount: bookings.totalAmount, currency: bookings.currency, heldUntil: bookings.heldUntil,
+    flightData: bookings.flightData, totalAmount: bookings.totalAmount, currency: bookings.currency, heldUntil: bookings.heldUntil,
   })
     .from(bookings)
     .where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, tenantId)))
@@ -77,6 +78,7 @@ customerWalletRoutes.post("/pay", zValidator("json", z.object({ bookingId: z.str
     .where(and(eq(payments.bookingId, bookingId), eq(payments.status, "SUCCESS"))).limit(1);
   if (paid) throw new HTTPException(409, { message: "This booking is already paid" });
 
+  await freezeBookingPrice(db, tenantId, booking);
   const amount = roundMoney(Number(booking.totalAmount));
   const wallet = await getOrCreateCustomerWallet(db, tenantId, userId);
 

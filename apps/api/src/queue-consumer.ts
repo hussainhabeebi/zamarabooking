@@ -1,3 +1,4 @@
+import { freezeBookingPrice } from "./lib/booking-price-lock.js";
 // CF Queue consumer — processes BOOKING_QUEUE and NOTIFY_QUEUE messages
 // Handles: INITIATE_PAYMENT, PAYMENT_CAPTURED, NOTIFY_BOOKING_CONFIRMATION
 
@@ -127,6 +128,7 @@ async function handleInitiatePayment(
     return;
   }
 
+  await freezeBookingPrice(db, data.tenantId, booking);
   const total   = Number(booking.totalAmount);
   const currency = booking.currency;
 
@@ -636,11 +638,11 @@ async function bookPaidBooking(
     held?: boolean;
     gstInfo?: { gstNumber: string; registeredName: string; email?: string; mobile?: string; address?: string };
     emergencyContact?: { name: string; phone?: string; email?: string };
-    pax?: { type: string; firstName: string; lastName: string; passportIssueDate?: string; panNumber?: string; documentId?: string; ssr?: any }[];
+    pax?: { passengerId?: string; type: string; firstName: string; lastName: string; passportIssueDate?: string; panNumber?: string; documentId?: string; ssr?: any }[];
   });
   const paxExtras = [...(tjExtras.pax ?? [])];
-  const extrasFor = (p: { passengerType: string; firstName: string; lastName: string }) => {
-    const i = paxExtras.findIndex((x) => x.type === p.passengerType
+  const extrasFor = (p: { id?:string; passengerType: string; firstName: string; lastName: string }) => {
+    const i = paxExtras.findIndex((x) => x.passengerId ? x.passengerId === p.id : x.type === p.passengerType
       && x.firstName.toLowerCase() === p.firstName.trim().toLowerCase() && x.lastName.toLowerCase() === p.lastName.trim().toLowerCase());
     return i >= 0 ? paxExtras.splice(i, 1)[0] : undefined;
   };

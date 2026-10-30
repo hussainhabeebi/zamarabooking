@@ -145,6 +145,7 @@ export interface RevalidateResult {
 }
 
 export interface BookParams extends HoldParams {
+  duffelServices?: {id:string;quantity:number}[]; // IDs only; supplier supplies prices/eligibility.
   holdId:         string;
   contactEmail:   string;
   contactPhone:   string;
@@ -156,6 +157,7 @@ export interface BookParams extends HoldParams {
 }
 
 export interface BookResult {
+  ancillaryServices?: unknown[]; // Actual returned order services, not requested selections.
   success:       boolean;
   bookingRef:    string;
   pnr:           string;

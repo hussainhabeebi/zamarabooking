@@ -1,0 +1,20 @@
+"use client";
+import {useEffect,useState} from "react";
+import BaggageSelection from "../../book/BaggageSelection";
+type Pick={passengerId:string;baggage:{key:string;code:string}[]};
+type Data={bookingRevision:string;originalTotal:number;currency:string;picks:Pick[];segments:{key:string;origin:string;destination:string;options:{code:string;amount:number;desc:string}[]}[]};
+const API=process.env.NEXT_PUBLIC_API_URL??"https://api.zamrabooking.com";
+export default function CheckoutBaggage({token,passengers,onDirty,onApplied}:{token:string;passengers:{id:string;passengerType:string}[];onDirty:(dirty:boolean)=>void;onApplied:(total:string)=>void}){
+ const [data,setData]=useState<Data|null>(null),[picks,setPicks]=useState<Pick[]>([]),[busy,setBusy]=useState(false),[dirty,setDirty]=useState(false),[error,setError]=useState("");
+ const headers={"Content-Type":"application/json","x-tenant-slug":"zamra","X-Checkout-Token":token};
+ useEffect(()=>{const c=new AbortController();fetch(`${API}/api/checkout/session/${encodeURIComponent(token)}/baggage`,{headers,signal:c.signal}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||d.message||"Baggage changes unavailable for this booking");setData(d);setPicks(d.picks);setDirty(true);onDirty(true);}).catch(e=>{if(e.name!=="AbortError")setError(e.message);});return()=>c.abort();},[token]);
+ const money=(n:number)=>new Intl.NumberFormat("en-IN",{style:"currency",currency:data?.currency??"INR"}).format(n);
+ const cost=(list:Pick[])=>list.reduce((sum,p)=>sum+p.baggage.reduce((n,b)=>n+(data?.segments.find(s=>s.key===b.key)?.options.find(o=>o.code===b.code)?.amount??0),0),0);
+ const total=data?data.originalTotal-cost(data.picks)+cost(picks):0;
+ async function apply(){if(!data||busy)return;setBusy(true);setError("");try{const r=await fetch(`${API}/api/checkout/session/${encodeURIComponent(token)}/baggage-apply`,{method:"POST",headers,body:JSON.stringify({revision:data.bookingRevision,passengers:picks})});const d=await r.json();if(!r.ok)throw Error(d.error||d.message||"Baggage was not applied. Refresh checkout.");setData({...data,bookingRevision:d.revision,originalTotal:Number(d.totalAmount),picks});setDirty(false);onDirty(false);onApplied(d.totalAmount);}catch(e){setError(e instanceof Error?e.message:"Baggage was not applied");}finally{setBusy(false);}}
+ return <section className="panel" aria-label="Additional baggage"><h2>Additional baggage</h2><p>Included baggage remains as stated in your fare. Additional services require supplier confirmation.</p>
+ {error&&<p role="alert">{error}</p>}
+ {data&&passengers.filter(p=>p.passengerType!=="INFANT").map((p,i)=><div key={p.id}><h3>Traveller {i+1}</h3>{data.segments.map(s=><div key={s.key}><b>{s.origin} → {s.destination}</b><BaggageSelection options={s.options} value={picks.find(x=>x.passengerId===p.id)?.baggage.find(x=>x.key===s.key)?.code??""} label={`Traveller ${i+1} baggage ${s.key}`} format={money} onChange={code=>{setPicks(all=>{const prev=all.find(x=>x.passengerId===p.id);return [...all.filter(x=>x.passengerId!==p.id),{passengerId:p.id,baggage:[...(prev?.baggage??[]).filter(b=>b.key!==s.key),...(code?[{key:s.key,code}]:[])]}];});setDirty(true);onDirty(true);}}/></div>)}</div>)}
+ {data&&<><p>Additional baggage: <b>{money(cost(picks))}</b></p><p>Journey total: <b>{money(total)}</b>{dirty?" · Not yet applied":" · Saved"}</p>{dirty&&<><button type="button" disabled={busy} onClick={apply}>{busy?"Applying…":"Apply baggage and update total"}</button><button type="button" disabled={busy} onClick={()=>{setPicks(data.picks);setError("");}}>Reset choices</button></>}</>}
+ </section>;
+}
