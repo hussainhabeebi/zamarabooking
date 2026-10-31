@@ -20,7 +20,7 @@ import { bookingPassengers, supplierExchanges, type bookings } from "@zamrabooki
 import { and, asc, desc, eq, gte, lte, or } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { passengerNameProblem } from "./passenger-names.js";
-import { normalizedStopCount, resultStopLabel } from "./log-stop-labels.js";
+import { bookingStopLabel, normalizedStopCount } from "./log-stop-labels.js";
 
 type Booking = typeof bookings.$inferSelect;
 type Db = Variables["db"];
@@ -216,7 +216,9 @@ export async function certificationCoverage(env: Env, db: Db, b: Booking, exchan
 }
 
 // TripJack's certification folder layout:
-//   oneway/DEL-BOM-1A-DIRECT/, oneway/BOM-SIN-2A-2C-1-STOP/, roundtrip/…
+//   oneway/DEL-BOM-1A-DIRECT/, oneway/BOM-SIN-2A-2C-CONNECTING/, roundtrip/…
+// DIRECT only when every flight leg is verified non-stop; CONNECTING when any leg has
+// a connection; UNKNOWN-STOPS when the saved flight data can't show either.
 // Passenger counts that are zero are left out.
 export function tripFolderName(b: Booking) {
   return b.tripType === "ROUNDTRIP" ? "roundtrip" : b.tripType === "MULTICITY" ? "multicity" : "oneway";
@@ -252,8 +254,7 @@ export function caseName(b: Booking) {
     // Without per-leg evidence, do not guess that two segments form a direct return.
     counts = [b.tripType === "ONEWAY" ? normalizedStopCount(fd) : null];
   }
-  const labels = [...new Set(counts.map(resultStopLabel))];
-  const stopLabel = labels.includes("UNKNOWN-STOPS") ? "UNKNOWN-STOPS" : labels.length === 1 ? labels[0] : "MIXED-STOPS";
+  const stopLabel = bookingStopLabel(counts);
   const route = offlineLegs.length
     ? [offlineLegs[0].origin, ...offlineLegs.map((leg: Record<string, any>) => leg.destination)].map(v => clean(String(v ?? "")))
     : [clean(b.origin), clean(b.destination)];

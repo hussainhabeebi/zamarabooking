@@ -21,3 +21,13 @@ export function normalizedStopCount(fare: Record<string, any>): number | null {
 export function resultStopLabel(count: number | null): string {
   return count === null || !Number.isInteger(count) || count < 0 ? "UNKNOWN-STOPS" : count === 0 ? "DIRECT" : `${count}-STOP${count === 1 ? "" : "S"}`;
 }
+
+// Booking export label (ZIP filename and folders) from each flight leg's stop count:
+// any leg with a connection → CONNECTING; otherwise any leg without reliable
+// evidence → UNKNOWN-STOPS; DIRECT only when every leg is verified non-stop.
+export function bookingStopLabel(counts: (number | null)[]): "DIRECT" | "CONNECTING" | "UNKNOWN-STOPS" {
+  const valid = (n: number | null): n is number => n !== null && Number.isInteger(n) && n >= 0;
+  if (counts.some((n) => valid(n) && n > 0)) return "CONNECTING";
+  if (!counts.length || counts.some((n) => !valid(n))) return "UNKNOWN-STOPS";
+  return "DIRECT";
+}
