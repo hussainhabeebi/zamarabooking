@@ -22,7 +22,7 @@ import { passengerNameProblem } from "../lib/passenger-names.js";
 import { fallbackHoldDeadline, findHoldDeadline, holdLabel } from "../lib/fare-hold.js";
 import { parseBookingDetails } from "../lib/trips.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "../lib/customer-notify.js";
-import { isOfflineSupplier, quoteOfflineFare, type OfflineSupplier } from "../lib/flight-sources.js";
+import { isOfflineSupplier, lookupOfflineFare, quoteOfflineFare, type OfflineSupplier } from "../lib/flight-sources.js";
 import { baggageRequestSummary, buildBaggageRequest } from "../lib/baggage-request.js";
 import { logBookingEvent } from "../lib/booking-recovery.js";
 
@@ -717,11 +717,16 @@ bookDirectRoutes.post("/", zValidator("json", directBookSchema, (result, c) => {
 // server (remembered Poomas search price, or the manual fare row), saved as
 // PAYMENT_PENDING, and after payment waits in Admin for staff to issue the ticket.
 // Akbar journey legs must follow on from each other (round trip: out and back).
-export function journeyLegsMatch(legs: { origin: string; destination: string; departureTime: string }[], tripType: string): boolean {
-  if (legs.length < 2 || (tripType === "ROUNDTRIP" && legs.length !== 2)) return false;
-  if (tripType === "ROUNDTRIP" && (legs[1].origin !== legs[0].destination || legs[1].destination !== legs[0].origin)) return false;
-  return legs.every((l, i) => i === 0 || l.departureTime >= legs[i - 1].departureTime);
+// Same-day journeys are fine as long as each flight departs after the previous one lands.
+export function journeyLegsProblem(legs: { origin: string; destination: string; departureTime: string; arrivalTime?: string }[], tripType: string): "JOURNEY_MISMATCH" | "JOURNEY_TIMES_CONFLICT" | null {
+  if (legs.length < 2 || (tripType === "ROUNDTRIP" && legs.length !== 2)) return "JOURNEY_MISMATCH";
+  if (tripType === "ROUNDTRIP" && (legs[1].origin !== legs[0].destination || legs[1].destination !== legs[0].origin)) return "JOURNEY_MISMATCH";
+  if (tripType === "MULTICITY" && legs.some((l, i) => i > 0 && l.origin !== legs[i - 1].destination)) return "JOURNEY_MISMATCH";
+  // Local times at the shared airport, "YYYY-MM-DDTHH:mm" — comparable as strings.
+  const t = (v?: string) => (v ?? "").slice(0, 16);
+  return legs.every((l, i) => i === 0 || t(l.departureTime) > t(legs[i - 1].arrivalTime || legs[i - 1].departureTime)) ? null : "JOURNEY_TIMES_CONFLICT";
 }
+export const journeyLegsMatch = (legs: Parameters<typeof journeyLegsProblem>[0], tripType: string) => journeyLegsProblem(legs, tripType) === null;
 
 async function bookOfflineFare(
   c: Context<{ Bindings: Env; Variables: Variables }>,
@@ -747,15 +752,32 @@ async function bookOfflineFare(
   // Round trip / multi-city (Akbar): every leg is quoted from the search, never from the browser.
   const journey = supplier === "AKBAR" && body.tripType !== "ONEWAY" && (body.priceIds?.length ?? 0) > 1;
   const fareIds = journey ? body.priceIds! : [body.fareId];
-  const quoted = await Promise.all(fareIds.map((id) => quoteOfflineFare(c.env, db, tenantId, supplier, id, pax)));
-  const legs = quoted.filter((f): f is NonNullable<typeof f> => f !== null);
+  // Each leg is looked up on its own so the error names the leg and the actual reason.
+  const looked = await Promise.all(fareIds.map((id) => lookupOfflineFare(c.env, db, tenantId, supplier, id, pax)));
+  const legName = (i: number) => !journey ? "this flight" : body.tripType === "ROUNDTRIP" ? (i === 0 ? "the outbound flight" : "the return flight") : `flight ${i + 1}`;
+  const fail = (status: 400 | 409, errorCode: string, error: string, extra: Record<string, unknown> = {}) => {
+    // Diagnostics for Workers logs: codes and leg positions only, no passenger data.
+    console.warn("[book-offline]", JSON.stringify({ requestId, supplier, tripType: body.tripType, legs: fareIds.length, errorCode, ...extra }));
+    return c.json({ error, errorCode, requestId, ...extra }, status);
+  };
+  const missing = looked.findIndex((r) => "reason" in r && r.reason === "NOT_FOUND");
+  if (missing >= 0) return fail(409, "FARE_EXPIRED", `The fare for ${legName(missing)} is no longer available. Please search again.`, { leg: missing });
+  const changed = looked.findIndex((r) => "reason" in r && r.reason === "PASSENGERS_CHANGED");
+  if (changed >= 0) {
+    const s = (looked[changed] as { searched: { adults: number; children: number; infants: number } }).searched;
+    return fail(409, "PASSENGERS_CHANGED", `This fare was priced for ${s.adults} adult(s), ${s.children ?? 0} child(ren) and ${s.infants ?? 0} infant(s). Please search again with the travellers you are booking.`, { leg: changed });
+  }
+  const legs = looked.map((r) => (r as { fare: NonNullable<Awaited<ReturnType<typeof quoteOfflineFare>>> }).fare);
   const fare = legs[0];
   const lastLeg = legs[legs.length - 1];
-  const expired = legs.length !== fareIds.length || !fare || fare.origin !== body.origin.toUpperCase()
-    || (journey ? !journeyLegsMatch(legs, body.tripType) || ![fare.destination, lastLeg.destination].includes(body.destination.toUpperCase())
-      : fare.destination !== body.destination.toUpperCase());
-  if (expired) {
-    return c.json({ error: "This fare is no longer available. Please search again.", errorCode: "FARE_EXPIRED", requestId }, 409);
+  const routeOk = fare.origin === body.origin.toUpperCase()
+    && (journey ? [fare.destination, lastLeg.destination].includes(body.destination.toUpperCase()) : fare.destination === body.destination.toUpperCase());
+  const journeyProblem = journey ? journeyLegsProblem(legs, body.tripType) : null;
+  if (!routeOk || journeyProblem === "JOURNEY_MISMATCH") {
+    return fail(409, "JOURNEY_MISMATCH", "The selected flights don't match the journey you searched. Please search again.");
+  }
+  if (journeyProblem === "JOURNEY_TIMES_CONFLICT") {
+    return fail(409, "JOURNEY_TIMES_CONFLICT", "The return flight departs before the outbound flight arrives. Please choose a later return flight.");
   }
 
   // Additional baggage can only be requested here: staff confirm and price it later.

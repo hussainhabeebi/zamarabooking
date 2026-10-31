@@ -11,7 +11,9 @@ export function bookingError(data: any, status: number): string {
     REVIEW_TIMEOUT: "The availability check timed out. No booking was submitted; you can retry.",
     REVIEW_INVALID_RESPONSE: "The supplier did not return a booking session. Please contact support.",
   };
-  const base = messages[data?.errorCode]
+  // Specific fare checks (which flight, why) carry their own explanation.
+  const explained = ["PASSENGERS_CHANGED", "JOURNEY_MISMATCH", "JOURNEY_TIMES_CONFLICT"].includes(data?.errorCode) && typeof data?.error === "string" && data.error.trim();
+  const base = explained ? data.error.trim() : messages[data?.errorCode]
     ? diagnostics[data?.diagnosticCode] ?? messages[data.errorCode]
     : status === 400
       // Show the actual reason: our own check (error) or the first validation issue.

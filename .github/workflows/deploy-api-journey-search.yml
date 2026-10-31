@@ -46,6 +46,7 @@ env:
     apps/api/src/routes/admin/supplier-logs.ts
     apps/api/test/log-stop-labels.test.ts
     apps/api/test/certification-pack.test.ts
+    apps/api/src/lib/flight-sources.ts
 
 jobs:
   release-api:

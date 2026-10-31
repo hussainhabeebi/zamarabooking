@@ -178,11 +178,13 @@ function Journey() {
   };
 
   const selection: Fare[] = comboPick ? [comboPick] : legKeys.every((k) => picked[k]) ? legKeys.map((k) => picked[k]) : [];
+  // Same-day journeys are fine; a flight can't leave before the previous one lands.
+  const timesConflict = selection.length > 1 && selection.some((f, i) => i > 0 && f.departureTime.slice(0, 16) <= (selection[i - 1].arrivalTime || selection[i - 1].departureTime).slice(0, 16));
   const total = selection.reduce((n, f) => n + price(f), 0);
   const currency = selection[0]?.currency ?? fares?.[0]?.currency ?? "INR";
 
   function continueToBook() {
-    if (!selection.length) return;
+    if (!selection.length || timesConflict) return;
     const firstFare = selection[0];
     const lastFare = selection[selection.length - 1];
     const summary = selection.map((f) => ({ id: f.id, tripKey: f.tripKey, airlineName: f.airlineName, flightNumber: f.flightNumber, origin: f.origin, destination: f.destination, departureTime: f.departureTime, arrivalTime: f.arrivalTime, stops: f.stops, fareIdentifier: f.fareIdentifier, segments: f.segments, baggage: f.baggage }));
@@ -279,7 +281,9 @@ function Journey() {
             <b style={{ fontSize: 20 }}>{selection.length ? show(total, currency) : show(legKeys.reduce((n, k) => n + (picked[k] ? price(picked[k]) : 0), 0), currency)}</b>
             {!selection.length && <span style={{ fontSize: 12, color: "#667085" }}> so far</span>}
           </div>
-          {selection.length ? (
+          {selection.length && timesConflict ? (
+            <span role="alert" style={{ fontSize: 13, color: "#b42318", fontWeight: 700, maxWidth: 320 }}>The return flight departs before the outbound flight arrives. Choose a later return flight.</span>
+          ) : selection.length ? (
             <button onClick={continueToBook} style={{ background: "#0D4B96", color: "#fff", border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 800, fontSize: 15, cursor: "pointer", flexShrink: 0 }}>Continue</button>
           ) : nextMissing ? (
             <button onClick={() => goTo(nextMissing)} style={{ background: "#101828", color: "#fff", border: 0, borderRadius: 12, padding: "12px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", flexShrink: 0 }}>
