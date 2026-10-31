@@ -113,22 +113,62 @@ export interface Pax { adults: number; children: number; infants: number }
 
 // Poomas and Akbar fares are remembered at search time so a booking is charged the
 // searched price, never a price sent by the browser.
+//
+// Akbar fares are stored per supplier search (one record per TUI, i.e. per journey
+// leg), not one KV write per fare: a round trip returns ~800 fares, and one write
+// each ran past Cloudflare's per-invocation KV limit, so many fares were never saved
+// and booking them failed as "no longer available".
 const OFFLINE_FARE_TTL = 30 * 60;
 const offlineFareKey = (tenantId: string, fareId: string) => `offline_fare:${tenantId}:${fareId}`;
+const offlineSearchKey = (tenantId: string, tui: string) => `offline_fares:${tenantId}:${tui}`;
+// "AK|<tui>|<index>" → tui (indexes may contain "|").
+const akbarTui = (fareId: string) => (fareId.startsWith("AK|") ? fareId.split("|")[1] || null : null);
 
 export async function rememberOfflineFares(env: Env, tenantId: string, fares: NormalizedFare[], pax: Pax) {
-  await Promise.all(fares.filter((f) => f.supplier === "POOMAS" || f.supplier === "AKBAR").map((f) =>
-    env.FARE_CACHE_KV.put(offlineFareKey(tenantId, f.id), JSON.stringify({ fare: f, pax }), { expirationTtl: OFFLINE_FARE_TTL })));
+  const offline = fares.filter((f) => f.supplier === "POOMAS" || f.supplier === "AKBAR");
+  const bySearch = new Map<string, Record<string, NormalizedFare>>();
+  const single: NormalizedFare[] = [];
+  for (const f of offline) {
+    const tui = f.supplier === "AKBAR" ? akbarTui(f.id) : null;
+    if (tui) (bySearch.get(tui) ?? bySearch.set(tui, {}).get(tui)!)[f.id] = f;
+    else single.push(f);
+  }
+  const p = { adults: pax.adults, children: pax.children ?? 0, infants: pax.infants ?? 0 };
+  await Promise.all([
+    ...[...bySearch].map(([tui, map]) => env.FARE_CACHE_KV.put(offlineSearchKey(tenantId, tui), JSON.stringify({ pax: p, fares: map }), { expirationTtl: OFFLINE_FARE_TTL })),
+    ...single.map((f) => env.FARE_CACHE_KV.put(offlineFareKey(tenantId, f.id), JSON.stringify({ fare: f, pax: p }), { expirationTtl: OFFLINE_FARE_TTL })),
+  ]);
+}
+
+export type OfflineFareLookup =
+  | { fare: NormalizedFare }
+  | { reason: "NOT_FOUND" }
+  | { reason: "PASSENGERS_CHANGED"; searched: Pax };
+
+// The fare a customer is booking, priced on the server, or why it can't be used.
+export async function lookupOfflineFare(env: Env, db: Db, tenantId: string, supplier: OfflineSupplier, fareId: string, pax: Pax): Promise<OfflineFareLookup> {
+  if (supplier === "MANUAL") {
+    const fare = await quoteManualFare(env, db, tenantId, fareId, pax);
+    return fare ? { fare } : { reason: "NOT_FOUND" };
+  }
+  let stored: { fare: NormalizedFare; pax: Pax } | null = null;
+  const tui = supplier === "AKBAR" ? akbarTui(fareId) : null;
+  if (tui) {
+    const search = await env.FARE_CACHE_KV.get(offlineSearchKey(tenantId, tui), "json").catch(() => null) as { pax: Pax; fares: Record<string, NormalizedFare> } | null;
+    if (search?.fares?.[fareId]) stored = { fare: search.fares[fareId], pax: search.pax };
+  }
+  // Fares remembered one key each (before per-search records, and Poomas).
+  stored ??= await env.FARE_CACHE_KV.get(offlineFareKey(tenantId, fareId), "json").catch(() => null) as { fare: NormalizedFare; pax: Pax } | null;
+  if (!stored) return { reason: "NOT_FOUND" };
+  // The Poomas / Akbar price covers the party that was searched.
+  const same = stored.pax.adults === pax.adults && (stored.pax.children ?? 0) === pax.children && (stored.pax.infants ?? 0) === pax.infants;
+  return same ? { fare: stored.fare } : { reason: "PASSENGERS_CHANGED", searched: stored.pax };
 }
 
 // The fare a customer is booking, priced on the server. null = no longer available.
 export async function quoteOfflineFare(env: Env, db: Db, tenantId: string, supplier: OfflineSupplier, fareId: string, pax: Pax): Promise<NormalizedFare | null> {
-  if (supplier === "MANUAL") return quoteManualFare(env, db, tenantId, fareId, pax);
-  const stored = await env.FARE_CACHE_KV.get(offlineFareKey(tenantId, fareId), "json").catch(() => null) as { fare: NormalizedFare; pax: Pax } | null;
-  if (!stored) return null;
-  // The Poomas / Akbar price covers the party that was searched.
-  const same = stored.pax.adults === pax.adults && stored.pax.children === pax.children && stored.pax.infants === pax.infants;
-  return same ? stored.fare : null;
+  const r = await lookupOfflineFare(env, db, tenantId, supplier, fareId, pax);
+  return "fare" in r ? r.fare : null;
 }
 
 // ── Manual fares ─────────────────────────────────────────────────────────────
