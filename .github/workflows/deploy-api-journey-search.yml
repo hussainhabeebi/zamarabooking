@@ -41,6 +41,11 @@ env:
     apps/api/src/lib/baggage-request.ts
     apps/api/src/queue-consumer.ts
     apps/api/test/baggage-request.test.ts
+    apps/api/src/lib/certification.ts
+    apps/api/src/lib/log-stop-labels.ts
+    apps/api/src/routes/admin/supplier-logs.ts
+    apps/api/test/log-stop-labels.test.ts
+    apps/api/test/certification-pack.test.ts
 
 jobs:
   release-api:
@@ -75,7 +80,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @zamrabooking/api typecheck
       - name: Akbar journey search / booking / baggage request tests
-        run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/flight-sources.test.ts apps/api/test/journey-search-logs.test.ts apps/api/test/akbar-journey-booking.test.ts $(test -f apps/api/test/baggage-request.test.ts && echo apps/api/test/baggage-request.test.ts)
+        run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/flight-sources.test.ts apps/api/test/journey-search-logs.test.ts apps/api/test/akbar-journey-booking.test.ts $(for t in baggage-request log-stop-labels certification-pack; do test -f apps/api/test/$t.test.ts && echo apps/api/test/$t.test.ts; done)
+      - name: Current zamra-api deployments (rollback target)
+        working-directory: apps/api
+        run: pnpm exec wrangler deployments list | tail -25
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy zamra-api Worker (no database migrations)
         working-directory: apps/api
         run: pnpm exec wrangler deploy --message "Akbar journey search ${{ inputs.fix_to }} on ${{ inputs.base_sha }}"
