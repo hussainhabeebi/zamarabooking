@@ -268,8 +268,18 @@ export async function checkAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<type
     await sleep(3000);
   }
   let refs = akbarBookingRefs(statusData);
+  let bookingFailureReason = "";
+  let bookingStatus = "";
   try {
     const booking = await call((t) => deps.client.retrieveBooking(l.transactionId!, t, l.itineraryTui ?? ""));
+    // A successful HTTP/API envelope does not mean the airline booking succeeded.
+    // Preserve an actual supplier failure reason; never use generic Msg: ["Success"].
+    if (booking && typeof booking === "object") {
+      const b = booking as Record<string, unknown>;
+      bookingFailureReason = [b.BookingFailureReason, b.Reason]
+        .find((v): v is string => typeof v === "string" && !!v.trim())?.trim() ?? "";
+      bookingStatus = typeof b.Status === "string" ? b.Status.trim() : "";
+    }
     const r = akbarBookingRefs(booking);
     refs = { pnrs: [...new Set([...refs.pnrs, ...r.pnrs])], tickets: [...new Set([...refs.tickets, ...r.tickets])] };
   } catch (err) {
@@ -277,7 +287,14 @@ export async function checkAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<type
   }
   const next: AkbarLegState = { ...l, status, checkedAt: now(), ...(refs.pnrs.length ? { pnrs: refs.pnrs } : {}), ...(refs.tickets.length ? { tickets: refs.tickets } : {}) };
   if (status === "Success" && refs.pnrs.length) return { ...next, state: "SUCCESS", message: undefined, errorCode: undefined };
-  if (status === "Failed") return { ...next, state: "FAILED", errorCode: "BOOKING_FAILED", message: `Akbar reports the booking failed${akbarMessages(statusData) ? `: ${akbarMessages(statusData)}` : ""}.` };
+  if (status === "Failed") {
+    const statusMessage = akbarMessages(statusData).trim();
+    const reason = bookingFailureReason || (/^success[.!]?$/i.test(statusMessage) ? "" : statusMessage);
+    const message = reason
+      ? `Akbar reports the booking failed: ${reason}`
+      : `Akbar reports the booking failed${bookingStatus ? ` (RetrieveBooking status ${bookingStatus})` : ""}. No detailed failure reason was returned.`;
+    return { ...next, state: "FAILED", errorCode: "BOOKING_FAILED", message };
+  }
   return { ...next, state: "PENDING", message: status === "Success" ? "Akbar reports success but returned no PNR yet." : "Akbar has not finished the booking yet." };
 }
 
