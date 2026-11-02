@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AkbarClient, AkbarError, akbarBookingRefs, akbarTravelRequirements, createItineraryBody, startPayBody, smartPricerBody } from "@zamrabooking/suppliers";
+import { AkbarAdapter, AkbarClient, AkbarError, akbarBookingRefs, akbarTravelRequirements, createItineraryBody, startPayBody, smartPricerBody } from "@zamrabooking/suppliers";
 import {
   akbarBookingGate, akbarContact, akbarLegRefs, akbarMobile, akbarOutcome, akbarPrepaymentCheck, akbarTravellers, ageOn,
   refreshAkbarBooking, runAkbarBooking, type AkbarBookingState, type AkbarEngineDeps,
@@ -99,7 +99,7 @@ test("one-way: the full sequence with the TUI handed on at every step, PNR from 
   const { calls, client } = mockAkbar();
   const { deps, saves } = engine(client);
   const state = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact, lookups: true });
-  assert.deepEqual(paths(calls), ["SmartPricer", "GetSPricer", "GetTravelCheckList", "ssr", "SeatLayout", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"]);
+  assert.deepEqual(paths(calls), ["SmartPricer", "GetSPricer", "GetTravelCheckList", "SeatLayout", "ssr", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"]);
   assert.equal(state.outcome, "TICKETED");
   assert.deepEqual(state.legs[0].pnrs, ["X7KQ2P"]);
   assert.equal(state.legs[0].tickets, undefined);            // Akbar returned an empty ticket → none stored
@@ -287,6 +287,67 @@ test("Akbar certification files: Akbar URLs, secrets blanked, every call numbere
   assert.equal(dec("06-StartPay-Request.json").url, "https://b2bapiflights.benzyinfotech.com/Payment/StartPay");
   assert.ok(!JSON.stringify(dec("06-StartPay-Request.json")).includes("gk"));
   const summary = dec("BookingSummary.json");
-  assert.deepEqual(summary.missingSteps, ["RetrieveBooking"]);
-  assert.deepEqual(summary.akbar.legs[0], { leg: 1, state: "SUCCESS", transactionId: 230003316, pnrs: ["X7KQ2P"], tickets: [] });
+  assert.deepEqual(summary.missingSteps, ["GetExpSearch", "GetTravelCheckList", "SeatLayout", "SSR", "RetrieveBooking"]);
+  assert.deepEqual(summary.akbar.legs[0], { leg: 1, state: "SUCCESS", searchTui: null, pricingTui: null, itineraryTui: null, transactionId: 230003316, pnrs: ["X7KQ2P"], tickets: [] });
+});
+
+// ── Website booking (wallet or gateway: both end in PAYMENT_CAPTURED → recordOfflinePayment) ──
+
+const searchParams = { origin: "BOM", destination: "DEL", departureDate: "2026-12-15", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: "INR" as const };
+const searchReply = { TUI: "search-tui", Completed: true, Code: "200", Trips: [{ Journey: [{ Index: "6E|1", OrderID: 1, NetFare: 4890.5, From: "BOM", To: "DEL", VAC: "6E", FlightNo: "2101", DepartureTime: "2026-12-15T06:00:00", ArrivalTime: "2026-12-15T08:10:00" }] }] };
+
+test("GetExpSearch always follows ExpressSearch only while API booking is on", async () => {
+  for (const [apiBooking, expected] of [["MANUAL", ["ExpressSearch", "GetExpSearch"]], ["AUTO", ["ExpressSearch", "GetExpSearch"]], ["OFF", ["ExpressSearch"]]] as const) {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => { urls.push(url.split("/").pop()!); return json(searchReply); }) as unknown as typeof fetch;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = fetchImpl;
+    try {
+      const fares = await new AkbarAdapter({ ...creds, apiBooking, getToken: async () => token } as any).search(searchParams);
+      assert.equal(fares.length, 1);
+    } finally { globalThis.fetch = realFetch; }
+    assert.deepEqual(urls, expected, apiBooking);
+  }
+  // A failed GetExpSearch keeps the ExpressSearch fares.
+  const fetchImpl = (async (url: string) => url.endsWith("GetExpSearch") ? new Response("busy", { status: 503 }) : json(searchReply)) as unknown as typeof fetch;
+  const r = await new AkbarClient(creds, fetchImpl).search(searchParams, token, { alwaysGetExpSearch: true, sleep: async () => {} });
+  assert.equal(r.completed, true);
+});
+
+test("a website booking logs every documented Akbar step, in order, with TUIs and the transaction", async () => {
+  const { client } = mockAkbar();
+  const recorded: any[] = [];
+  // Same client wiring as production: every call goes to the recorder (Admin → API Logs / ZIP).
+  const rec = new AkbarClient({ ...creds, recorder: (x) => recorded.push(x) }, (async (url: string, init: RequestInit) => {
+    if (url.endsWith("/ExpressSearch") || url.endsWith("/GetExpSearch")) return json(searchReply);
+    return (client as any).fetchImpl(url, init);
+  }) as unknown as typeof fetch);
+  // 1. Search (website): ExpressSearch + GetExpSearch with API booking on.
+  const search = await rec.search(searchParams, token, { alwaysGetExpSearch: true });
+  assert.equal(search.polls, 1);
+  const tokenFn = async (fresh?: boolean) => (fresh ? rec.signature() : token);
+  const { deps } = engine(rec, { token: tokenFn });
+  // 2. Checkout (POST /api/book): live fare + checklist before payment.
+  const pre = await akbarPrepaymentCheck(deps, { legs: [leg], pax, departureDates: ["2026-12-15"] });
+  // 3. After the wallet / gateway payment: the booking run (UAT: fresh Signature + lookups).
+  const state = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-15"], contact, state: pre, lookups: true, freshToken: true });
+  assert.equal(state.outcome, "TICKETED");
+  const steps = recorded.map((x) => akbarStep(x.endpoint));
+  assert.deepEqual(steps, ["ExpressSearch", "GetExpSearch", "SmartPricer", "GetSPricer", "GetTravelCheckList",
+    "Signature", "SeatLayout", "SSR", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"]);
+  // Every documented step except WebSettings, each with a request and a response.
+  const { AKBAR_REQUIRED_STEPS } = await import("../src/lib/akbar-certification.js");
+  assert.deepEqual([...AKBAR_REQUIRED_STEPS].sort(), [...new Set(steps)].sort());
+  assert.ok(recorded.every((x) => x.requestBody && x.responseBody && x.status === 200));
+  // TUI hand-off and transaction reference as Akbar returned them.
+  const body = (step: string) => JSON.parse(recorded.find((x) => akbarStep(x.endpoint) === step).requestBody);
+  assert.equal(body("GetExpSearch").TUI, "search-tui");
+  assert.equal(body("SmartPricer").Trips[0].TUI, "search-tui");
+  assert.equal(body("GetSPricer").TUI, "sp-tui");
+  assert.equal(body("CreateItinerary").TUI, "priced-tui");
+  assert.deepEqual([body("StartPay").TUI, body("StartPay").TransactionID], ["it-tui", 230003316]);
+  assert.equal(body("RetrieveBooking").ReferenceNumber, "230003316");
+  assert.deepEqual(state.legs[0].pnrs, ["X7KQ2P"]);
+  // The Signature token never reaches the logs.
+  assert.ok(!JSON.stringify(recorded).includes("jwt2"));
 });

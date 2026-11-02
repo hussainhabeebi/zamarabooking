@@ -73,6 +73,28 @@ the booking and of its search, in order. Requests show Akbar's URL with Password
 Bearer token and the gateway key blanked; responses are unmodified. If the cached token's Signature
 call is older than the booking, the tenant's latest Signature (within 48 h) is included.
 
+## Certification log coverage (website booking, API booking on, Test environment)
+
+| # | Akbar step | Logged when | Linked by |
+|---|---|---|---|
+| 1 | Signature | booking run (fresh token in Test) | booking |
+| 2 | ExpressSearch | website search | search (`flight_data.searchId`) |
+| 3 | GetExpSearch | website search — always called once while API booking is on | search |
+| 4 | WebSettings | **never** — not documented; no fake log is produced | — |
+| 5 | SmartPricer | checkout (before payment); again after payment if that price is over 10 min old | booking |
+| 6 | GetSPricer | as SmartPricer | booking |
+| 7 | GetTravelCheckList | as SmartPricer | booking |
+| 8 | SeatLayout | booking run (read-only lookup) | booking |
+| 9 | SSR | booking run (read-only lookup) | booking |
+| 10 | CreateItinerary | booking run | booking |
+| 11 | StartPay | booking run | booking |
+| 12 | GetItineraryStatus | booking run (polled) | booking |
+| 13 | RetrieveBooking | booking run | booking |
+
+Wallet and gateway (PhonePe / Nomod) payments both end in `PAYMENT_CAPTURED` → `recordOfflinePayment`,
+so the booking run is the same for either. `BookingSummary.json` lists each leg's search TUI, pricing TUI,
+itinerary TUI, TransactionID, and the PNR / tickets exactly as Akbar returned them, plus any missing step.
+
 ## Open items for Akbar (blockers / undocumented)
 
 1. **WebSettings**: not in the collection. Need the URL, request and response (and whether it is required).
@@ -106,7 +128,7 @@ Git-connected build is `zamra-api-staging` (a separate Worker, not production).
 
 What it does: verifies the PR diff is limited to the allowlisted Akbar files (fails on anything
 under `packages/db`, `apps/web`, `apps/portal`, or PhonePe / Nomod / wallet / checkout), builds
-`zamra-api` from the live tree + the 14 Akbar API files, runs typecheck and the Akbar, PhonePe,
+`zamra-api` from the live tree + the 15 Akbar API files, runs typecheck and the Akbar, PhonePe,
 wallet, baggage and certification tests, refuses to deploy if the live `zamra-api` is no longer the
 expected baseline, prints the rollback version, deploys; then builds `zamra-admin` from its live
 tree + the 3 Admin files, prints its rollback version, deploys. No migrations.

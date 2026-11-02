@@ -325,8 +325,8 @@ export async function runAkbarBooking(deps: AkbarEngineDeps, input: AkbarEngineI
       //    selections are not sent until Akbar documents the SSR item format.
       if (input.lookups && !l.transactionId) {
         for (const [name, fn] of [
-          ["SSR", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
           ["SeatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId: ref.orderId ?? 1 }, t)],
+          ["SSR", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
         ] as const) {
           await call(fn).catch((err) => deps.log("warn", `${name} lookup failed (booking continues): ${msgOf(err)}`));
         }

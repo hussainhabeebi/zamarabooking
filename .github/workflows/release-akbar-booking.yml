@@ -85,6 +85,7 @@ env:
     apps/api/test/akbar-booking.test.ts
     apps/api/test/flight-sources.test.ts
     packages/suppliers/src/akbar/client.ts
+    packages/suppliers/src/akbar/adapter.ts
     packages/suppliers/src/index.ts
   ADMIN_FILES: >-
     apps/admin/app/(dashboard)/bookings/[id]/AkbarApiBooking.tsx

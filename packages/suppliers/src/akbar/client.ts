@@ -409,6 +409,9 @@ export interface AkbarSearchOptions {
   pollIntervalMs?: number;   // between GetExpSearch calls
   deadlineMs?:     number;   // the docs allow 50 s after ExpressSearch
   sleep?:          (ms: number) => Promise<void>;
+  // Always follow ExpressSearch with GetExpSearch (the Postman collection's sequence), even when
+  // ExpressSearch already holds every fare. Used while Akbar API booking / certification is on.
+  alwaysGetExpSearch?: boolean;
 }
 
 export class AkbarClient {
@@ -583,6 +586,17 @@ export class AkbarClient {
           `ExpressSearch answered: ${JSON.stringify(first).slice(0, 1500)}\n\n${err.endpoint ?? "GetExpSearch"} answered: ${err.responseSnippet ?? "(nothing)"}`);
       }
       polls++;
+    }
+    // Certification sequence: one GetExpSearch with the search TUI. Its results are used when it
+    // returns flights; a failure keeps the ExpressSearch results (the call is still logged).
+    if (opts.alwaysGetExpSearch && polls === 0 && tui && left() > 1000) {
+      try {
+        const next = await this.getExpSearch(tui, auth, left());
+        polls++;
+        if (hasJourneys(next)) data = next;
+      } catch (err) {
+        if (!(err instanceof AkbarError)) throw err;
+      }
     }
     return { data, completed: isSearchComplete(data) || hasJourneys(data), polls };
   }

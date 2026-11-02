@@ -31,7 +31,8 @@ export const AKBAR_STEPS = [
   "Signature", "ExpressSearch", "GetExpSearch", "WebSettings", "SmartPricer", "GetSPricer", "GetTravelCheckList",
   "FareRule", "FlightInfo", "SeatLayout", "SSR", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking", "Cancel",
 ] as const;
-export const AKBAR_REQUIRED_STEPS = ["Signature", "ExpressSearch", "SmartPricer", "GetSPricer", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"];
+// Akbar's certification list, minus WebSettings (undocumented; never called, so never logged).
+export const AKBAR_REQUIRED_STEPS = ["Signature", "ExpressSearch", "GetExpSearch", "SmartPricer", "GetSPricer", "GetTravelCheckList", "SeatLayout", "SSR", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"];
 
 const BY_LOWER = new Map(AKBAR_STEPS.map((s) => [s.toLowerCase(), s]));
 export function akbarStep(endpoint: string): string {
@@ -82,6 +83,13 @@ export async function akbarCertificationCoverage(db: Db, b: Booking) {
   return AKBAR_REQUIRED_STEPS.map((service) => ({ service, logged: have.has(service) }));
 }
 
+// Search TUI of a leg, from the fare reference saved at checkout.
+function searchTuiOf(fd: Record<string, any>, leg: number): string | null {
+  const off = fd?.offline ?? {};
+  const ref = Array.isArray(off.legs) && off.legs.length ? off.legs[leg]?.sourceRef : leg === 0 ? off.sourceRef : null;
+  return typeof ref?.tui === "string" && ref.tui ? ref.tui : null;
+}
+
 export async function akbarCertificationPack(env: Env, db: Db, b: Booking, folder = ""): Promise<PackFile[]> {
   const settings = await getAkbarSettings(env, b.tenantId);
   const all = await exchangesFor(db, b);
@@ -118,8 +126,11 @@ export async function akbarCertificationPack(env: Env, db: Db, b: Booking, folde
     akbar: {
       outcome: state?.outcome ?? null,
       // Exactly as Akbar returned them; empty when Akbar returned none.
+      searchId: typeof fd.searchId === "string" ? fd.searchId : null,
       legs: (state?.legs ?? []).map((l) => ({
-        leg: l.leg + 1, state: l.state, transactionId: l.transactionId ?? null, pnrs: l.pnrs ?? [], tickets: l.tickets ?? [],
+        leg: l.leg + 1, state: l.state,
+        searchTui: searchTuiOf(fd, l.leg), pricingTui: l.pricedTui ?? null, itineraryTui: l.itineraryTui ?? null,
+        transactionId: l.transactionId ?? null, pnrs: l.pnrs ?? [], tickets: l.tickets ?? [],
         ...(l.errorCode ? { errorCode: l.errorCode, message: l.message } : {}),
       })),
     },
@@ -127,7 +138,7 @@ export async function akbarCertificationPack(env: Env, db: Db, b: Booking, folde
     calls: all.length,
     ...(missing.length ? { missingSteps: missing, note: `Not in the logs yet: ${missing.join(", ")}` } : {}),
     notes: [
-      "WebSettings is not part of the B2B Revamp Flight API Postman collection and is not called.",
+      "WebSettings: required by Akbar's certification list but not in the B2B Revamp Flight API Postman collection (no URL, request or response) — not called, so no log exists.",
       "Secrets (Password, ApiKey, Key, Bearer token, gateway key) are blanked; responses are unmodified.",
     ],
     createdAt: b.createdAt,
