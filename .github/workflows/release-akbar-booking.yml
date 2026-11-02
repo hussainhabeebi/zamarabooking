@@ -245,8 +245,13 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          MSG: Akbar API booking admin ${{ inputs.pr_head_sha }} on ${{ inputs.admin_base_sha }}
-        run: pnpm exec wrangler deploy --message "$MSG"
+          # No spaces: for this OpenNext app `wrangler deploy` re-runs itself as
+          # `opennextjs-cloudflare deploy`, which spawns wrangler through a shell with the
+          # arguments unquoted, so a message with spaces arrives as separate arguments.
+          MSG: Akbar-API-booking-admin-${{ inputs.pr_head_sha }}-on-${{ inputs.admin_base_sha }}
+        run: |
+          [[ "$MSG" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::Deploy message must be a single shell-safe word: $MSG"; exit 1; }
+          pnpm exec wrangler deploy --message "$MSG"
 
   rollback:
     name: Roll back to the given versions
