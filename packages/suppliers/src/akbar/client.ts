@@ -409,9 +409,11 @@ export interface AkbarSearchOptions {
   pollIntervalMs?: number;   // between GetExpSearch calls
   deadlineMs?:     number;   // the docs allow 50 s after ExpressSearch
   sleep?:          (ms: number) => Promise<void>;
-  // Always follow ExpressSearch with GetExpSearch (the Postman collection's sequence), even when
-  // ExpressSearch already holds every fare. Used while Akbar API booking / certification is on.
-  alwaysGetExpSearch?: boolean;
+  // Certification (Postman sequence ExpressSearch → GetExpSearch): when ExpressSearch already holds
+  // every fare, one GetExpSearch is still sent, in the background, so the search returns without
+  // waiting for it. The caller keeps the work alive (Workers waitUntil) and stores its log.
+  background?: (work: Promise<unknown>) => void;
+  backgroundTimeoutMs?: number;   // default 28 s: within Workers' 30 s after-response limit
 }
 
 export class AkbarClient {
@@ -587,16 +589,9 @@ export class AkbarClient {
       }
       polls++;
     }
-    // Certification sequence: one GetExpSearch with the search TUI. Its results are used when it
-    // returns flights; a failure keeps the ExpressSearch results (the call is still logged).
-    if (opts.alwaysGetExpSearch && polls === 0 && tui && left() > 1000) {
-      try {
-        const next = await this.getExpSearch(tui, auth, left());
-        polls++;
-        if (hasJourneys(next)) data = next;
-      } catch (err) {
-        if (!(err instanceof AkbarError)) throw err;
-      }
+    // Certification: GetExpSearch in the background (never delays or changes these results).
+    if (opts.background && polls === 0 && tui) {
+      opts.background(this.getExpSearch(tui, auth, opts.backgroundTimeoutMs ?? 28_000).catch(() => undefined));
     }
     return { data, completed: isSearchComplete(data) || hasJourneys(data), polls };
   }

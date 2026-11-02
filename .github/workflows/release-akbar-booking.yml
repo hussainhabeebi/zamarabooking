@@ -82,6 +82,8 @@ env:
     apps/api/src/routes/admin/flight-sources.ts
     apps/api/src/routes/book.ts
     apps/api/src/types.ts
+    apps/api/src/routes/search.ts
+    apps/api/src/lib/api-exchanges.ts
     apps/api/test/akbar-booking.test.ts
     apps/api/test/flight-sources.test.ts
     packages/suppliers/src/akbar/client.ts
