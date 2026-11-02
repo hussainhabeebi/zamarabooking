@@ -6,7 +6,7 @@ import type { Env, Variables } from "../types.js";
 import { logSupplierCall } from "../lib/supplier-logger.js";
 import { DISPLAY_CURRENCIES, getFx, type ForeignCurrency } from "../lib/fx.js";
 import { agentNumberFrom, resolveAgentNumber, trackAgentActivity, type ResolvedAgent } from "../lib/agent-number.js";
-import { collectExchanges, persistExchanges, persistInBackground, persistWithBackground } from "../lib/api-exchanges.js";
+import { collectExchanges, persistExchanges, persistInBackground } from "../lib/api-exchanges.js";
 import { recordFareObservation, sendFareAlerts } from "../lib/fare-insights.js";
 import { optionalAgentId } from "../lib/agent-markup.js";
 import { agentPricing, rulesFor } from "../lib/agent-program.js";
@@ -473,19 +473,15 @@ async function runSearch(
 
   // Capture the raw TripJack exchange(s) for this search (certification logs).
   const collector = collectExchanges();
-  // Akbar's certification GetExpSearch runs after the response (API booking on only).
-  const pending: Promise<unknown>[] = [];
-  const background = (work: Promise<unknown>) => { pending.push(work); };
   const result = await searchFares(
     {
       ...params, currency: searchCurrency,
       legs: params.legs?.map((l) => ({ origin: l.origin, destination: l.destination, date: l.departureDate })),
     },
-    supplierConfigs.map((s) => (s.name === "TRIPJACK" || s.name === "AKBAR") && s.credentials
-      ? { ...s, credentials: { ...s.credentials, recorder: collector.recorder, ...(s.name === "AKBAR" ? { background } : {}) } } : s),
+    supplierConfigs.map((s) => (s.name === "TRIPJACK" || s.name === "AKBAR") && s.credentials ? { ...s, credentials: { ...s.credentials, recorder: collector.recorder } } : s),
     { platformCredentials: { ...platformCredentials, ...(platformCredentials.TRIPJACK ? { TRIPJACK: { ...platformCredentials.TRIPJACK, recorder: collector.recorder } as typeof platformCredentials.TRIPJACK } : {}) } },
   );
-  persistInBackground(c, persistWithBackground((xs) => persistExchanges(c.env, db, tenantId, xs, { searchId }), collector, pending));
+  persistInBackground(c, persistExchanges(c.env, db, tenantId, collector.exchanges, { searchId }));
 
   // Zamra's own price list (Admin → Manual Fares). A database problem never fails the search.
   const manualFares = await searchManualFares(c.env, db, tenantId, params).catch((err) => {

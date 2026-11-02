@@ -296,58 +296,62 @@ test("Akbar certification files: Akbar URLs, secrets blanked, every call numbere
 const searchParams = { origin: "BOM", destination: "DEL", departureDate: "2026-12-15", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: "INR" as const };
 const searchReply = { TUI: "search-tui", Completed: true, Code: "200", Trips: [{ Journey: [{ Index: "6E|1", OrderID: 1, NetFare: 4890.5, From: "BOM", To: "DEL", VAC: "6E", FlightNo: "2101", DepartureTime: "2026-12-15T06:00:00", ArrivalTime: "2026-12-15T08:10:00" }] }] };
 
-test("with API booking on, GetExpSearch runs in the background: the search never waits for it", async () => {
-  for (const [apiBooking, withBackground, expectCall] of [["MANUAL", true, true], ["AUTO", true, true], ["OFF", true, false], ["MANUAL", false, false]] as const) {
-    const urls: string[] = [];
-    let release!: () => void;
-    const slow = new Promise<void>((r) => { release = r; });
-    // GetExpSearch hangs until released — like the 16.6 s timeout seen on UAT.
-    const fetchImpl = (async (url: string) => {
-      urls.push(url.split("/").pop()!);
-      if (url.endsWith("GetExpSearch")) { await slow; return json({ ...searchReply, Code: "200" }); }
+const journey = (i: number) => ({ ...searchReply.Trips[0].Journey[0], Index: `6E|${i}`, NetFare: 4000 + i });
+
+test("API booking on: ExpressSearch Mode AS, then GetExpSearch (ClientID \"\") returns the fares; off: Mode SY unchanged", async () => {
+  for (const [apiBooking, mode, calls] of [["MANUAL", "AS", ["ExpressSearch", "GetExpSearch"]], ["AUTO", "AS", ["ExpressSearch", "GetExpSearch"]], ["OFF", "SY", ["ExpressSearch"]]] as const) {
+    const sent: { step: string; body: any }[] = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      const step = url.split("/").pop()!;
+      sent.push({ step, body: JSON.parse(String(init.body)) });
+      // Mode AS: ExpressSearch returns the TUI only; GetExpSearch returns the fares, Completed.
+      if (step === "ExpressSearch" && JSON.parse(String(init.body)).Mode === "AS") return json({ TUI: "search-tui", Code: "200", Completed: false });
+      if (step === "GetExpSearch") return json({ TUI: "search-tui", Code: "200", Completed: "Completed", Trips: [{ Journey: [journey(1), journey(2)] }] });
       return json(searchReply);
     }) as unknown as typeof fetch;
-    const pending: Promise<unknown>[] = [];
     const realFetch = globalThis.fetch;
     globalThis.fetch = fetchImpl;
-    try {
-      const fares = await new AkbarAdapter({ ...creds, apiBooking, getToken: async () => token, ...(withBackground ? { background: (p: Promise<unknown>) => pending.push(p) } : {}) } as any).search(searchParams);
-      assert.equal(fares.length, 1);                     // results returned while GetExpSearch is still open
-      assert.equal(pending.length, expectCall ? 1 : 0, `${apiBooking}/${withBackground}`);
-      release();
-      await Promise.all(pending);
-    } finally { globalThis.fetch = realFetch; }
-    assert.deepEqual(urls, expectCall ? ["ExpressSearch", "GetExpSearch"] : ["ExpressSearch"], `${apiBooking}/${withBackground}`);
+    let fares: any[];
+    try { fares = await new AkbarAdapter({ ...creds, apiBooking, getToken: async () => token } as any).search(searchParams); }
+    finally { globalThis.fetch = realFetch; }
+    assert.deepEqual(sent.map((x) => x.step), calls, apiBooking);
+    assert.equal(sent[0].body.Mode, mode, apiBooking);
+    if (mode === "AS") {
+      assert.deepEqual(sent[1].body, { ClientID: "", TUI: "search-tui" });
+      assert.deepEqual(fares.map((f) => f.id), ["AK|search-tui|6E|1", "AK|search-tui|6E|2"]);   // fares from GetExpSearch
+    } else {
+      assert.deepEqual(fares.map((f) => f.id), ["AK|search-tui|6E|1"]);                         // ExpressSearch fares, as today
+    }
   }
-  // A failed background GetExpSearch never fails the search or the background promise.
-  const recorded: any[] = [];
-  const fetchImpl = (async (url: string) => url.endsWith("GetExpSearch") ? new Response("busy", { status: 503 }) : json(searchReply)) as unknown as typeof fetch;
-  const pending: Promise<unknown>[] = [];
-  const r = await new AkbarClient({ ...creds, recorder: (x) => recorded.push(x) }, fetchImpl).search(searchParams, token, { background: (p) => pending.push(p), sleep: async () => {} });
-  assert.equal(r.completed, true);
-  await Promise.all(pending);
-  assert.deepEqual(recorded.map((x) => [akbarStep(x.endpoint), x.status]), [["ExpressSearch", 200], ["GetExpSearch", 503]]);
 });
 
-test("search logs are saved at once, the background GetExpSearch log once it settles", async () => {
-  const { collectExchanges, persistWithBackground } = await import("../src/lib/api-exchanges.js");
-  const collector = collectExchanges();
-  const saved: string[][] = [];
-  const persist = async (xs: any[]) => { saved.push(xs.map((x) => x.endpoint)); };
-  collector.recorder({ endpoint: "/flights/ExpressSearch" } as any);
-  let release!: () => void;
-  const pending = [new Promise<void>((r) => { release = r; }).then(() => collector.recorder({ endpoint: "/flights/GetExpSearch" } as any))];
-  const done = persistWithBackground(persist, collector, pending);
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(saved, [["/flights/ExpressSearch"]]);   // not held back by the background call
-  release();
-  await done;
-  assert.deepEqual(saved, [["/flights/ExpressSearch"], ["/flights/GetExpSearch"]]);
-  // Nothing in the background: one save only.
-  const c2 = collectExchanges();
-  const saved2: number[] = [];
-  await persistWithBackground(async (xs) => { saved2.push(xs.length); }, c2, []);
-  assert.deepEqual(saved2, [0]);
+test("Mode AS polls GetExpSearch until Completed and keeps fares already received", async () => {
+  const run = async (replies: (object | Response)[], deadlineMs = 45_000) => {
+    const steps: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      steps.push(url.split("/").pop()!);
+      const r = replies.shift()!;
+      return r instanceof Response ? r : json(r);
+    }) as unknown as typeof fetch;
+    const r = await new AkbarClient(creds, fetchImpl).search(searchParams, token, { mode: "AS", sleep: async () => {}, deadlineMs });
+    return { ...r, steps };
+  };
+  const express = { TUI: "t", Code: "200" };
+  // Partial, then complete.
+  const done = await run([express, { TUI: "t", Completed: false, Trips: [{ Journey: [journey(1)] }] }, { TUI: "t", Completed: "Completed", Trips: [{ Journey: [journey(1), journey(2)] }] }]);
+  assert.deepEqual(done.steps, ["ExpressSearch", "GetExpSearch", "GetExpSearch"]);
+  assert.equal(done.polls, 2);
+  assert.equal(done.completed, true);
+  assert.equal((done.data as any).Trips[0].Journey.length, 2);
+  // A later GetExpSearch failure keeps the fares already received.
+  const kept = await run([express, { TUI: "t", Completed: false, Trips: [{ Journey: [journey(1)] }] }, new Response("busy", { status: 503 })]);
+  assert.equal((kept.data as any).Trips[0].Journey.length, 1);
+  // Nothing received at all: Akbar's error, with what ExpressSearch said.
+  await assert.rejects(run([express, new Response("busy", { status: 503 })]),
+    (e: any) => e.statusCode === 503 && /ExpressSearch answered/.test(e.responseSnippet));
+  // GetExpSearch is called at least once even when ExpressSearch already says Completed.
+  const once = await run([{ ...searchReply, Completed: true }, { ...searchReply, Completed: true }]);
+  assert.deepEqual(once.steps, ["ExpressSearch", "GetExpSearch"]);
 });
 
 test("a website booking logs every documented Akbar step, in order, with TUIs and the transaction", async () => {
@@ -359,10 +363,8 @@ test("a website booking logs every documented Akbar step, in order, with TUIs an
     return (client as any).fetchImpl(url, init);
   }) as unknown as typeof fetch);
   // 1. Search (website): ExpressSearch + GetExpSearch with API booking on.
-  const background: Promise<unknown>[] = [];
-  const search = await rec.search(searchParams, token, { background: (p) => background.push(p) });
-  assert.equal(search.polls, 0);
-  await Promise.all(background);   // the search route waits for it before saving its log
+  const search = await rec.search(searchParams, token, { mode: "AS" });
+  assert.equal(search.polls, 1);
   const tokenFn = async (fresh?: boolean) => (fresh ? rec.signature() : token);
   const { deps } = engine(rec, { token: tokenFn });
   // 2. Checkout (POST /api/book): live fare + checklist before payment.

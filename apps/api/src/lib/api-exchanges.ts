@@ -70,16 +70,3 @@ export async function persistExchanges(
 export function persistInBackground(c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }, work: Promise<void>) {
   try { c.executionCtx.waitUntil(work); } catch { void work; }
 }
-
-// Saves a search's exchanges now, then — once background calls (Akbar's certification
-// GetExpSearch) settle — the exchanges they recorded. Run inside persistInBackground.
-export async function persistWithBackground(
-  persist: (exchanges: AnyExchange[]) => Promise<void>,
-  collector: ExchangeCollector,
-  pending: Promise<unknown>[],
-): Promise<void> {
-  await persist(collector.exchanges.splice(0));
-  if (!pending.length) return;
-  await Promise.allSettled(pending);
-  if (collector.exchanges.length) await persist(collector.exchanges.splice(0));
-}
