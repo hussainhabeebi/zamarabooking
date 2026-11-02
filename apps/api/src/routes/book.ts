@@ -18,6 +18,9 @@ import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { collectExchanges, persistExchanges, persistInBackground, type ExchangeCollector } from "../lib/api-exchanges.js";
+import { getAkbarSettings } from "../lib/flight-sources.js";
+import { akbarBookingGate, AkbarStepError, type AkbarBookingState } from "../lib/akbar-booking.js";
+import { akbarPrepayment } from "../lib/akbar-booking-runner.js";
 import { passengerNameProblem } from "../lib/passenger-names.js";
 import { fallbackHoldDeadline, findHoldDeadline, holdLabel } from "../lib/fare-hold.js";
 import { parseBookingDetails } from "../lib/trips.js";
@@ -780,6 +783,31 @@ async function bookOfflineFare(
     return fail(409, "JOURNEY_TIMES_CONFLICT", "The return flight departs before the outbound flight arrives. Please choose a later return flight.");
   }
 
+  // Akbar API booking (off unless enabled in Admin): confirm the live fare of every leg with
+  // SmartPricer → GetSPricer and the airline's traveller checklist before the customer pays.
+  let akbarPricing: AkbarBookingState | null = null;
+  if (supplier === "AKBAR") {
+    const settings = await getAkbarSettings(c.env, tenantId).catch(() => null);
+    if (settings && akbarBookingGate(c.env, settings).allowed) {
+      const collector = ((c as any).get("exchanges") as ExchangeCollector | undefined) ?? collectExchanges();
+      try {
+        akbarPricing = await akbarPrepayment(c.env, tenantId, collector, {
+          legs: legs.map((f) => {
+            const r = (f.raw ?? {}) as Record<string, any>;
+            return { tui: String(r.tui ?? ""), index: String(r.index ?? ""), orderId: r.orderId ?? null, netFare: Number(r.netFare ?? f.totalFare) };
+          }),
+          pax: body.passengers.map((p) => ({ ...p, gender: p.gender ?? null })),
+          departureDates: legs.map((f) => String(f.departureTime).slice(0, 10)),
+        });
+      } catch (err) {
+        if (err instanceof AkbarStepError && err.code === "TRAVELLER_DETAILS_MISSING") return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: err.message, requestId }, 400);
+        if (err instanceof AkbarStepError && err.code === "FARE_INCREASED") return fail(409, "FARE_CHANGED", "The airline has changed this fare. Please search again for the latest price.", err.detail);
+        console.warn("[book-akbar-price]", JSON.stringify({ requestId, error: err instanceof Error ? err.message : String(err) }));
+        return fail(409, "FARE_EXPIRED", "We couldn't confirm this fare with the airline. Please search again.");
+      }
+    }
+  }
+
   // Additional baggage can only be requested here: staff confirm and price it later.
   const baggage = buildBaggageRequest(body.passengers, legs, body.baggageChoices, body.baggageRequests);
   if ("problem" in baggage) return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: baggage.problem, requestId }, 400);
@@ -821,6 +849,7 @@ async function bookOfflineFare(
         origin: fare.origin, destination: fare.destination,
         departureTime: fare.departureTime, arrivalTime: fare.arrivalTime, cabinClass: fare.cabinClass,
         isRefundable: legs.every((f) => f.isRefundable), baggage: fare.baggage,
+        ...(akbarPricing ? { akbarBooking: akbarPricing } : {}),
         offline: {
           supplier,
           ticketing: "AWAITING_PAYMENT",

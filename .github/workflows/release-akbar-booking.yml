@@ -1,0 +1,285 @@
+name: Release - Akbar API booking (API + Admin only, no migrations)
+
+# Manual, scoped release of PR #45 (Akbar B2B Revamp API booking + Akbar certification logs).
+#
+#   API   (zamra-api)   = live API tree   (api_base_sha)   + PR #45's API / supplier files only
+#   Admin (zamra-admin) = live Admin tree (admin_base_sha) + PR #45's Admin files only
+#
+# Never runs database migrations. Never builds or deploys the website, portal, or any
+# PhonePe / Nomod / wallet / checkout code: the job fails if the PR diff touches a file
+# outside the allowlists below. Akbar API booking ships OFF (Admin → Integrations →
+# Akbar "API booking" = Off) and stays blocked on PRODUCTION credentials unless the Worker
+# variable AKBAR_API_BOOKING_PRODUCTION=approved is set — this workflow never sets it.
+#
+# mode=deploy   : verify, build, test, then deploy the selected components.
+# mode=rollback : `wrangler rollback` each selected component to the given version ID
+#                 (printed as "rollback target" by the deploy run).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'deploy or rollback'
+        required: true
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      components:
+        description: 'Which Workers'
+        required: true
+        type: choice
+        options: [api-and-admin, api, admin]
+        default: api-and-admin
+      api_base_sha:
+        description: 'Commit the live zamra-api was built from (deployments list message "… <sha> on …")'
+        required: true
+        default: 'be140d63c218ad113b85f84b1ba5f802012a41de'
+      admin_base_sha:
+        description: 'Commit the live zamra-admin was built from (last full deploy)'
+        required: true
+        default: '1402e86570d1698b4e1f080dae4009da2405c364'
+      pr_base_sha:
+        description: 'PR #45 base commit'
+        required: true
+        default: 'be140d63c218ad113b85f84b1ba5f802012a41de'
+      pr_head_sha:
+        description: 'PR #45 head commit (must be on main)'
+        required: true
+      api_rollback_version:
+        description: 'rollback only: zamra-api version ID to restore'
+        required: false
+        default: ''
+      admin_rollback_version:
+        description: 'rollback only: zamra-admin version ID to restore'
+        required: false
+        default: ''
+      authorization:
+        description: 'Type DEPLOY_AKBAR_BOOKING_NO_MIGRATIONS (deploy) or ROLLBACK_AKBAR_BOOKING (rollback)'
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # Admin paths contain ( ) [ ]: no shell globbing, literal git pathspecs.
+    shell: bash --noprofile --norc -eo pipefail -f {0}
+
+concurrency:
+  group: zamra-production-api
+  cancel-in-progress: false
+
+env:
+  GIT_LITERAL_PATHSPECS: '1'
+  # PR #45 files that are deployed.
+  API_FILES: >-
+    apps/api/src/lib/akbar-booking.ts
+    apps/api/src/lib/akbar-booking-runner.ts
+    apps/api/src/lib/akbar-certification.ts
+    apps/api/src/lib/offline-ticket.ts
+    apps/api/src/lib/flight-sources.ts
+    apps/api/src/queue-consumer.ts
+    apps/api/src/routes/admin/bookings.ts
+    apps/api/src/routes/admin/flight-sources.ts
+    apps/api/src/routes/book.ts
+    apps/api/src/types.ts
+    apps/api/test/akbar-booking.test.ts
+    apps/api/test/flight-sources.test.ts
+    packages/suppliers/src/akbar/client.ts
+    packages/suppliers/src/akbar/adapter.ts
+    packages/suppliers/src/index.ts
+  ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/bookings/[id]/AkbarApiBooking.tsx
+    apps/admin/app/(dashboard)/bookings/[id]/page.tsx
+    apps/admin/app/(dashboard)/integrations/AkbarIntegration.tsx
+  # PR #45 files that are never deployed (docs, CI, the local UAT runner).
+  NOT_DEPLOYED: >-
+    .gitignore
+    docs/akbar-api-booking.md
+    scripts/akbar-uat-check.ts
+    .github/workflows/log-export-checks.yml
+    .github/workflows/release-akbar-booking.yml
+
+jobs:
+  verify:
+    name: Verify PR scope and inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authorization
+        env:
+          MODE: ${{ inputs.mode }}
+          AUTH: ${{ inputs.authorization }}
+          REF: ${{ github.ref }}
+        run: |
+          [ "$REF" = "refs/heads/main" ] || { echo "Run this workflow from main"; exit 1; }
+          if [ "$MODE" = deploy ]; then [ "$AUTH" = DEPLOY_AKBAR_BOOKING_NO_MIGRATIONS ] || { echo "Wrong authorization"; exit 1; }; fi
+          if [ "$MODE" = rollback ]; then [ "$AUTH" = ROLLBACK_AKBAR_BOOKING ] || { echo "Wrong authorization"; exit 1; }; fi
+      - uses: actions/checkout@v4
+        if: inputs.mode == 'deploy'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: PR diff only touches allowlisted files
+        if: inputs.mode == 'deploy'
+        env:
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git merge-base --is-ancestor "$HEAD" origin/main || { echo "pr_head_sha is not on main"; exit 1; }
+          git merge-base --is-ancestor "$BASE" "$HEAD" || { echo "pr_base_sha is not an ancestor of pr_head_sha"; exit 1; }
+          git diff --name-only "$BASE" "$HEAD" | tee "$RUNNER_TEMP/changed.txt"
+          allowed=" $API_FILES $ADMIN_FILES $NOT_DEPLOYED "
+          bad=0
+          while IFS= read -r f; do
+            case "$allowed" in *" $f "*) ;; *) echo "::error::Not part of this release: $f"; bad=1;; esac
+          done < "$RUNNER_TEMP/changed.txt"
+          [ "$bad" = 0 ] || exit 1
+          # Belt and braces: nothing payment-, migration-, website- or portal-related.
+          if grep -E '^(packages/db/|apps/web/|apps/portal/)|phonepe|nomod|payment-gateway|customer-wallet|checkout' "$RUNNER_TEMP/changed.txt"; then
+            echo "::error::Release touches payment / migration / website / portal files"; exit 1
+          fi
+
+  deploy-api:
+    name: zamra-api - live tree + Akbar API files
+    needs: verify
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $API_FILES > "$RUNNER_TEMP/api.patch"
+          git checkout --detach "$LIVE"
+          git apply --index "$RUNNER_TEMP/api.patch"
+          git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
+          for f in $(cat "$RUNNER_TEMP/applied.txt"); do
+            case " $API_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
+          done
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/api typecheck
+      - name: Akbar booking + existing payment / wallet / booking regression tests (mocked, no live calls)
+        run: >-
+          node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test
+          apps/api/test/akbar-booking.test.ts apps/api/test/flight-sources.test.ts apps/api/test/akbar-journey-booking.test.ts
+          apps/api/test/certification-pack.test.ts apps/api/test/log-stop-labels.test.ts apps/api/test/baggage-request.test.ts
+          apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/tripjack-reviewed-total.test.ts
+      - name: Live zamra-api must still be the expected baseline (rollback target below)
+        working-directory: apps/api
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
+          tail -25 "$RUNNER_TEMP/deployments.txt"
+          latest=$(grep '^Message:' "$RUNNER_TEMP/deployments.txt" | tail -1)
+          echo "Latest deployment: $latest"
+          case "$latest" in *"$LIVE"*) ;; *) echo "::error::Live zamra-api is not the expected baseline $LIVE — someone deployed since. Re-check api_base_sha."; exit 1;; esac
+          echo "ROLLBACK TARGET (zamra-api): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
+      - name: Deploy zamra-api (no database migrations)
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MSG: Akbar API booking ${{ inputs.pr_head_sha }} on ${{ inputs.api_base_sha }}
+        run: pnpm exec wrangler deploy --message "$MSG"
+
+  deploy-admin:
+    name: zamra-admin - live tree + Akbar Admin files
+    needs: [verify, deploy-api]
+    # Admin calls the new API routes, so it goes out after the API (or alone when asked).
+    if: always() && inputs.mode == 'deploy' && inputs.components != 'api' && needs.verify.result == 'success' && (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.admin_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $ADMIN_FILES > "$RUNNER_TEMP/admin.patch"
+          git checkout --detach "$LIVE"
+          git apply --index "$RUNNER_TEMP/admin.patch"
+          git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
+          while IFS= read -r f; do
+            case " $ADMIN_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
+          done < "$RUNNER_TEMP/applied.txt"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/admin typecheck
+      - name: Build Admin
+        working-directory: apps/admin
+        run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
+      - name: Current zamra-admin deployments (rollback target)
+        working-directory: apps/admin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
+          tail -25 "$RUNNER_TEMP/deployments.txt"
+          echo "ROLLBACK TARGET (zamra-admin): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
+      - name: Deploy zamra-admin
+        working-directory: apps/admin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MSG: Akbar API booking admin ${{ inputs.pr_head_sha }} on ${{ inputs.admin_base_sha }}
+        run: pnpm exec wrangler deploy --message "$MSG"
+
+  rollback:
+    name: Roll back to the given versions
+    needs: verify
+    if: inputs.mode == 'rollback'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Roll back zamra-api
+        if: inputs.components != 'admin'
+        working-directory: apps/api
+        env:
+          VERSION: ${{ inputs.api_rollback_version }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-f-]{36}$ ]] || { echo "api_rollback_version must be a version ID"; exit 1; }
+          pnpm exec wrangler rollback "$VERSION" --message "Rollback of Akbar API booking release" --yes
+      - name: Roll back zamra-admin
+        if: inputs.components != 'api'
+        working-directory: apps/admin
+        env:
+          VERSION: ${{ inputs.admin_rollback_version }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-f-]{36}$ ]] || { echo "admin_rollback_version must be a version ID"; exit 1; }
+          pnpm exec wrangler rollback "$VERSION" --message "Rollback of Akbar API booking admin release" --yes

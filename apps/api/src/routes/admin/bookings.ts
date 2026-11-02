@@ -7,7 +7,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { isOfflineSupplier } from "../../lib/flight-sources.js";
-import { renderETicketHtml, storeETicket } from "../../lib/eticket.js";
+import { issueOfflineTicket } from "../../lib/offline-ticket.js";
 import { eq, and, asc, desc, or } from "drizzle-orm";
 import type { Env, Variables } from "../../types.js";
 import { tripjackClientFor, parseBookingDetails } from "../../lib/trips.js";
@@ -19,6 +19,10 @@ import {
   readBookingError, readBookingEvents, readQueueReceipt,
 } from "../../lib/booking-recovery.js";
 import { processPaidBooking } from "../../queue-consumer.js";
+import { akbarCertificationCoverage, akbarCertificationPack, akbarCertificationRequest, akbarStep } from "../../lib/akbar-certification.js";
+import { getAkbarSettings } from "../../lib/flight-sources.js";
+import { bookOnAkbar, refreshAkbar } from "../../lib/akbar-booking-runner.js";
+import { acquireBookingLock, releaseBookingLock } from "../../lib/booking-recovery.js";
 
 export const bookingsAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -97,7 +101,9 @@ bookingsAdminRoutes.get("/certification.zip", async (c) => {
   const used = new Map<string, number>();
   for (const id of ids) {
     const b = await loadBooking(c, id);
-    files.push(...await certificationPack(c.env, db, b, environment, packFolderName(b, used)));
+    files.push(...await (b.supplier === "AKBAR"
+      ? akbarCertificationPack(c.env, db, b, `akbar/${packFolderName(b, used)}`)
+      : certificationPack(c.env, db, b, environment, packFolderName(b, used))));
   }
   return new Response(buildZip(files), { headers: {
     "Content-Type": "application/zip",
@@ -128,6 +134,7 @@ bookingsAdminRoutes.get("/:id", async (c) => {
     supportRequests: support, walletTransactions: walletTx,
     exchanges: exchanges.map((x) => ({ ...x, requestKey: undefined, responseKey: undefined, hasResponse: Boolean(x.responseKey) })),
     ...(b.supplier === "TRIPJACK" ? { certification: await certificationCoverage(c.env, db, b, exchanges).catch(() => null) } : {}),
+    ...(b.supplier === "AKBAR" ? { certification: await akbarCertificationCoverage(db, b).catch(() => null) } : {}),
   });
 });
 
@@ -143,6 +150,16 @@ bookingsAdminRoutes.get("/:id/exchanges/:exchangeId/:part", async (c) => {
   if (!x || !key) throw new HTTPException(404, { message: "Log file not found" });
   const obj = await c.env.DOCUMENTS_R2.get(key);
   if (!obj) throw new HTTPException(404, { message: "Log file missing from storage" });
+  if (x.supplier === "AKBAR") {
+    // Akbar: Akbar's URL, secrets blanked, response unmodified (lib/akbar-certification.ts).
+    const akbarName = `${akbarStep(x.endpoint)}-${part === "request" ? "Request" : "Response"}.${key.endsWith(".txt") ? "txt" : "json"}`;
+    const data = part === "request"
+      ? JSON.stringify(akbarCertificationRequest(await obj.json().catch(() => ({})) as Record<string, any>, await getAkbarSettings(c.env, b.tenantId)), null, 2)
+      : obj.body;
+    return new Response(data, { headers: {
+      "Content-Type": key.endsWith(".txt") ? "text/plain; charset=utf-8" : "application/json", "Content-Disposition": `attachment; filename="${akbarName}"`, "Cache-Control": "private, no-store",
+    } });
+  }
   const name = certificationFileName(x.endpoint, part, key);
   if (part === "request") {
     // As TripJack received it: TripJack URL, apikey header, body — no gateway secret.
@@ -165,7 +182,9 @@ bookingsAdminRoutes.get("/:id/exchanges.zip", async (c) => {
   const db = c.get("db");
   const b = await loadBooking(c, c.req.param("id"));
   const name = caseName(b);
-  const files = await certificationPack(c.env, db, b, await tripjackEnvironment(c.env, c.get("tenantId")), `${tripFolderName(b)}/${name}/`);
+  const files = b.supplier === "AKBAR"
+    ? await akbarCertificationPack(c.env, db, b, `${tripFolderName(b)}/${name}/`)
+    : await certificationPack(c.env, db, b, await tripjackEnvironment(c.env, c.get("tenantId")), `${tripFolderName(b)}/${name}/`);
   if (files.length <= 1) throw new HTTPException(404, { message: "No API logs stored for this booking yet" });
   return new Response(buildZip(files), { headers: {
     "Content-Type": "application/zip",
@@ -234,6 +253,34 @@ bookingsAdminRoutes.post("/:id/refresh-details", async (c) => {
   }
 });
 
+// Akbar API booking for a paid Akbar booking (Admin, MANUAL or AUTO mode): SmartPricer →
+// GetSPricer → GetTravelCheckList → CreateItinerary → StartPay → GetItineraryStatus →
+// RetrieveBooking. Uses the booking lock; StartPay is never sent twice (lib/akbar-booking.ts).
+bookingsAdminRoutes.post("/:id/akbar/book", async (c) => {
+  const b = await loadBooking(c, c.req.param("id"));
+  if (b.supplier !== "AKBAR") throw new HTTPException(400, { message: "Only Akbar bookings can be booked on the Akbar API." });
+  if (!(await acquireBookingLock(c.env, b.id))) return c.json({ ok: false, error: "Another run is already booking this seat." }, 409);
+  try {
+    const r = await bookOnAkbar(c.env, c.get("db"), b.id, { trigger: "ADMIN", userId: c.get("userId") ?? null });
+    return c.json(r, r.ok || r.outcome ? 200 : 400);
+  } finally {
+    await releaseBookingLock(c.env, b.id);
+  }
+});
+
+// GetItineraryStatus + RetrieveBooking for Akbar legs already paid. Read-only on Akbar.
+bookingsAdminRoutes.post("/:id/akbar/refresh", async (c) => {
+  const b = await loadBooking(c, c.req.param("id"));
+  if (b.supplier !== "AKBAR") throw new HTTPException(400, { message: "Not an Akbar booking." });
+  if (!(await acquireBookingLock(c.env, b.id))) return c.json({ ok: false, error: "Another run is already working on this booking." }, 409);
+  try {
+    const r = await refreshAkbar(c.env, c.get("db"), b.id, c.get("userId") ?? null);
+    return c.json(r, r.ok || r.outcome ? 200 : 400);
+  } finally {
+    await releaseBookingLock(c.env, b.id);
+  }
+});
+
 // Poomas / manual fares: staff issued the ticket themselves (on Poomas or with the
 // airline) and enter the PNR here. Saves it, builds the e-ticket and sends it to
 // the customer. Can be repeated to correct a PNR or ticket numbers (the e-ticket is
@@ -250,32 +297,6 @@ bookingsAdminRoutes.post("/:id/issue-ticket", zValidator("json", z.object({
   }
   const { pnr, supplierRef } = c.req.valid("json");
   const ticketNumbers = c.req.valid("json").ticketNumbers.filter(Boolean);
-  const db = c.get("db");
-  const flightData = (b.flightData ?? {}) as Record<string, any>;
-  const firstIssue = b.status !== "TICKETED";
-  await db.update(bookings).set({
-    status: "TICKETED", pnr, ticketNumbers,
-    ...(supplierRef ? { supplierBookingRef: supplierRef } : {}),
-    flightData: { ...flightData, offline: { ...(flightData.offline ?? {}), ticketing: "ISSUED", issuedAt: new Date().toISOString(), issuedBy: c.get("userId") ?? null } },
-    updatedAt: new Date(),
-  }).where(eq(bookings.id, b.id));
-
-  const paxRows = await db.select().from(bookingPassengers).where(eq(bookingPassengers.bookingId, b.id));
-  const [tenantRow] = await db.select({ name: tenants.name, logoUrl: tenants.logoUrl, primaryColor: tenants.primaryColor, supportEmail: tenants.supportEmail })
-    .from(tenants).where(eq(tenants.id, b.tenantId)).limit(1);
-  const departureTime = flightData.departureTime ?? b.departureDate.toISOString();
-  const eticketKey = await storeETicket(c.env.DOCUMENTS_R2, b.id, renderETicketHtml({
-    bookingRef: b.id, pnr, ticketNumbers,
-    airline: flightData.airline ?? "", airlineName: flightData.airlineName ?? flightData.airline ?? "", flightNumber: flightData.flightNumber ?? "",
-    origin: b.origin, destination: b.destination, departureTime, arrivalTime: flightData.arrivalTime ?? departureTime,
-    cabinClass: flightData.cabinClass ?? b.cabinClass, isRefundable: Boolean(flightData.isRefundable),
-    baggage: flightData.baggage ?? { cabin: "As per airline", checked: "As per airline" },
-    passengers: paxRows.map((p, i) => ({ name: `${p.firstName} ${p.lastName}`, type: p.passengerType, ticketNumber: ticketNumbers[i] })),
-    totalAmount: Number(b.totalAmount), currency: b.currency,
-    brandName: tenantRow?.name ?? "Zamra Travels", brandLogo: tenantRow?.logoUrl ?? undefined,
-    primaryColor: tenantRow?.primaryColor ?? "#0D4B96", supportEmail: tenantRow?.supportEmail ?? undefined,
-  }));
-  await logBookingEvent(c.env, b.id, "TICKET", "info", `${firstIssue ? "Ticket issued" : "Ticket details corrected"} by staff — PNR ${pnr}`, { ticketNumbers, supplierRef: supplierRef ?? null });
-  if (firstIssue) await c.env.NOTIFY_QUEUE.send({ type: "NOTIFY_BOOKING_CONFIRMATION", bookingId: b.id, tenantId: b.tenantId, eticketKey });
+  const { firstIssue } = await issueOfflineTicket(c.env, c.get("db"), b, { pnr, ticketNumbers, supplierRef, issuedBy: c.get("userId") ?? null, source: "staff" });
   return c.json({ ok: true, pnr, ticketNumbers, emailed: firstIssue });
 });

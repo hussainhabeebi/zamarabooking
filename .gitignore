@@ -13,3 +13,6 @@ coverage/
 prisma/generated/
 *.tsbuildinfo
 .open-next/
+
+# Akbar UAT runner output (contains passenger data)
+akbar-uat-logs/

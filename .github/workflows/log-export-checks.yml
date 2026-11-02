@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'apps/api/src/lib/certification.ts'
+      - 'apps/api/src/lib/akbar-*.ts'
+      - 'apps/api/test/akbar-*.test.ts'
+      - 'packages/suppliers/src/akbar/**'
       - 'apps/api/src/lib/log-stop-labels.ts'
       - 'apps/api/src/routes/admin/supplier-logs.ts'
       - 'apps/api/test/*stop-labels*'
@@ -27,6 +30,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Export names and unchanged certification payloads
         run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/log-stop-labels.test.ts apps/api/test/certification-pack.test.ts
+      - name: Akbar API booking and certification tests (mocked Akbar, no live calls)
+        run: node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/akbar-booking.test.ts apps/api/test/akbar-journey-booking.test.ts apps/api/test/flight-sources.test.ts
       - run: pnpm --filter @zamrabooking/api typecheck
       - run: pnpm --filter @zamrabooking/admin typecheck
       - name: Admin production build (validation only, no artifact or deployment)

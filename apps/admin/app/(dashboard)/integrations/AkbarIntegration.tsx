@@ -8,6 +8,8 @@ type Akbar = {
   enabled: boolean; environment: "UAT" | "PRODUCTION"; utilsUrl: string; flightsUrl: string;
   merchantId: string; apiKey: string; clientId: string; password: string; agentCode: string; browserKey: string; key: string;
   gatewayUrl: string; gatewayKeySet: boolean;
+  apiBooking: "OFF" | "MANUAL" | "AUTO"; productionBookingApproved: boolean;
+  contactAddress: string; contactCity: string; contactState: string; contactPin: string; contactCountryCode: string;
 };
 
 async function call(path: string, method: string, body?: unknown) {
@@ -47,11 +49,12 @@ export function AkbarIntegration() {
       <p style={hint}>
         Akbar's B2B API (by Benzy Infotech). Enter the Signature credentials Akbar sent you; the token they return lasts 48 hours and is reused
         for every call. Akbar only answers calls from a <b style={{ color: "#cbd5e1" }}>whitelisted IP</b>. The price shown is Akbar's net fare;
-        your markup is added on top. One-way fares only. After payment, book the same flight on the Akbar portal and enter the PNR on the
-        booking. Run the test search before switching it on.
+        your markup is added on top. With API booking off, staff book the same flight on the Akbar portal after payment and enter the PNR
+        on the booking. With API booking on, the live fare is confirmed before payment and the booking is made through Akbar's API.
+        Run the test search before switching it on.
       </p>
       <form onSubmit={(e) => { e.preventDefault(); run("akbar", async () => {
-        const { gatewayKeySet: _k, ...fields } = akbar;
+        const { gatewayKeySet: _k, productionBookingApproved: _p, ...fields } = akbar;
         await call("/akbar", "PUT", { ...fields, ...akbarSecrets });
         setAkbarSecrets({ password: "", apiKey: "", key: "" }); await load(); return "Saved.";
       }); }} style={formGrid}>
@@ -79,6 +82,21 @@ export function AkbarIntegration() {
         <Field label={`Key${akbar.key ? ` (saved ${akbar.key})` : ""}`}>
           <input type="password" value={akbarSecrets.key} onChange={(e) => setAkbarSecrets((s) => ({ ...s, key: e.target.value }))} placeholder={akbar.key ? "Leave blank to keep" : "Only if Akbar sent one"} autoComplete="off" style={input} />
         </Field>
+        <Field label="API booking (CreateItinerary → StartPay)" wide>
+          <select value={akbar.apiBooking ?? "OFF"} onChange={(e) => set("akbar", { apiBooking: e.target.value as Akbar["apiBooking"] })} style={input}>
+            <option value="OFF">Off — staff ticket on Akbar's portal</option>
+            <option value="MANUAL">Manual — "Book on Akbar API" button on paid bookings</option>
+            <option value="AUTO">Automatic — book right after payment</option>
+          </select>
+          {akbar.apiBooking !== "OFF" && akbar.environment === "PRODUCTION" && !akbar.productionBookingApproved && (
+            <span style={{ color: "#fca5a5", fontWeight: 500 }}>Live API booking stays blocked until the Worker variable AKBAR_API_BOOKING_PRODUCTION is set to "approved" after UAT certification.</span>
+          )}
+        </Field>
+        <Field label="Contact address (CreateItinerary)" wide><input value={akbar.contactAddress ?? ""} onChange={(e) => set("akbar", { contactAddress: e.target.value })} placeholder="Agency address sent to Akbar" style={input} /></Field>
+        <Field label="City"><input value={akbar.contactCity ?? ""} onChange={(e) => set("akbar", { contactCity: e.target.value })} style={input} /></Field>
+        <Field label="State"><input value={akbar.contactState ?? ""} onChange={(e) => set("akbar", { contactState: e.target.value })} style={input} /></Field>
+        <Field label="PIN"><input value={akbar.contactPin ?? ""} onChange={(e) => set("akbar", { contactPin: e.target.value })} style={input} /></Field>
+        <Field label="Country code"><input value={akbar.contactCountryCode ?? "IN"} onChange={(e) => set("akbar", { contactCountryCode: e.target.value.toUpperCase() })} maxLength={2} style={input} /></Field>
         <Actions busy={busy === "akbar"} msg={msg.akbar}>
           <button type="button" disabled={!!busy || !akbar.gatewayUrl} onClick={() => run("akbarToken", async () => {
             const r = await call("/akbar/egress-ip", "POST", { gatewayUrl: akbar.gatewayUrl });
