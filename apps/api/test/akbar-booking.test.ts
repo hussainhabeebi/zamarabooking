@@ -391,3 +391,61 @@ test("a website booking logs every documented Akbar step, in order, with TUIs an
   // The Signature token never reaches the logs.
   assert.ok(!JSON.stringify(recorded).includes("jwt2"));
 });
+
+// ── Shapes from the UAT certification ZIPs (2 Nov 2026) ──────────────────────
+
+// RetrieveBooking: TicketInfo[] per segment, linked to Pax[] by PaxID; TicketNo "" until issued.
+const uatRetrieve = (tickets: string[], extra: Record<string, unknown> = {}) => ({
+  Code: "200", Msg: ["Success"], TransactionID: 230003316, Status: "TO0", BookingFailureReason: "", Reason: "",
+  Pax: tickets.map((_, i) => ({ ID: 97700 + i, PaxID: i + 1 })),
+  Trips: [{ Journey: [{ Status: "TO0", Segments: [{ Flight: { APNR: "88SHBT", CRSPNR: "88SHBT", AirlinePNR: "88SHBT",
+    TicketInfo: tickets.map((t, i) => ({ PaxID: 97700 + i, TicketNo: t, Status: "TO0" })) } }] }] }],
+  ...extra,
+});
+
+test("GetTravelCheckList 'invalid Pricing TUI' is reported, not read as 'no documents required'", async () => {
+  const { client } = mockAkbar();
+  client.getTravelCheckList = async () => ({ Code: "200", Msg: ["Success"], TravellerCheckList: "invalid Pricing TUI", SSRCheckList: { Trips: [] } });
+  const { deps, logs } = engine(client);
+  const pre = await akbarPrepaymentCheck(deps, { legs: [leg], pax, departureDates: ["2026-12-01"] });
+  assert.equal(pre.legs[0].requirements, undefined);
+  assert.ok(logs.some((m) => /GetTravelCheckList returned no checklist \(Akbar: "invalid Pricing TUI"\)/.test(m)));
+});
+
+test("a Failed status gives Akbar's real reason, never the status call's 'Success'", async () => {
+  const startPay6033 = () => json({ Code: "6033", Msg: ["BOOKING  INPROGRESS !"], TransactionID: 230003316 });
+  const { client } = mockAkbar({ status: ["Failed"], startPay: startPay6033, retrieve: uatRetrieve(["", ""], { BookingFailureReason: "Fare sold out" }) });
+  const { deps } = engine(client);
+  const state = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  const l = state.legs[0];
+  assert.equal(l.state, "FAILED");
+  assert.deepEqual(l.startPay, { code: "6033", message: "BOOKING  INPROGRESS !" });
+  assert.equal(l.failureReason, "Fare sold out");
+  assert.equal(l.message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" (RetrieveBooking: Fare sold out; StartPay Code 6033 "BOOKING  INPROGRESS !").`);
+  assert.ok(!/: Success/.test(l.message!));
+  // No reason anywhere: said plainly.
+  const { client: c2 } = mockAkbar({ status: ["Failed"], retrieve: uatRetrieve([]) });
+  const s2 = await runAkbarBooking(engine(c2).deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  assert.equal(s2.legs[0].message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" with no reason given.`);
+});
+
+test("refresh reads ticket numbers for a booked leg that had TicketNo '' and never downgrades it", async () => {
+  const booked = { leg: 0, state: "SUCCESS" as const, transactionId: 230003316, itineraryTui: "it-tui", paymentSentAt: "2026-11-02T12:36:15Z", status: "Success" as const, pnrs: ["88SHBT"] };
+  // Tickets issued since: added.
+  const { calls, client } = mockAkbar({ retrieve: uatRetrieve(["098-3978969181", "098-3978969182"]) });
+  const done = await refreshAkbarBooking(engine(client).deps, { legs: [booked], startedAt: "", runs: 1 }, 1);
+  assert.deepEqual(paths(calls), ["GetItineraryStatus", "RetrieveBooking"]);
+  assert.deepEqual(done.legs[0].tickets, ["098-3978969181", "098-3978969182"]);
+  assert.equal(done.legs[0].state, "SUCCESS");
+  assert.equal(done.outcome, "TICKETED");
+  // Still TicketNo "" and the status call failing: the leg stays booked, nothing invented.
+  const { client: c2 } = mockAkbar({ retrieve: uatRetrieve(["", ""]) });
+  c2.getItineraryStatus = async () => { throw new AkbarError("Akbar /Payment/GetItineraryStatus timed out after 15s", 504); };
+  const still = await refreshAkbarBooking(engine(c2).deps, { legs: [booked], startedAt: "", runs: 1 }, 1, 1);
+  assert.equal(still.legs[0].state, "SUCCESS");
+  assert.equal(still.legs[0].tickets, undefined);
+  // A leg that already has its tickets is not called again.
+  const { calls: c3calls, client: c3 } = mockAkbar();
+  await refreshAkbarBooking(engine(c3).deps, { legs: [{ ...booked, tickets: ["098-1"] }], startedAt: "", runs: 1 }, 1);
+  assert.deepEqual(c3calls, []);
+});

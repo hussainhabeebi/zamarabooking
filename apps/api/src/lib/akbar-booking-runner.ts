@@ -121,7 +121,21 @@ export async function refreshAkbar(env: Env, db: Db, bookingId: string, userId: 
   try { state = await refreshAkbarBooking(d, current, legCount); }
   finally { await persistExchanges(env, db, b.tenantId, collector.exchanges, { bookingId: b.id }); }
   if (b.status === "CONFIRMED") await applyOutcome(env, db, b.id, state, legCount, userId);
+  else if (b.status === "TICKETED" && state.outcome === "TICKETED") await updateIssuedTickets(env, db, b.id, state, legCount, userId);
   return { ok: state.outcome === "TICKETED", outcome: state.outcome, state };
+}
+
+// Ticket numbers Akbar issued after the booking was marked TICKETED (e.g. a return leg whose
+// RetrieveBooking had TicketNo ""): store them and rebuild the e-ticket. No second email.
+async function updateIssuedTickets(env: Env, db: Db, bookingId: string, state: AkbarBookingState, legCount: number, userId: string | null) {
+  const b = await loadBooking(db, bookingId);
+  if (!b || b.status !== "TICKETED" || !b.pnr) return;
+  const tickets = state.legs.slice(0, legCount).flatMap((l) => l.tickets ?? []);
+  if (!tickets.length || tickets.join(",") === (b.ticketNumbers ?? []).join(",")) return;
+  await issueOfflineTicket(env, db, b, {
+    pnr: b.pnr, ticketNumbers: tickets, supplierRef: b.supplierBookingRef ?? undefined,
+    issuedBy: userId, source: "akbar-api", flightData: (b.flightData ?? {}) as Record<string, any>,
+  });
 }
 
 // Saves what the run means for the booking. Ticketed only with Akbar's own PNRs.
