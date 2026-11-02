@@ -45,7 +45,7 @@ test("CreateItinerary and StartPay bodies have every field of the Postman sample
 });
 
 // A mock Akbar that follows the collection's TUI hand-off and checks each request.
-function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknown; startPay?: () => Response; createCode?: string } = {}) {
+function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknown; startPay?: () => Response; createCode?: string; statusExtra?: Record<string, unknown> } = {}) {
   const calls: { path: string; body: any }[] = [];
   const status = [...(opts.status ?? ["Success"])];
   const fetchImpl = (async (url: string, init: RequestInit) => {
@@ -71,7 +71,7 @@ function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknow
         return opts.startPay ? opts.startPay() : json({ Code: "200", TransactionID: 230003316 });
       case "/Payment/GetItineraryStatus":
         assert.deepEqual(body, { TUI: "it-tui", TransactionID: 230003316 });
-        return json({ CurrentStatus: status.length > 1 ? status.shift() : status[0], Code: "200" });
+        return json({ ...opts.statusExtra, CurrentStatus: status.length > 1 ? status.shift() : status[0], Code: "200" });
       case "/Utils/RetrieveBooking":
         assert.equal(body.ReferenceNumber, "230003316");
         return json(opts.retrieve ?? { Code: "200", Trips: [{ Journey: [{ Segments: [{ CRSPNR: "X7KQ2P", Pax: [{ ID: 1, Ticket: "" }] }] }] }] });
@@ -390,4 +390,24 @@ test("a website booking logs every documented Akbar step, in order, with TUIs an
   assert.deepEqual(state.legs[0].pnrs, ["X7KQ2P"]);
   // The Signature token never reaches the logs.
   assert.ok(!JSON.stringify(recorded).includes("jwt2"));
+});
+
+
+test("supplier Failed with API Msg Success and payment Success is not described as a successful booking", async () => {
+  // Sanitized shape from the supplied DEL-BOM UAT response; no real identifiers or PII.
+  const { client } = mockAkbar({ status: ["Failed"], statusExtra: { Msg: ["Success"], PaymentStatus: "Success" },
+    retrieve: { Code: "200", Msg: ["Success"], Status: "BO1", PaymentStatus: "I8", BookingFailureReason: "", Reason: "", Trips: [] } });
+  const { deps } = engine(client);
+  const state = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  assert.equal(state.outcome, "FAILED");
+  assert.equal(state.legs[0].message, "Akbar reports the booking failed (RetrieveBooking status BO1). No detailed failure reason was returned.");
+  assert.equal(state.legs[0].pnrs, undefined);
+});
+
+test("actual RetrieveBooking failure reason takes precedence over generic API Success", async () => {
+  const { client } = mockAkbar({ status: ["Failed"], statusExtra: { Msg: ["Success"] },
+    retrieve: { Code: "200", Status: "BO1", BookingFailureReason: "Synthetic supplier rejection for regression test", Trips: [] } });
+  const { deps } = engine(client);
+  const state = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  assert.equal(state.legs[0].message, "Akbar reports the booking failed: Synthetic supplier rejection for regression test");
 });
