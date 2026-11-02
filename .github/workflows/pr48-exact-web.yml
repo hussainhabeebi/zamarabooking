@@ -1,0 +1,84 @@
+name: PR48 exact-head website validation (no deployment)
+on:
+  push:
+    branches: ['ci/pr48-exact-web-d3d30ae']
+    paths: ['.github/workflows/pr48-exact-web.yml']
+permissions:
+  contents: read
+concurrency:
+  group: pr48-exact-web-validation
+  cancel-in-progress: false
+
+jobs:
+  validate-web:
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: baggage_test
+          POSTGRES_USER: baggage_test
+          POSTGRES_PASSWORD: isolated-fixture-only
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U baggage_test -d baggage_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: d3d30aea88d01ee3696a4ff836163ec281316b61
+      - name: Verify exact approved source commit
+        run: test "$(git rev-parse HEAD)" = d3d30aea88d01ee3696a4ff836163ec281316b61
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Supplier baggage fixture regressions (no live calls)
+        run: node --test packages/suppliers/test/*.test.cjs
+      - name: Baggage quote/apply security tests
+        run: |
+          node node_modules/typescript/bin/tsc --noEmit -p apps/api/tsconfig.json
+          node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test apps/api/test/baggage-quote.test.ts
+      - name: Passenger date validation regression tests
+        run: node --test apps/web/test/*.test.cjs
+      - name: Install isolated browser test tools
+        run: npm install --prefix "$RUNNER_TEMP/passenger-date-qa" --no-save --ignore-scripts @playwright/test@1.64.1 esbuild@0.25.12 pg@8.16.3
+      - name: Atomic booking price concurrency fixtures
+        run: node apps/api/test/booking-price-lock-postgres.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Install test browser
+        run: node "$RUNNER_TEMP/passenger-date-qa/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Native passenger date input browser regression
+        run: node apps/web/test/passenger-dates-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Checkout baggage browser regression
+        run: node apps/web/test/checkout-baggage-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Journey search filter browser regression
+        run: node apps/web/test/journey-filters-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Akbar round-trip / multi-city journey browser checks
+        run: node apps/web/test/journey-akbar-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Akbar checkout baggage browser checks
+        run: node apps/web/test/akbar-baggage-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - name: Journey stops filter browser checks
+        run: node apps/web/test/journey-stops-browser.cjs "$RUNNER_TEMP/passenger-date-qa"
+      - run: pnpm --filter @zamrabooking/web typecheck
+      - name: Build public website only
+        working-directory: apps/web
+        run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+        env:
+          NEXT_PUBLIC_API_URL: https://api.zamrabooking.com
+          NEXT_PUBLIC_PORTAL_URL: https://portal.zamrabooking.com
+      - name: Verify the single permitted deployment target
+        working-directory: apps/web
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
+          if (config.name !== 'zamra-web' || config.main !== '.open-next/worker.js') {
+            throw new Error('Unexpected public website Worker target');
+          }
+          const bindings = ['d1_databases', 'kv_namespaces', 'r2_buckets', 'queues', 'services', 'hyperdrive', 'durable_objects', 'migrations', 'routes', 'env'];
+          if (bindings.some(key => key in config)) {
+            throw new Error('Additional bindings/routes/environments require release review');
+          }
+          JS
