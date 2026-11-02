@@ -87,3 +87,32 @@ call is older than the booking, the tenant's latest Signature (within 48 h) is i
 5. **Deposit / permissions**: StartPay uses `DepositPayment: true`; confirm the UAT account has deposit
    balance and CreateItinerary / StartPay permission, and that the gateway's IP is whitelisted for them.
 6. **GetSPricer polling** and **GetItineraryStatus** timing: confirm when to poll and the final status values.
+
+## Release (API + Admin only) and rollback
+
+Workflow: **Actions → "Release - Akbar API booking (API + Admin only, no migrations)"**
+(`.github/workflows/release-akbar-booking.yml`, manual only, runs from `main`).
+
+Baselines checked on 2026-11-02:
+
+| Worker | Live build | Evidence |
+|---|---|---|
+| `zamra-api` | `main` @ `be140d6` (= PR #45 base) | latest deployment message "Akbar journey search be140d6… on 7850c9f…"; 7850c9f→be140d6 only changed API release files plus web/scripts/workflows |
+| `zamra-admin` | `1402e86` | last full-platform deploy (run 17, 2026-10-30); `main` has one later Admin change (`RawApiCalls.tsx`) that this release does **not** ship |
+
+No automatic deploy on merge: `deploy-web.yml` deploys only on `apps/web/**` / `packages/ui/**`
+pushes (PR #45 touches neither); every other deploy workflow is manual; Cloudflare's only
+Git-connected build is `zamra-api-staging` (a separate Worker, not production).
+
+What it does: verifies the PR diff is limited to the allowlisted Akbar files (fails on anything
+under `packages/db`, `apps/web`, `apps/portal`, or PhonePe / Nomod / wallet / checkout), builds
+`zamra-api` from the live tree + the 14 Akbar API files, runs typecheck and the Akbar, PhonePe,
+wallet, baggage and certification tests, refuses to deploy if the live `zamra-api` is no longer the
+expected baseline, prints the rollback version, deploys; then builds `zamra-admin` from its live
+tree + the 3 Admin files, prints its rollback version, deploys. No migrations.
+
+Akbar API booking ships **Off**; nothing changes for customers until Admin sets it to Manual / Automatic.
+
+**Rollback:** Admin → Integrations → Akbar → API booking **Off** stops the feature immediately. To restore
+the previous code, run the same workflow with `mode = rollback`, the version IDs printed as
+"ROLLBACK TARGET" in the deploy run, and authorization `ROLLBACK_AKBAR_BOOKING`.
