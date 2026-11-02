@@ -117,13 +117,15 @@ export class AkbarAdapter implements SupplierAdapter {
   readonly name = "AKBAR" as const;
   private client: AkbarClient;
   private getToken: (fresh?: boolean) => Promise<AkbarToken>;
-  private background?: (work: Promise<unknown>) => void;
+  private mode: "SY" | "AS" = "SY";
 
   constructor(credentials: SupplierCredentials) {
     this.client = new AkbarClient(credentials as unknown as AkbarCredentials);
-    // API booking on (certification): GetExpSearch follows every ExpressSearch, in the background.
-    const { apiBooking, background } = credentials as { apiBooking?: unknown; background?: (work: Promise<unknown>) => void };
-    if ((apiBooking === "MANUAL" || apiBooking === "AUTO") && typeof background === "function") this.background = background;
+    // API booking on (certification): Akbar's documented Mode AS → GetExpSearch sequence. A GetExpSearch
+    // after a Mode SY ExpressSearch never answered on UAT (HTTP 504, then timeouts at 16.6 s and 28 s).
+    // API booking off: Mode SY, unchanged.
+    const { apiBooking } = credentials as { apiBooking?: unknown };
+    if (apiBooking === "MANUAL" || apiBooking === "AUTO") this.mode = "AS";
     const provided = credentials.getToken as ((fresh?: boolean) => Promise<AkbarToken>) | undefined;
     this.getToken = provided ?? (() => this.client.signature());
   }
@@ -147,7 +149,7 @@ export class AkbarAdapter implements SupplierAdapter {
   private async searchLeg(params: SearchParams): Promise<NormalizedFare[]> {
     let token = await this.getToken();
     // Zamra's search waits 28 s for every source, so stop collecting Akbar results before then.
-    const opts = { deadlineMs: 22_000, background: this.background };
+    const opts = { deadlineMs: 22_000, mode: this.mode };
     const result = await this.client.search(params, token, opts).catch(async (err) => {
       // A cached token Akbar no longer accepts: get a new one and retry once.
       if (!(err instanceof AkbarError && err.statusCode === 401)) throw err;

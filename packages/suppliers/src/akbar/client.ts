@@ -394,7 +394,8 @@ export function isSearchComplete(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
   const v = d.Completed ?? d.Complete;
-  return v === true || v === "true" || v === "True";
+  // true / "true", or "Completed" (the Postman collection's GetExpSearch test expects that string).
+  return v === true || ["true", "completed"].includes(String(v ?? "").trim().toLowerCase());
 }
 
 export const searchTui = (data: unknown) => pickString(data, ["TUI", "Tui"]);
@@ -409,11 +410,9 @@ export interface AkbarSearchOptions {
   pollIntervalMs?: number;   // between GetExpSearch calls
   deadlineMs?:     number;   // the docs allow 50 s after ExpressSearch
   sleep?:          (ms: number) => Promise<void>;
-  // Certification (Postman sequence ExpressSearch → GetExpSearch): when ExpressSearch already holds
-  // every fare, one GetExpSearch is still sent, in the background, so the search returns without
-  // waiting for it. The caller keeps the work alive (Workers waitUntil) and stores its log.
-  background?: (work: Promise<unknown>) => void;
-  backgroundTimeoutMs?: number;   // default 28 s: within Workers' 30 s after-response limit
+  // "SY" (default): ExpressSearch waits for every airline; GetExpSearch only while it has no flights.
+  // "AS" (Akbar API booking / certification): the Postman collection's ExpressSearch → GetExpSearch.
+  mode?: "SY" | "AS";
 }
 
 export class AkbarClient {
@@ -478,15 +477,16 @@ export class AkbarClient {
     return { token, clientId: pickString(data, ["ClientID", "ClientId", "clientId"]) || c.clientId };
   }
 
-  async expressSearch(params: SearchParams, auth: AkbarToken, timeoutMs?: number): Promise<unknown> {
+  async expressSearch(params: SearchParams, auth: AkbarToken, timeoutMs?: number, mode: "SY" | "AS" = "SY"): Promise<unknown> {
     if (!this.creds.flightsUrl && !this.creds.gatewayUrl) throw new AkbarError("Akbar: Flights URL not configured");
     const endpoint = "/flights/ExpressSearch";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId), auth.token, timeoutMs);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId, mode), auth.token, timeoutMs);
   }
 
-  async getExpSearch(tui: string, auth: AkbarToken, timeoutMs?: number): Promise<unknown> {
+  // clientId: the Postman collection's GetExpSearch sample sends ClientID "" (used in Mode AS).
+  async getExpSearch(tui: string, auth: AkbarToken, timeoutMs?: number, clientId: string = auth.clientId): Promise<unknown> {
     const endpoint = "/flights/GetExpSearch";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token, timeoutMs);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { ClientID: clientId, TUI: tui }, auth.token, timeoutMs);
   }
 
   async smartPricer(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken, mode: "SY" | "AS" | "SS" = "SY", options = "A"): Promise<unknown> {
@@ -571,27 +571,49 @@ export class AkbarClient {
   // the flights already received. `completed` is false when Akbar was still collecting fares.
   async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number }> {
     const { pollIntervalMs = 2000, deadlineMs = 45_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
+    const mode = opts.mode ?? "SY";
     const started = Date.now();
     const left = () => deadlineMs - (Date.now() - started);
-    const first = await this.expressSearch(params, auth, deadlineMs);
+    const first = await this.expressSearch(params, auth, deadlineMs, mode);
     let data = first;
     const tui = searchTui(data);
     let polls = 0;
+    const failed = (err: AkbarError) => new AkbarError(err.message, err.statusCode, err.endpoint,
+      // Show what ExpressSearch said too: that is what tells us how Akbar answered.
+      `ExpressSearch answered: ${JSON.stringify(first).slice(0, 1500)}\n\n${err.endpoint ?? "GetExpSearch"} answered: ${err.responseSnippet ?? "(nothing)"}`);
+
+    if (mode === "AS") {
+      // Postman sequence: ExpressSearch (Mode AS) returns the TUI, GetExpSearch with that TUI
+      // (ClientID "") returns the fares; called at least once, then until "Completed".
+      let best: unknown = hasJourneys(first) ? first : null;
+      while (tui && (polls === 0 || !isSearchComplete(data)) && left() > 1000) {
+        if (polls > 0) {
+          if (left() <= pollIntervalMs + 1000) break;
+          await sleep(pollIntervalMs);
+        }
+        try {
+          data = await this.getExpSearch(tui, auth, left(), "");
+        } catch (err) {
+          if (!(err instanceof AkbarError)) throw err;
+          if (best) break;            // keep the fares already received
+          throw failed(err);
+        }
+        polls++;
+        if (hasJourneys(data)) best = data;
+      }
+      const result = hasJourneys(data) ? data : best ?? data;
+      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls };
+    }
+
     while (!isSearchComplete(data) && !hasJourneys(data) && tui && left() > pollIntervalMs + 1000) {
       await sleep(pollIntervalMs);
       try {
         data = await this.getExpSearch(tui, auth, left());
       } catch (err) {
         if (!(err instanceof AkbarError)) throw err;
-        // Show what ExpressSearch said too: that is what tells us how Akbar answered.
-        throw new AkbarError(err.message, err.statusCode, err.endpoint,
-          `ExpressSearch answered: ${JSON.stringify(first).slice(0, 1500)}\n\n${err.endpoint ?? "GetExpSearch"} answered: ${err.responseSnippet ?? "(nothing)"}`);
+        throw failed(err);
       }
       polls++;
-    }
-    // Certification: GetExpSearch in the background (never delays or changes these results).
-    if (opts.background && polls === 0 && tui) {
-      opts.background(this.getExpSearch(tui, auth, opts.backgroundTimeoutMs ?? 28_000).catch(() => undefined));
     }
     return { data, completed: isSearchComplete(data) || hasJourneys(data), polls };
   }
