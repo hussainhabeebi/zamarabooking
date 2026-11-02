@@ -23,6 +23,7 @@ import { rewardReferral } from "./lib/referral.js";
 import { agentWallet, creditAgentWallet, settleAgentBooking } from "./lib/agent-program.js";
 import { collectExchanges, persistExchanges } from "./lib/api-exchanges.js";
 import { renderETicketHtml, storeETicket } from "./lib/eticket.js";
+import { bytesToBase64, eticketDocument, eticketFileName, renderETicketPdf } from "./lib/eticket-pdf.js";
 import { renderItineraryHtml } from "./lib/itinerary.js";
 import { parseBookingDetails } from "./lib/trips.js";
 import { sendWhatsApp, buildBookingConfirmationMessage } from "./lib/notify.js";
@@ -1015,11 +1016,14 @@ async function handleNotifyBookingConfirmation(
   const fd = booking.flightData as Record<string, unknown>;
   const passengerNames = paxRows.map((p) => `${p.firstName} ${p.lastName}`);
 
-  // Retrieve e-ticket HTML from R2
-  let eticketHtml = "";
-  const r2obj = await env.DOCUMENTS_R2.get(data.eticketKey);
-  if (r2obj) {
-    eticketHtml = await r2obj.text();
+  // E-ticket PDF from the confirmed booking itself (status, airline PNR, issued ticket numbers,
+  // travellers, flights). No PDF — and no attachment — without a confirmed booking and a PNR.
+  let eticketPdf: Uint8Array | null = null;
+  try {
+    const doc = eticketDocument(booking, paxRows, tenantRow);
+    if (doc) eticketPdf = renderETicketPdf(doc);
+  } catch (err) {
+    console.error(`[eticket-pdf] booking ${booking.id}:`, err);
   }
 
   // Send email confirmation (once per booking — Resend Idempotency-Key)
@@ -1030,7 +1034,9 @@ async function handleNotifyBookingConfirmation(
       subject: `Booking confirmed — PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
       html: emailLayout({
         title: "Your booking is confirmed ✈️", preheader: `PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
-        body: `<p>Thank you for booking with ${escapeHtml(tenantRow?.name ?? "ZamraBooking")}. Your e-ticket is attached — keep it handy at the airport with your passport / ID.</p>`,
+        body: `<p>Thank you for booking with ${escapeHtml(tenantRow?.name ?? "ZamraBooking")}. ${eticketPdf
+          ? "Your e-ticket is attached as a PDF — keep it handy at the airport with your passport / ID."
+          : "Your e-ticket will be available under My Trips as soon as the airline issues it."}</p>`,
         rows: [
           ["PNR (airline reference)", booking.pnr ?? "—"],
           ["Route", `${booking.origin} → ${booking.destination}`],
@@ -1041,7 +1047,7 @@ async function handleNotifyBookingConfirmation(
         cta: { label: "Manage my booking", href: `${WEB_URL}/trips` },
         footerNote: "Check in online 48–24 hours before departure. Arrive at the airport 3 hours before international flights.",
       }),
-      ...(eticketHtml ? { attachments: [{ filename: `e-ticket-${booking.pnr ?? booking.id.slice(0, 8)}.html`, content: base64(eticketHtml) }] } : {}),
+      ...(eticketPdf ? { attachments: [{ filename: eticketFileName(booking.pnr ?? ""), content: bytesToBase64(eticketPdf) }] } : {}),
     });
   }
 
@@ -1070,13 +1076,6 @@ async function handleNotifyBookingConfirmation(
       console.error("WhatsApp send failed (non-fatal):", err);
     }
   }
-}
-
-function base64(text: string) {
-  const bytes = new TextEncoder().encode(text);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
 }
 
 function formatDeparture(iso: string) {
