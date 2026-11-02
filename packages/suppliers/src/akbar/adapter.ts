@@ -117,12 +117,13 @@ export class AkbarAdapter implements SupplierAdapter {
   readonly name = "AKBAR" as const;
   private client: AkbarClient;
   private getToken: (fresh?: boolean) => Promise<AkbarToken>;
-  private alwaysGetExpSearch: boolean;
+  private background?: (work: Promise<unknown>) => void;
 
   constructor(credentials: SupplierCredentials) {
     this.client = new AkbarClient(credentials as unknown as AkbarCredentials);
-    const mode = (credentials as { apiBooking?: unknown }).apiBooking;
-    this.alwaysGetExpSearch = mode === "MANUAL" || mode === "AUTO";
+    // API booking on (certification): GetExpSearch follows every ExpressSearch, in the background.
+    const { apiBooking, background } = credentials as { apiBooking?: unknown; background?: (work: Promise<unknown>) => void };
+    if ((apiBooking === "MANUAL" || apiBooking === "AUTO") && typeof background === "function") this.background = background;
     const provided = credentials.getToken as ((fresh?: boolean) => Promise<AkbarToken>) | undefined;
     this.getToken = provided ?? (() => this.client.signature());
   }
@@ -146,8 +147,7 @@ export class AkbarAdapter implements SupplierAdapter {
   private async searchLeg(params: SearchParams): Promise<NormalizedFare[]> {
     let token = await this.getToken();
     // Zamra's search waits 28 s for every source, so stop collecting Akbar results before then.
-    // With API booking on (certification), GetExpSearch always follows ExpressSearch.
-    const opts = { deadlineMs: 22_000, alwaysGetExpSearch: this.alwaysGetExpSearch };
+    const opts = { deadlineMs: 22_000, background: this.background };
     const result = await this.client.search(params, token, opts).catch(async (err) => {
       // A cached token Akbar no longer accepts: get a new one and retry once.
       if (!(err instanceof AkbarError && err.statusCode === 401)) throw err;
