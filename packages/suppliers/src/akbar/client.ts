@@ -15,6 +15,8 @@ import type { SearchParams } from "../base.js";
 //   {flightsUrl}/flights/FareRule      → fare rules for the chosen fare (same Trips as SmartPricer)
 //   {flightsUrl}/flights/ssr           → seats / meals / baggage on sale (Index "" after SmartPricer)
 //   {flightsUrl}/flights/SeatLayout    → seat map for sale; only after SmartPricer + GetSPricer
+//   {flightsUrl}/flights/CreateItinerary → { TUI (GetSPricer), ContactInfo, Travellers, NetAmount, … }:
+//                                        creates the itinerary; returns TransactionID + TUI
 //   {flightsUrl}/Payment/StartPay      → pays from the Akbar deposit account and books
 //   {flightsUrl}/Payment/GetItineraryStatus → { TUI, TransactionID }: call after StartPay until
 //                                        CurrentStatus is "Success" or "Failed", then RetrieveBooking
@@ -132,12 +134,13 @@ export interface AkbarPricerTrip {
 }
 
 // SmartPricer request. Mode SY prices live; AS / SS need GetSPricer for the fare details.
-export function smartPricerBody(trips: AkbarPricerTrip[], clientId: string, tripType: "ON" | "RT", mode: "SY" | "AS" | "SS" = "SY") {
+// The booking flow follows the Postman collection: Mode "AS", Options "", then GetSPricer.
+export function smartPricerBody(trips: AkbarPricerTrip[], clientId: string, tripType: "ON" | "RT", mode: "SY" | "AS" | "SS" = "SY", options = "A") {
   return {
     ClientID: clientId,
     Trips:    pricerTrips(trips),
     Mode:     mode,
-    Options:  "A",
+    Options:  options,
     Source:   "SF",
     TripType: tripType,
   };
@@ -171,8 +174,9 @@ export interface AkbarStartPay {
   tui:           string;
 }
 
-// StartPay request (deposit account). PaymentAmount 0, Hold false, PaymentType / BankCode "".
-// The docs list 36 fields; these are the first 10, the ones a deposit payment needs.
+// StartPay request (deposit account), every field of the Postman collection's sample:
+// PaymentAmount 0, Hold false, DepositPayment true, OnlinePayment false, ServiceType "ITI",
+// card / UPI fields blank (Zamra never sends card data to Akbar).
 export function startPayBody(p: AkbarStartPay, clientId: string, browserKey: string) {
   return {
     TransactionID: p.transactionId,
@@ -185,7 +189,164 @@ export function startPayBody(p: AkbarStartPay, clientId: string, browserKey: str
     Promo:         null,
     PaymentType:   "",
     BankCode:      "",
+    GateWayCode:   "",
+    MerchantID:    "",
+    PaymentCharge: 0,
+    ReleaseDate:   "",
+    OnlinePayment: false,
+    DepositPayment: true,
+    Card: {
+      Number: "", Expiry: "", CVV: "", CHName: "", Address: "", City: "", State: "", Country: "", PIN: "",
+      International: false, SaveCard: false, FName: "", LName: "", EMIMonths: "0",
+    },
+    VPA:            "",
+    CardAlias:      "",
+    QuickPay:       null,
+    RMSSignature:   "",
+    TargetCurrency: "",
+    TargetAmount:   0,
+    ServiceType:    "ITI",
   };
+}
+
+// ── CreateItinerary (Postman "5.CreateItinerary") ────────────────────────────
+
+export interface AkbarContactInfo {
+  title?:  string;
+  fName:   string;
+  lName:   string;
+  mobile:  string;
+  phone?:  string;
+  email:   string;
+  address: string;
+  countryCode: string;   // "IN"
+  state:   string;
+  city:    string;
+  pin:     string;
+  gst?: { companyName: string; tin: string; mobile?: string; email?: string };
+}
+
+export interface AkbarTraveller {
+  id:          number;              // 1, 2, … in passenger order
+  title:       string;              // Mr / Mrs / Ms / Mstr / Miss
+  fName:       string;
+  lName:       string;
+  age:         number | null;
+  dob:         string;              // YYYY-MM-DD or ""
+  gender:      "M" | "F";
+  ptc:         "ADT" | "CHD" | "INF";
+  nationality: string;              // ISO-2 or ""
+  passportNo:  string;
+  pli:         string;              // passport place of issue
+  pdoe:        string;              // passport date of expiry, YYYY-MM-DD or ""
+  visaType:    string;
+}
+
+export interface AkbarCreateItinerary {
+  tui:       string;                // TUI from GetSPricer
+  netAmount: number;                // NetAmount from GetSPricer
+  contact:   AkbarContactInfo;
+  travellers: AkbarTraveller[];
+  ssr?:      unknown[];             // empty until Akbar documents the SSR item format
+  ssrAmount?: number;
+}
+
+export function createItineraryBody(p: AkbarCreateItinerary, clientId: string) {
+  const c = p.contact;
+  return {
+    TUI: p.tui,
+    ContactInfo: {
+      Title: c.title ?? "", FName: c.fName, LName: c.lName, Mobile: c.mobile, Phone: c.phone ?? "", Email: c.email,
+      Address: c.address, CountryCode: c.countryCode, State: c.state, City: c.city, PIN: c.pin,
+      GSTCompanyName: c.gst?.companyName ?? "", GSTTIN: c.gst?.tin ?? "", GSTMobile: c.gst?.mobile ?? "", GSTEmail: c.gst?.email ?? "",
+      UpdateProfile: false, IsGuest: false,
+    },
+    Travellers: p.travellers.map((t) => ({
+      ID: t.id, Title: t.title, FName: t.fName, LName: t.lName, Age: t.age, DOB: t.dob, Gender: t.gender, PTC: t.ptc,
+      Nationality: t.nationality, PassportNo: t.passportNo, PLI: t.pli, PDOE: t.pdoe, VisaType: t.visaType,
+    })),
+    PLP: [],
+    SSR: p.ssr ?? [],
+    CrossSell: [],
+    NetAmount: p.netAmount,
+    SSRAmount: p.ssrAmount ?? 0,
+    ClientID: clientId,
+    DeviceID: "",
+    AppVersion: "",
+    CrossSellAmount: 0,
+  };
+}
+
+// ── Response helpers ─────────────────────────────────────────────────────────
+
+// Akbar answers HTTP 200 with its own "Code" ("200" on success) and "Msg" (string[]).
+export function akbarCode(data: unknown): string {
+  const v = data && typeof data === "object" ? (data as Record<string, unknown>).Code : undefined;
+  return v == null ? "" : String(v).trim();
+}
+export const akbarOk = (data: unknown) => akbarCode(data) === "200";
+export function akbarMessages(data: unknown): string {
+  const m = data && typeof data === "object" ? (data as Record<string, unknown>).Msg : undefined;
+  return Array.isArray(m) ? m.filter((x) => x != null && x !== "").map(String).join("; ") : typeof m === "string" ? m : "";
+}
+
+const numOrNull = (v: unknown) => {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+  return v != null && v !== "" && Number.isFinite(n) ? n : null;
+};
+export const akbarNetAmount = (data: unknown) =>
+  data && typeof data === "object" ? numOrNull((data as Record<string, unknown>).NetAmount) : null;
+export function akbarTransactionId(data: unknown): number | null {
+  const n = data && typeof data === "object" ? numOrNull((data as Record<string, unknown>).TransactionID) : null;
+  return n && n > 0 ? n : null;
+}
+
+// PNRs and ticket numbers as Akbar returned them (RetrieveBooking / GetItineraryStatus).
+// The Cancel sample shows the shape Trips[].Journey[].Segments[] { CRSPNR, Pax[] { ID, Ticket } };
+// any of the usual PNR / ticket keys found anywhere in the response are read, and nothing is
+// ever invented: empty values are skipped.
+const PNR_KEYS = new Set(["CRSPNR", "APNR", "AirlinePNR", "AirPNR", "PNR", "GDSPNR"]);
+const TICKET_KEYS = new Set(["Ticket", "TicketNo", "TicketNumber", "ETicketNo"]);
+export function akbarBookingRefs(data: unknown): { pnrs: string[]; tickets: string[] } {
+  const pnrs = new Set<string>();
+  const tickets = new Set<string>();
+  const walk = (v: unknown, depth: number) => {
+    if (!v || typeof v !== "object" || depth > 12) return;
+    if (Array.isArray(v)) { v.forEach((x) => walk(x, depth + 1)); return; }
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof x === "string" || typeof x === "number") {
+        const s = String(x).trim();
+        if (PNR_KEYS.has(k) && /^[A-Z0-9]{5,8}$/i.test(s)) pnrs.add(s.toUpperCase());
+        if (TICKET_KEYS.has(k) && /^[A-Z0-9-]{6,20}$/i.test(s) && /\d{6}/.test(s)) tickets.add(s);
+      } else walk(x, depth + 1);
+    }
+  };
+  walk(data, 0);
+  return { pnrs: [...pnrs], tickets: [...tickets] };
+}
+
+// GetTravelCheckList: which traveller documents the airline requires. The collection has
+// no sample response, so any key naming a passport / DOB / nationality / visa field with a
+// "required" value (true, "Y", "M", "Mandatory", "Required", 1) counts.
+export interface AkbarTravelRequirements { passport: boolean; dob: boolean; nationality: boolean; visa: boolean; raw: unknown }
+export function akbarTravelRequirements(data: unknown): AkbarTravelRequirements {
+  const out: AkbarTravelRequirements = { passport: false, dob: false, nationality: false, visa: false, raw: data };
+  const yes = (x: unknown) => x === true || x === 1 || ["true", "y", "yes", "m", "mandatory", "required", "1"].includes(String(x ?? "").trim().toLowerCase());
+  const walk = (v: unknown, depth: number) => {
+    if (!v || typeof v !== "object" || depth > 10) return;
+    if (Array.isArray(v)) { v.forEach((x) => walk(x, depth + 1)); return; }
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (x && typeof x === "object") { walk(x, depth + 1); continue; }
+      if (!yes(x)) continue;
+      const key = k.toLowerCase();
+      if (/passport|pdoe|pli/.test(key)) out.passport = true;
+      else if (/dob|dateofbirth|birth/.test(key)) out.dob = true;
+      else if (/nationality/.test(key)) out.nationality = true;
+      else if (/visa/.test(key)) out.visa = true;
+    }
+  };
+  walk(data, 0);
+  return out;
 }
 
 // RetrieveBooking by Transaction ID (ReferenceType "T"); the docs' sample sends it as a string.
@@ -323,9 +484,16 @@ export class AkbarClient {
     return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token, timeoutMs);
   }
 
-  async smartPricer(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken): Promise<unknown> {
+  async smartPricer(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken, mode: "SY" | "AS" | "SS" = "SY", options = "A"): Promise<unknown> {
     const endpoint = "/flights/SmartPricer";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, smartPricerBody(trips, auth.clientId, tripType), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, smartPricerBody(trips, auth.clientId, tripType, mode, options), auth.token);
+  }
+
+  // Creates the itinerary (no payment yet). Never retried automatically: a timeout here may
+  // still have created a TransactionID on Akbar's side.
+  async createItinerary(p: AkbarCreateItinerary, auth: AkbarToken): Promise<unknown> {
+    const endpoint = "/flights/CreateItinerary";
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, createItineraryBody(p, auth.clientId), auth.token, 60_000);
   }
 
   async flightInfo(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken): Promise<unknown> {
@@ -350,7 +518,7 @@ export class AkbarClient {
 
   async startPay(p: AkbarStartPay, auth: AkbarToken): Promise<unknown> {
     const endpoint = "/Payment/StartPay";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, startPayBody(p, auth.clientId, this.creds.browserKey), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, startPayBody(p, auth.clientId, this.creds.browserKey), auth.token, 90_000);
   }
 
   async getItineraryStatus(transactionId: number, tui: string, auth: AkbarToken): Promise<unknown> {

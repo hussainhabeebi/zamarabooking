@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { API, apiHeaders } from "../../../../lib/api";
 import { IssueTicket } from "./IssueTicket";
+import { AkbarApiBooking } from "./AkbarApiBooking";
 
 // Poomas / Akbar / manual fares: paid on Zamra, ticketed by staff (no airline API call).
 const OFFLINE = ["POOMAS", "AKBAR", "MANUAL"];
@@ -151,6 +152,7 @@ export default function BookingDetailPage() {
         <div style={errBox}><b>Airline booking failed:</b> {data.queueError.message}</div>
       )}
       {notice && <div style={okBox}>{notice}</div>}
+      {b.supplier === "AKBAR" && <AkbarApiBooking booking={b} onDone={(m) => { setNotice(m); load(); }} />}
       {offline && <IssueTicket key={`${b.status}-${b.pnr ?? ""}`} booking={b} passengers={data.passengers} onDone={(m) => { setNotice(m); load(); }} />}
 
       {tab === "overview" && (
@@ -251,14 +253,14 @@ export default function BookingDetailPage() {
             Requests include the exact URL, headers (with the API key) and body sent; responses are stored exactly as received, unmodified.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <button disabled={!!busy || !data.exchanges.length} onClick={() => download("exchanges.zip", "zip")} style={btn}>{busy === "zip" ? "Preparing…" : "Download TripJack certification logs (ZIP)"}</button>
+            <button disabled={!!busy || !data.exchanges.length} onClick={() => download("exchanges.zip", "zip")} style={btn}>{busy === "zip" ? "Preparing…" : `Download ${b.supplier === "AKBAR" ? "Akbar" : "TripJack"} certification logs (ZIP)`}</button>
             {b.supplier === "TRIPJACK" && b.supplierBookingRef && (
               <button disabled={!!busy} onClick={refreshDetails} style={btnGhost}>{busy === "refresh" ? "Fetching…" : "Fetch booking details from TripJack"}</button>
             )}
           </div>
           {Array.isArray(data.certification) && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12, fontSize: 13 }}>
-              <span style={{ color: "#94a3b8" }}>TripJack certification set:</span>
+              <span style={{ color: "#94a3b8" }}>{b.supplier === "AKBAR" ? "Akbar" : "TripJack"} certification set:</span>
               {data.certification.map((s: { service: string; logged: boolean }) => (
                 <span key={s.service} title={s.logged ? `${s.service}Request.json + ${s.service}Response.json` : `${s.service} call not logged for this booking`}
                   style={{ padding: "3px 10px", borderRadius: 999, fontWeight: 700, background: s.logged ? "#052e16" : "#450a0a", color: s.logged ? "#86efac" : "#fca5a5" }}>

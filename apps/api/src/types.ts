@@ -28,6 +28,8 @@ export interface Env {
   TRIPJACK_OMS_BASE_URL?: string;  // OMS (book/cancel) base URL — set when proxy only covers FMS
   TRIPJACK_PROXY_KEY:     string;
   AKBAR_GATEWAY_KEY?:     string;  // shared with apps/akbar-gateway (Coolify) for Akbar's IP whitelist
+  // "approved" lets Akbar API booking run with PRODUCTION credentials (after UAT certification).
+  AKBAR_API_BOOKING_PRODUCTION?: string;
   SERP_API_KEY:           string;
   GEMINI_MODEL?:          string;   // optional override for plain-language search (default gemini-2.5-flash)
   GEMINI_SCAN_MODEL?:     string;   // optional model for document / ticket reading (default GEMINI_MODEL)

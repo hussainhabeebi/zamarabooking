@@ -29,6 +29,7 @@ import { sendWhatsApp, buildBookingConfirmationMessage } from "./lib/notify.js";
 import { emailLayout, getEmailSettings, sendMail } from "./lib/email.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "./lib/customer-notify.js";
 import { isOfflineSupplier, takeManualSeats } from "./lib/flight-sources.js";
+import { bookOnAkbar } from "./lib/akbar-booking-runner.js";
 import { baggageRequestSummary } from "./lib/baggage-request.js";
 
 // ── Message type discriminated union ─────────────────────────────
@@ -520,6 +521,18 @@ async function recordOfflinePayment(
   await creditBookingBonus(db, booking.id).catch((err) => console.error(`[wallet-bonus] booking ${booking.id}:`, err));
   await settleAgentBooking(env, db, booking).catch((err) => console.error(`[agent-settle] booking ${booking.id}:`, err));
   await rewardReferral(env, db, booking).catch((err) => console.error(`[referral] booking ${booking.id}:`, err));
+
+  // Akbar API booking in AUTO mode (off by default; lib/akbar-booking.ts). When Akbar returns
+  // the PNR the e-ticket email is queued and the "being issued" / staff messages are skipped.
+  // Anything else leaves the booking with staff exactly as before. Never throws: the payment
+  // is already recorded and must not be processed again.
+  if (booking.supplier === "AKBAR") {
+    const r = await bookOnAkbar(env, db, booking.id, { trigger: "AUTO" }).catch(async (err) => {
+      await logBookingEvent(env, booking.id, "BOOK", "error", `Akbar API booking crashed: ${err instanceof Error ? err.message : String(err)}`, errorDetail(err)).catch(() => {});
+      return null;
+    });
+    if (r?.outcome === "TICKETED") return;
+  }
 
   const route = `${booking.origin} → ${booking.destination}`;
   const date = booking.departureDate.toISOString().slice(0, 10);

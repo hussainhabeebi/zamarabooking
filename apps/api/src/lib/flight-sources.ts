@@ -1,6 +1,6 @@
 // Zamra's flight sources besides TripJack, all set up in Admin → Flight Sources:
 //   • Akbar Travels API (Benzy B2B) — live search; booked offline (staff ticket on Akbar)
-//     until the CreateItinerary booking flow is built.
+//     unless API booking is switched on (lib/akbar-booking.ts; off by default).
 //   • Poomas Partner API — live search; booked offline (staff ticket on Poomas).
 //   • Manual fares — Admin table + Google Sheet sync; booked offline.
 // "Offline" fares are paid on Zamra like any fare; the booking then waits in
@@ -29,6 +29,16 @@ export interface AkbarSettings {
   browserKey:  string;
   key:         string;
   gatewayUrl:  string;   // apps/akbar-gateway on Coolify (fixed IP Akbar whitelists); blank = call Akbar directly
+  // API booking (CreateItinerary → StartPay → GetItineraryStatus → RetrieveBooking), lib/akbar-booking.ts.
+  // OFF: staff ticket on Akbar's portal (default). MANUAL: Admin → Bookings "Book on Akbar API".
+  // AUTO: booked right after payment. PRODUCTION also needs AKBAR_API_BOOKING_PRODUCTION=approved.
+  apiBooking:  "OFF" | "MANUAL" | "AUTO";
+  // CreateItinerary ContactInfo address (the agency's; Akbar's sample requires it).
+  contactAddress:     string;
+  contactCity:        string;
+  contactState:       string;
+  contactPin:         string;
+  contactCountryCode: string;
 }
 
 export interface PoomasSettings {
@@ -56,6 +66,7 @@ export const AKBAR_TEST_URLS = { utilsUrl: "https://b2bapiutils.benzyinfotech.co
 export const DEFAULT_AKBAR: AkbarSettings = {
   enabled: false, environment: "UAT", ...AKBAR_TEST_URLS,
   merchantId: "", apiKey: "", clientId: "", password: "", agentCode: "", browserKey: "", key: "", gatewayUrl: "",
+  apiBooking: "OFF", contactAddress: "", contactCity: "", contactState: "", contactPin: "", contactCountryCode: "IN",
 };
 
 // The client for these settings, with the gateway key from the Worker's secrets.

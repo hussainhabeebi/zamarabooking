@@ -217,10 +217,14 @@ test("Akbar search polls GetExpSearch with the TUI until Completed", async () =>
 });
 
 test("Akbar StartPay body", () => {
-  assert.deepEqual(startPayBody({ transactionId: 230003316, netAmount: 2903.68, tui: "t" }, "cid", "bk"), {
+  const body = startPayBody({ transactionId: 230003316, netAmount: 2903.68, tui: "t" }, "cid", "bk");
+  assert.deepEqual({ ...body, Card: undefined }, {
     TransactionID: 230003316, PaymentAmount: 0, NetAmount: 2903.68, BrowserKey: "bk", ClientID: "cid", TUI: "t",
-    Hold: false, Promo: null, PaymentType: "", BankCode: "",
+    Hold: false, Promo: null, PaymentType: "", BankCode: "", GateWayCode: "", MerchantID: "", PaymentCharge: 0, ReleaseDate: "",
+    OnlinePayment: false, DepositPayment: true, Card: undefined, VPA: "", CardAlias: "", QuickPay: null, RMSSignature: "",
+    TargetCurrency: "", TargetAmount: 0, ServiceType: "ITI",
   });
+  assert.ok(Object.values(body.Card).every((v) => v === "" || v === false || v === "0"));
 });
 
 test("Akbar RetrieveBooking and Cancel bodies", () => {

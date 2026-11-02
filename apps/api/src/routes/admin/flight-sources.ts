@@ -31,7 +31,8 @@ flightSourcesAdminRoutes.get("/", async (c) => {
     getAkbarSettings(c.env, tenantId), getPoomasSettings(c.env, tenantId), getManualSettings(c.env, tenantId),
   ]);
   return c.json({
-    akbar: { ...akbar, password: mask(akbar.password), apiKey: mask(akbar.apiKey), key: mask(akbar.key), gatewayKeySet: !!c.env.AKBAR_GATEWAY_KEY },
+    akbar: { ...akbar, password: mask(akbar.password), apiKey: mask(akbar.apiKey), key: mask(akbar.key), gatewayKeySet: !!c.env.AKBAR_GATEWAY_KEY,
+      productionBookingApproved: c.env.AKBAR_API_BOOKING_PRODUCTION === "approved" },
     poomas: { ...poomas, apiKey: mask(poomas.apiKey) },
     manual,
     sheetColumns: SHEET_COLUMNS,
@@ -56,6 +57,12 @@ flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
   browserKey:  z.string().trim().max(200),
   key:         z.string().max(500).optional(),
   gatewayUrl:  url,
+  apiBooking:  z.enum(["OFF", "MANUAL", "AUTO"]).default("OFF"),
+  contactAddress:     z.string().trim().max(200).default(""),
+  contactCity:        z.string().trim().max(80).default(""),
+  contactState:       z.string().trim().max(80).default(""),
+  contactPin:         z.string().trim().max(12).default(""),
+  contactCountryCode: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).default("IN"),
 })), async (c) => {
   fullAdminOnly(c.get("userRole"));
   const body = c.req.valid("json");
