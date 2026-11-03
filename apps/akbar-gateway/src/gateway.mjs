@@ -1,10 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 
 // Akbar Travels (Benzy B2B) calls the Worker may send, by gateway prefix.
-//   /utils/<path>   → AKBAR_UTILS_UPSTREAM   (Signature)
+//   /utils/<path>   → AKBAR_UTILS_UPSTREAM   (Signature, WebSettings)
 //   /flights/<path> → AKBAR_FLIGHTS_UPSTREAM (search, pricing, booking, utils on the flights host)
 export const ROUTES = {
-  utils: new Set(["/Utils/Signature"]),
+  utils: new Set(["/Utils/Signature", "/Utils/WebSettings"]),
   flights: new Set([
     "/flights/ExpressSearch",
     "/flights/GetExpSearch",

@@ -26,13 +26,13 @@ type Exchange = typeof supplierExchanges.$inferSelect;
 
 const enc = new TextEncoder();
 
-// Postman collection order (WebSettings is not in the collection).
+// Akbar's certification order (WebSettings: {UtilsURL}/Utils/WebSettings, after ExpressSearch).
 export const AKBAR_STEPS = [
   "Signature", "ExpressSearch", "GetExpSearch", "WebSettings", "SmartPricer", "GetSPricer", "GetTravelCheckList",
   "FareRule", "FlightInfo", "SeatLayout", "SSR", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking", "Cancel",
 ] as const;
-// Akbar's certification list, minus WebSettings (undocumented; never called, so never logged).
-export const AKBAR_REQUIRED_STEPS = ["Signature", "ExpressSearch", "GetExpSearch", "SmartPricer", "GetSPricer", "GetTravelCheckList", "SeatLayout", "SSR", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"];
+// Akbar's 13 certification steps.
+export const AKBAR_REQUIRED_STEPS = ["Signature", "ExpressSearch", "GetExpSearch", "WebSettings", "SmartPricer", "GetSPricer", "GetTravelCheckList", "SeatLayout", "SSR", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"];
 
 const BY_LOWER = new Map(AKBAR_STEPS.map((s) => [s.toLowerCase(), s]));
 export function akbarStep(endpoint: string): string {
@@ -138,7 +138,6 @@ export async function akbarCertificationPack(env: Env, db: Db, b: Booking, folde
     calls: all.length,
     ...(missing.length ? { missingSteps: missing, note: `Not in the logs yet: ${missing.join(", ")}` } : {}),
     notes: [
-      "WebSettings: required by Akbar's certification list but not in the B2B Revamp Flight API Postman collection (no URL, request or response) — not called, so no log exists.",
       "Secrets (Password, ApiKey, Key, Bearer token, gateway key) are blanked; responses are unmodified.",
     ],
     createdAt: b.createdAt,

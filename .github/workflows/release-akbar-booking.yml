@@ -97,6 +97,8 @@ env:
     apps/admin/app/(dashboard)/integrations/AkbarIntegration.tsx
   # PR #45 files that are never deployed (docs, CI, the local UAT runner).
   NOT_DEPLOYED: >-
+    apps/akbar-gateway/src/gateway.mjs
+    apps/akbar-gateway/test/gateway.test.mjs
     .gitignore
     docs/akbar-api-booking.md
     scripts/akbar-uat-check.ts

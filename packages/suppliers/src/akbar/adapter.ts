@@ -1,5 +1,5 @@
 import type { NormalizedFare, SearchParams, StopDetail, SupplierAdapter, SupplierCredentials } from "../base.js";
-import { AkbarClient, AkbarError, searchTui, type AkbarCredentials, type AkbarToken } from "./client.js";
+import { AkbarClient, AkbarError, akbarWebSettingsFeatures, searchTui, type AkbarCredentials, type AkbarFeatures, type AkbarToken } from "./client.js";
 
 // Akbar Travels search for Zamra's flight results. Like Poomas, Akbar fares are
 // sold on Zamra and ticketed by staff on Akbar's portal until the CreateItinerary
@@ -147,6 +147,7 @@ export class AkbarAdapter implements SupplierAdapter {
   }
 
   private async searchLeg(params: SearchParams): Promise<NormalizedFare[]> {
+    const started = Date.now();
     let token = await this.getToken();
     // Zamra's search waits 28 s for every source, so stop collecting Akbar results before then.
     const opts = { deadlineMs: 22_000, mode: this.mode };
@@ -156,7 +157,17 @@ export class AkbarAdapter implements SupplierAdapter {
       token = await this.getToken(true);
       return this.client.search(params, token, opts);
     });
-    return normalizeAkbarSearch(result.data, params.cabinClass);
+    const fares = normalizeAkbarSearch(result.data, params.cabinClass);
+    // API booking on (certification): WebSettings for this search's TUI, right after the search.
+    // Its feature settings ride on each fare (raw.webSettings) to the booking, which skips the SSR /
+    // SeatLayout calls Akbar says are not enabled. It never fails or holds up the search: it gets
+    // what is left of the 26 s before Zamra's 28 s search limit, at most 8 s.
+    if (this.mode !== "AS" || !fares.length) return fares;
+    const tui = searchTui(result.data);
+    const budget = Math.min(8_000, 26_000 - (Date.now() - started));
+    if (!tui || budget < 1_000) return fares;
+    const features: AkbarFeatures | null = await this.client.webSettings(tui, token, budget).then(akbarWebSettingsFeatures).catch(() => null);
+    return features ? fares.map((f) => ({ ...f, raw: { ...(f.raw as Record<string, unknown>), webSettings: features } })) : fares;
   }
 }
 

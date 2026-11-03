@@ -19,9 +19,9 @@
 //     itinerary, booked in order; a later leg is never started while an earlier one isn't booked.
 
 import {
-  AkbarError, akbarBookingRefs, akbarMessages, akbarNetAmount, akbarOk, akbarTransactionId, akbarTravelRequirements,
+  AkbarError, akbarBookingRefs, akbarWebSettingsFeatures, akbarMessages, akbarNetAmount, akbarOk, akbarTransactionId, akbarTravelRequirements,
   itineraryFinalStatus, searchTui,
-  type AkbarClient, type AkbarContactInfo, type AkbarToken, type AkbarTraveller, type AkbarTravelRequirements,
+  type AkbarClient, type AkbarContactInfo, type AkbarFeatures, type AkbarToken, type AkbarTraveller, type AkbarTravelRequirements,
 } from "@zamrabooking/suppliers";
 import type { AkbarSettings } from "./flight-sources.js";
 
@@ -41,13 +41,15 @@ export function akbarBookingGate(env: { AKBAR_API_BOOKING_PRODUCTION?: string },
 // ── Inputs ───────────────────────────────────────────────────────────────────
 
 // The searched fare of one leg, as remembered at search time (NormalizedFare.raw).
-export interface AkbarLegRef { tui: string; index: string; orderId: number | string | null; netFare: number }
+// features: Akbar WebSettings for the leg's search (undefined = not read at search time).
+export interface AkbarLegRef { tui: string; index: string; orderId: number | string | null; netFare: number; features?: AkbarFeatures | null }
 
 export function akbarLegRefs(flightData: Record<string, any>): AkbarLegRef[] {
   const off = flightData?.offline ?? {};
   const refs = Array.isArray(off.legs) && off.legs.length ? off.legs.map((l: any) => l?.sourceRef) : [off.sourceRef];
   return refs.map((r: any) => ({
     tui: String(r?.tui ?? ""), index: String(r?.index ?? ""), orderId: r?.orderId ?? null, netFare: Number(r?.netFare ?? 0),
+    ...(r?.webSettings && typeof r.webSettings === "object" ? { features: { ssr: r.webSettings.ssr ?? null, seatLayout: r.webSettings.seatLayout ?? null } } : {}),
   }));
 }
 
@@ -149,7 +151,7 @@ export function akbarOutcome(state: AkbarBookingState, legCount: number): AkbarO
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
-type Client = Pick<AkbarClient, "smartPricer" | "getSPricer" | "getTravelCheckList" | "ssr" | "seatLayout" | "createItinerary" | "startPay" | "getItineraryStatus" | "retrieveBooking">;
+type Client = Pick<AkbarClient, "webSettings" | "smartPricer" | "getSPricer" | "getTravelCheckList" | "ssr" | "seatLayout" | "createItinerary" | "startPay" | "getItineraryStatus" | "retrieveBooking">;
 
 export interface AkbarEngineDeps {
   client: Client;
@@ -343,11 +345,21 @@ export async function runAkbarBooking(deps: AkbarEngineDeps, input: AkbarEngineI
 
       // 2. Ancillary lookups (read-only). The collection's CreateItinerary sends SSR: [];
       //    selections are not sent until Akbar documents the SSR item format.
+      //    Only the features Akbar's WebSettings has not turned off; a fare from a search without
+      //    WebSettings reads it now, with the leg's search TUI. Unknown (null) = call as before.
       if (input.lookups && !l.transactionId) {
-        for (const [name, fn] of [
-          ["SeatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId: ref.orderId ?? 1 }, t)],
-          ["SSR", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
+        let features = ref.features;
+        if (features === undefined) {
+          features = await call((t) => deps.client.webSettings(ref.tui, t)).then(akbarWebSettingsFeatures).catch(async (err) => {
+            await deps.log("warn", `WebSettings failed (SSR / SeatLayout called as before): ${msgOf(err)}`);
+            return null;
+          });
+        }
+        for (const [name, key, fn] of [
+          ["SeatLayout", "seatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId: ref.orderId ?? 1 }, t)],
+          ["SSR", "ssr", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
         ] as const) {
+          if (features?.[key] === false) { await deps.log("info", `${name} skipped: Akbar WebSettings shows it is not enabled for this fare`); continue; }
           await call(fn).catch((err) => deps.log("warn", `${name} lookup failed (booking continues): ${msgOf(err)}`));
         }
       }

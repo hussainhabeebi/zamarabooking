@@ -9,7 +9,7 @@ Reference: Akbar's *B2B Revamp Flight API – Test* Postman collection and *B2B 
 | Signature | `{utils}/Utils/Signature` | ✅ implemented, token cached 47 h | unchanged |
 | ExpressSearch | `{flights}/flights/ExpressSearch` | ✅ search (Mode `SY`; collection sample uses `AS` + extra `Parameters`) | unchanged on purpose (live search works) |
 | GetExpSearch | `{flights}/flights/GetExpSearch` | ✅ polled until complete | unchanged |
-| WebSettings | — | ❌ | ❌ **not in the collection**: no URL, request or response to implement |
+| WebSettings | `{utils}/Utils/WebSettings` | ❌ | **new (Nov 2026, required by Akbar)**: `{ ClientID, TUI }` after each ExpressSearch; SSR / SeatLayout skipped when it turns them off |
 | SmartPricer | `{flights}/flights/SmartPricer` | client only (Mode `SY`, Options `A`), never called | booking flow uses the collection's Mode `AS`, Options `""` |
 | GetSPricer | `{flights}/flights/GetSPricer` | client only | called after SmartPricer, retried while NetAmount is missing; fare validated |
 | GetTravelCheckList | `{flights}/Utils/GetTravelCheckList` | client only | called with the priced TUI; passport / DOB / nationality rules enforced |
@@ -80,7 +80,7 @@ call is older than the booking, the tenant's latest Signature (within 48 h) is i
 | 1 | Signature | booking run (fresh token in Test) | booking |
 | 2 | ExpressSearch | website search | search (`flight_data.searchId`) |
 | 3 | GetExpSearch | website search — always called once while API booking is on | search |
-| 4 | WebSettings | **never** — not documented; no fake log is produced | — |
+| 4 | WebSettings | website search, right after ExpressSearch / GetExpSearch, once per search TUI (API booking on); the booking run reads it if the fare has none | search / booking |
 | 5 | SmartPricer | checkout (before payment); again after payment if that price is over 10 min old | booking |
 | 6 | GetSPricer | as SmartPricer | booking |
 | 7 | GetTravelCheckList | as SmartPricer | booking |
@@ -97,7 +97,9 @@ itinerary TUI, TransactionID, and the PNR / tickets exactly as Akbar returned th
 
 ## Open items for Akbar (blockers / undocumented)
 
-1. **WebSettings**: not in the collection. Need the URL, request and response (and whether it is required).
+1. **WebSettings** (now implemented): its response field names were not available when it was built (the documentation
+   page was unreachable from the build environment). Feature flags are matched loosely (keys or `Name`/`Enabled`
+   entries mentioning Seat / SSR / Meal / Baggage); unknown = feature used as before. Check the first real response.
 2. **CreateItinerary SSR / seat items**: the sample sends `SSR: []`. Paid baggage, meals and seats need the
    SSR item format and how SSRAmount is computed; until then CreateItinerary sends no SSR and baggage stays
    a staff-handled request.
@@ -125,6 +127,9 @@ Baselines checked on 2026-11-02:
 No automatic deploy on merge: `deploy-web.yml` deploys only on `apps/web/**` / `packages/ui/**`
 pushes (PR #45 touches neither); every other deploy workflow is manual; Cloudflare's only
 Git-connected build is `zamra-api-staging` (a separate Worker, not production).
+
+The Akbar gateway (`apps/akbar-gateway`, Coolify) must allow `/utils/Utils/WebSettings`; it is not deployed by
+this workflow — redeploy it on Coolify from `main` before testing.
 
 What it does: verifies the PR diff is limited to the allowlisted Akbar files (fails on anything
 under `packages/db`, `apps/web`, `apps/portal`, or PhonePe / Nomod / wallet / checkout), builds

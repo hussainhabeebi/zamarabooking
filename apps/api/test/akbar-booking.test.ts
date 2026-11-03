@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AkbarAdapter, AkbarClient, AkbarError, akbarBookingRefs, akbarTravelRequirements, createItineraryBody, startPayBody, smartPricerBody } from "@zamrabooking/suppliers";
+import { AkbarAdapter, AkbarClient, AkbarError, akbarWebSettingsFeatures, akbarBookingRefs, akbarTravelRequirements, createItineraryBody, startPayBody, smartPricerBody } from "@zamrabooking/suppliers";
 import {
   akbarBookingGate, akbarContact, akbarLegRefs, akbarMobile, akbarOutcome, akbarPrepaymentCheck, akbarTravellers, ageOn,
   refreshAkbarBooking, runAkbarBooking, type AkbarBookingState, type AkbarEngineDeps,
@@ -45,7 +45,7 @@ test("CreateItinerary and StartPay bodies have every field of the Postman sample
 });
 
 // A mock Akbar that follows the collection's TUI hand-off and checks each request.
-function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknown; startPay?: () => Response; createCode?: string } = {}) {
+function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknown; startPay?: () => Response; createCode?: string; webSettings?: object | (() => Response) } = {}) {
   const calls: { path: string; body: any }[] = [];
   const status = [...(opts.status ?? ["Success"])];
   const fetchImpl = (async (url: string, init: RequestInit) => {
@@ -61,6 +61,8 @@ function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknow
         assert.equal(body.TUI, "sp-tui");
         return json({ TUI: "priced-tui", NetAmount: opts.priced ?? 4890.5, Code: "200" });
       case "/Utils/GetTravelCheckList": return json({ TUI: body.TUI, Code: "200", PassportRequired: false });
+      case "/Utils/WebSettings":
+        return typeof opts.webSettings === "function" ? opts.webSettings() : json({ TUI: body.TUI, Code: "200", Msg: ["Success"], ...(opts.webSettings ?? {}) });
       case "/flights/ssr": case "/flights/SeatLayout": return json({ Code: "200", Trips: [] });
       case "/flights/CreateItinerary":
         assert.equal(body.TUI, "priced-tui");
@@ -99,7 +101,8 @@ test("one-way: the full sequence with the TUI handed on at every step, PNR from 
   const { calls, client } = mockAkbar();
   const { deps, saves } = engine(client);
   const state = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact, lookups: true });
-  assert.deepEqual(paths(calls), ["SmartPricer", "GetSPricer", "GetTravelCheckList", "SeatLayout", "ssr", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"]);
+  // The fare carries no search-time WebSettings, so the booking run reads it before the lookups.
+  assert.deepEqual(paths(calls), ["SmartPricer", "GetSPricer", "GetTravelCheckList", "WebSettings", "SeatLayout", "ssr", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"]);
   assert.equal(state.outcome, "TICKETED");
   assert.deepEqual(state.legs[0].pnrs, ["X7KQ2P"]);
   assert.equal(state.legs[0].tickets, undefined);            // Akbar returned an empty ticket → none stored
@@ -287,7 +290,7 @@ test("Akbar certification files: Akbar URLs, secrets blanked, every call numbere
   assert.equal(dec("06-StartPay-Request.json").url, "https://b2bapiflights.benzyinfotech.com/Payment/StartPay");
   assert.ok(!JSON.stringify(dec("06-StartPay-Request.json")).includes("gk"));
   const summary = dec("BookingSummary.json");
-  assert.deepEqual(summary.missingSteps, ["GetExpSearch", "GetTravelCheckList", "SeatLayout", "SSR", "RetrieveBooking"]);
+  assert.deepEqual(summary.missingSteps, ["GetExpSearch", "WebSettings", "GetTravelCheckList", "SeatLayout", "SSR", "RetrieveBooking"]);
   assert.deepEqual(summary.akbar.legs[0], { leg: 1, state: "SUCCESS", searchTui: null, pricingTui: null, itineraryTui: null, transactionId: 230003316, pnrs: ["X7KQ2P"], tickets: [] });
 });
 
@@ -299,7 +302,7 @@ const searchReply = { TUI: "search-tui", Completed: true, Code: "200", Trips: [{
 const journey = (i: number) => ({ ...searchReply.Trips[0].Journey[0], Index: `6E|${i}`, NetFare: 4000 + i });
 
 test("API booking on: ExpressSearch Mode AS, then GetExpSearch (ClientID \"\") returns the fares; off: Mode SY unchanged", async () => {
-  for (const [apiBooking, mode, calls] of [["MANUAL", "AS", ["ExpressSearch", "GetExpSearch"]], ["AUTO", "AS", ["ExpressSearch", "GetExpSearch"]], ["OFF", "SY", ["ExpressSearch"]]] as const) {
+  for (const [apiBooking, mode, calls] of [["MANUAL", "AS", ["ExpressSearch", "GetExpSearch", "WebSettings"]], ["AUTO", "AS", ["ExpressSearch", "GetExpSearch", "WebSettings"]], ["OFF", "SY", ["ExpressSearch"]]] as const) {
     const sent: { step: string; body: any }[] = [];
     const fetchImpl = (async (url: string, init: RequestInit) => {
       const step = url.split("/").pop()!;
@@ -362,9 +365,11 @@ test("a website booking logs every documented Akbar step, in order, with TUIs an
     if (url.endsWith("/ExpressSearch") || url.endsWith("/GetExpSearch")) return json(searchReply);
     return (client as any).fetchImpl(url, init);
   }) as unknown as typeof fetch);
-  // 1. Search (website): ExpressSearch + GetExpSearch with API booking on.
+  // 1. Search (website): ExpressSearch + GetExpSearch, then WebSettings with the search TUI (as the adapter does).
   const search = await rec.search(searchParams, token, { mode: "AS" });
   assert.equal(search.polls, 1);
+  const features = akbarWebSettingsFeatures(await rec.webSettings("search-tui", token));
+  const leg = { tui: "search-tui", index: "6E|1", orderId: 1, netFare: 4890.5, features };
   const tokenFn = async (fresh?: boolean) => (fresh ? rec.signature() : token);
   const { deps } = engine(rec, { token: tokenFn });
   // 2. Checkout (POST /api/book): live fare + checklist before payment.
@@ -373,9 +378,9 @@ test("a website booking logs every documented Akbar step, in order, with TUIs an
   const state = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-15"], contact, state: pre, lookups: true, freshToken: true });
   assert.equal(state.outcome, "TICKETED");
   const steps = recorded.map((x) => akbarStep(x.endpoint));
-  assert.deepEqual(steps, ["ExpressSearch", "GetExpSearch", "SmartPricer", "GetSPricer", "GetTravelCheckList",
+  assert.deepEqual(steps, ["ExpressSearch", "GetExpSearch", "WebSettings", "SmartPricer", "GetSPricer", "GetTravelCheckList",
     "Signature", "SeatLayout", "SSR", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"]);
-  // Every documented step except WebSettings, each with a request and a response.
+  // All 13 certification steps, each with a request and a response.
   const { AKBAR_REQUIRED_STEPS } = await import("../src/lib/akbar-certification.js");
   assert.deepEqual([...AKBAR_REQUIRED_STEPS].sort(), [...new Set(steps)].sort());
   assert.ok(recorded.every((x) => x.requestBody && x.responseBody && x.status === 200));
@@ -448,4 +453,98 @@ test("refresh reads ticket numbers for a booked leg that had TicketNo '' and nev
   const { calls: c3calls, client: c3 } = mockAkbar();
   await refreshAkbarBooking(engine(c3).deps, { legs: [{ ...booked, tickets: ["098-1"] }], startedAt: "", runs: 1 }, 1);
   assert.deepEqual(c3calls, []);
+});
+
+// ── WebSettings ──────────────────────────────────────────────────────────────
+
+test("WebSettings: POST {UtilsURL}/Utils/WebSettings with ClientID and the search TUI (direct and via the gateway)", async () => {
+  const sent: { url: string; body: any; auth?: string }[] = [];
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    sent.push({ url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
+    return json({ Code: "200" });
+  }) as unknown as typeof fetch;
+  await new AkbarClient(creds, fetchImpl).webSettings("search-tui", token);
+  await new AkbarClient({ ...creds, gatewayUrl: "https://gw.test", gatewayKey: "gk" }, fetchImpl).webSettings("search-tui", token);
+  assert.deepEqual(sent.map((x) => x.url), ["https://utils.test/Utils/WebSettings", "https://gw.test/utils/Utils/WebSettings"]);
+  assert.deepEqual(sent[0].body, { ClientID: "enc-client", TUI: "search-tui" });
+  assert.equal(sent[0].auth, "Bearer jwt");
+});
+
+test("WebSettings feature flags: plain flags, Name/Enabled entries, and nothing recognisable", () => {
+  assert.deepEqual(akbarWebSettingsFeatures({ Code: "200", Settings: { IsSeatLayoutEnabled: false, IsSSREnabled: "Y" } }), { ssr: true, seatLayout: false });
+  assert.deepEqual(akbarWebSettingsFeatures({ Features: [{ Name: "SeatLayout", Enabled: true }, { Name: "Meal", Enabled: "N" }, { Name: "Baggage", Enabled: "N" }] }), { ssr: false, seatLayout: true });
+  assert.deepEqual(akbarWebSettingsFeatures({ Code: "200", Msg: ["Success"], TUI: "t" }), { ssr: null, seatLayout: null });
+  assert.deepEqual(akbarWebSettingsFeatures(null), { ssr: null, seatLayout: null });
+});
+
+const withFetch = async <T>(impl: (url: string, init: RequestInit) => Promise<Response>, fn: () => Promise<T>) => {
+  const real = globalThis.fetch;
+  globalThis.fetch = impl as unknown as typeof fetch;
+  try { return await fn(); } finally { globalThis.fetch = real; }
+};
+
+test("one-way and round-trip searches read WebSettings for each search TUI; its settings ride on the fares", async () => {
+  const sent: { step: string; body: any }[] = [];
+  const impl = async (url: string, init: RequestInit) => {
+    const step = url.split("/").pop()!;
+    const body = JSON.parse(String(init.body));
+    sent.push({ step, body });
+    if (step === "ExpressSearch") return json({ TUI: `tui-${body.Trips[0].From}`, Code: "200" });
+    if (step === "GetExpSearch") return json({ TUI: body.TUI, Code: "200", Completed: "Completed", Trips: [{ Journey: [{ ...journey(1), From: "X", To: "Y" }].map((j) => ({ ...j, From: body.TUI.slice(4), To: body.TUI.slice(4) === "BOM" ? "DEL" : "BOM" })) }] });
+    if (step === "WebSettings") return json({ Code: "200", TUI: body.TUI, Settings: { IsSeatLayoutEnabled: body.TUI === "tui-BOM" ? "N" : "Y" } });
+    return json({ Code: "404" }, 404);
+  };
+  const adapter = new AkbarAdapter({ ...creds, apiBooking: "MANUAL", getToken: async () => token } as any);
+  // One-way
+  const ow = await withFetch(impl, () => adapter.search(searchParams));
+  assert.deepEqual(sent.filter((x) => x.step === "WebSettings").map((x) => x.body), [{ ClientID: "enc-client", TUI: "tui-BOM" }]);
+  assert.deepEqual((ow[0].raw as any).webSettings, { ssr: null, seatLayout: false });
+  // Round trip: one WebSettings per leg's search TUI.
+  sent.length = 0;
+  const rt = await withFetch(impl, () => adapter.search({ ...searchParams, tripType: "ROUNDTRIP", returnDate: "2026-12-20" }));
+  assert.deepEqual(sent.filter((x) => x.step === "WebSettings").map((x) => x.body.TUI).sort(), ["tui-BOM", "tui-DEL"]);
+  const byLeg = (i: number) => (rt.find((f) => f.legIndex === i)!.raw as any).webSettings;
+  assert.deepEqual([byLeg(0), byLeg(1)], [{ ssr: null, seatLayout: false }, { ssr: null, seatLayout: true }]);
+  // The settings reach the booking through the stored fare reference.
+  assert.deepEqual(akbarLegRefs({ offline: { sourceRef: rt[0].raw } })[0].features, byLeg(rt[0].legIndex!));
+});
+
+test("a failed WebSettings never fails the search; API booking off never calls it", async () => {
+  const steps: string[] = [];
+  const impl = async (url: string, init: RequestInit) => {
+    const step = url.split("/").pop()!;
+    steps.push(step);
+    if (step === "WebSettings") return new Response("busy", { status: 503 });
+    if (step === "GetExpSearch") return json({ ...searchReply, Completed: "Completed" });
+    return json(JSON.parse(String(init.body)).Mode === "AS" ? { TUI: "search-tui", Code: "200" } : searchReply);
+  };
+  const fares = await withFetch(impl, () => new AkbarAdapter({ ...creds, apiBooking: "AUTO", getToken: async () => token } as any).search(searchParams));
+  assert.equal(fares.length, 1);
+  assert.equal((fares[0].raw as any).webSettings, undefined);
+  steps.length = 0;
+  await withFetch(impl, () => new AkbarAdapter({ ...creds, apiBooking: "OFF", getToken: async () => token } as any).search(searchParams));
+  assert.ok(!steps.includes("WebSettings"));
+});
+
+test("the booking respects WebSettings: features turned off are skipped, unknown ones are called", async () => {
+  const run = async (features: any, webSettings?: object | (() => Response)) => {
+    const { calls, client } = mockAkbar({ webSettings });
+    const { deps, logs } = engine(client);
+    const state = await runAkbarBooking(deps, { legs: [{ ...leg, ...(features !== undefined ? { features } : {}) }], pax, departureDates: ["2026-12-01"], contact, lookups: true });
+    assert.equal(state.outcome, "TICKETED");
+    return { steps: paths(calls).filter((p) => ["WebSettings", "SeatLayout", "ssr"].includes(p!)), logs };
+  };
+  // Settings from the search: SeatLayout off → only SSR.
+  const off = await run({ ssr: true, seatLayout: false });
+  assert.deepEqual(off.steps, ["ssr"]);
+  assert.ok(off.logs.some((m) => /SeatLayout skipped: Akbar WebSettings shows it is not enabled/.test(m)));
+  assert.deepEqual((await run({ ssr: false, seatLayout: false })).steps, []);
+  // Settings said nothing about them → both called, as before.
+  assert.deepEqual((await run({ ssr: null, seatLayout: null })).steps, ["SeatLayout", "ssr"]);
+  // No search-time settings → WebSettings read now with the search TUI, then respected.
+  assert.deepEqual((await run(undefined, { Settings: { IsSSREnabled: "N" } })).steps, ["WebSettings", "SeatLayout"]);
+  // WebSettings failing → both called, with a warning.
+  const failed = await run(undefined, () => new Response("busy", { status: 503 }));
+  assert.deepEqual(failed.steps, ["WebSettings", "SeatLayout", "ssr"]);
+  assert.ok(failed.logs.some((m) => /WebSettings failed \(SSR \/ SeatLayout called as before\)/.test(m)));
 });

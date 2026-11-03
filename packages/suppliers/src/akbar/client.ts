@@ -5,6 +5,8 @@ import type { SearchParams } from "../base.js";
 //
 //   {utilsUrl}/Utils/Signature        → JWT token, valid 48 hours
 //   {flightsUrl}/flights/ExpressSearch → starts a search, returns its TUI (token as Bearer)
+//   {utilsUrl}/Utils/WebSettings       → { ClientID, TUI }: supplier feature settings (SSR, SeatLayout, …)
+//                                        for a search; call after ExpressSearch with its TUI (Akbar, Nov 2026)
 //   {flightsUrl}/flights/GetExpSearch  → { ClientID, TUI }: results so far; call again
 //                                        until "Completed" is true, within 50 s of the search
 //   {flightsUrl}/flights/SmartPricer   → re-prices the chosen fare (Index / OrderID / Amount
@@ -279,6 +281,44 @@ export function createItineraryBody(p: AkbarCreateItinerary, clientId: string) {
 
 // ── Response helpers ─────────────────────────────────────────────────────────
 
+// Supplier features from a WebSettings response. Akbar's documentation page could not be read
+// from the build environment, so the field names are matched loosely: a flag whose key (or whose
+// Name / Code / Key in a { Name, Enabled } style entry) mentions Seat → seatLayout, SSR / Meal /
+// Baggage / Ancillary → ssr. true / "Y" / "1" / "Enabled" … = on; false / "N" / "0" / "Disabled" … = off.
+// null = WebSettings said nothing recognisable about the feature (it is then treated as available,
+// exactly as before WebSettings existed). Confirm the names against the first real response.
+export interface AkbarFeatures { ssr: boolean | null; seatLayout: boolean | null }
+const ON = new Set(["true", "y", "yes", "1", "enabled", "enable", "active", "a", "on"]);
+const OFF = new Set(["false", "n", "no", "0", "disabled", "disable", "inactive", "i", "off"]);
+const flag = (v: unknown): boolean | null => {
+  if (typeof v === "boolean") return v;
+  const t = String(v ?? "").trim().toLowerCase();
+  return ON.has(t) ? true : OFF.has(t) ? false : null;
+};
+const featureOf = (name: string): keyof AkbarFeatures | null =>
+  /seat/i.test(name) ? "seatLayout" : /ssr|meal|baggage|ancillar/i.test(name) ? "ssr" : null;
+export function akbarWebSettingsFeatures(data: unknown): AkbarFeatures {
+  const seen: Record<keyof AkbarFeatures, boolean[]> = { ssr: [], seatLayout: [] };
+  const walk = (v: unknown, depth: number) => {
+    if (!v || typeof v !== "object" || depth > 10) return;
+    if (Array.isArray(v)) { v.forEach((x) => walk(x, depth + 1)); return; }
+    const o = v as Record<string, unknown>;
+    // { Name: "SeatLayout", Enabled: true } style entries
+    const label = [o.Name, o.Code, o.Key, o.Feature, o.Service].find((x) => typeof x === "string") as string | undefined;
+    const value = [o.Enabled, o.IsEnabled, o.Value, o.Status, o.Active, o.IsActive].map(flag).find((x) => x !== null);
+    const named = label ? featureOf(label) : null;
+    if (named && value != null) seen[named].push(value);
+    for (const [k, x] of Object.entries(o)) {
+      if (x && typeof x === "object") { walk(x, depth + 1); continue; }
+      const f = featureOf(k), b = flag(x);
+      if (f && b != null) seen[f].push(b);
+    }
+  };
+  walk(data, 0);
+  const pick = (xs: boolean[]) => (xs.includes(true) ? true : xs.includes(false) ? false : null);
+  return { ssr: pick(seen.ssr), seatLayout: pick(seen.seatLayout) };
+}
+
 // Akbar answers HTTP 200 with its own "Code" ("200" on success) and "Msg" (string[]).
 export function akbarCode(data: unknown): string {
   const v = data && typeof data === "object" ? (data as Record<string, unknown>).Code : undefined;
@@ -481,6 +521,12 @@ export class AkbarClient {
     if (!this.creds.flightsUrl && !this.creds.gatewayUrl) throw new AkbarError("Akbar: Flights URL not configured");
     const endpoint = "/flights/ExpressSearch";
     return this.post(`${this.flightsBase()}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId, mode), auth.token, timeoutMs);
+  }
+
+  // WebSettings for a search TUI (Akbar: POST {UtilsURL}/Utils/WebSettings after ExpressSearch).
+  async webSettings(tui: string, auth: AkbarToken, timeoutMs = 10_000): Promise<unknown> {
+    const endpoint = "/Utils/WebSettings";
+    return this.post(`${this.utilsBase()}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token, timeoutMs);
   }
 
   // clientId: the Postman collection's GetExpSearch sample sends ClientID "" (used in Mode AS).
