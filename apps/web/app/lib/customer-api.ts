@@ -62,6 +62,14 @@ export const inr = (n: number, currency = "INR") => {
   catch { return `${currency} ${n.toFixed(2)}`; }
 };
 
+// A paid booking without an airline PNR is not ticketed yet (manual / Akbar fares stay CONFIRMED
+// until the ticket is issued, also when the supplier booking needs staff attention).
+export const ISSUING_LABEL = { label: "Ticket being issued", color: "#92400e", bg: "#fef3c7" };
+export function statusLabel(status: string, pnr: string | null | undefined) {
+  if (status === "CONFIRMED" && !pnr) return ISSUING_LABEL;
+  return STATUS_LABEL[status] ?? { label: status.replaceAll("_", " ").toLowerCase(), color: "#334155", bg: "#f1f5f9" };
+}
+
 export const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
   TICKETED:        { label: "Ticketed",           color: "#166534", bg: "#dcfce7" },
   CONFIRMED:       { label: "Confirmed",          color: "#166534", bg: "#dcfce7" },

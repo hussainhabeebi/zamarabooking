@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiCall, inr, readCustomerToken, STATUS_LABEL } from "../lib/customer-api";
+import { apiCall, inr, readCustomerToken, statusLabel } from "../lib/customer-api";
 import styles from "./trips.module.css";
 
 interface TripRow {
@@ -88,7 +88,7 @@ export default function TripsPage() {
 }
 
 function TripCard({ trip }: { trip: TripRow }) {
-  const status = STATUS_LABEL[trip.status] ?? { label: trip.status.replaceAll("_", " ").toLowerCase(), color: "#334155", bg: "#f1f5f9" };
+  const status = statusLabel(trip.status, trip.pnr);
   const passengers = trip.adultCount + trip.childCount + trip.infantCount;
   return <article className={styles.card}>
     <div className={styles.cardHead}><div><span className={styles.cardEyebrow}><span aria-hidden="true">✈</span> Flight booking</span>

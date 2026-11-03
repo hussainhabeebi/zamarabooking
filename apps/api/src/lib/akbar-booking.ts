@@ -142,6 +142,8 @@ export interface AkbarLegState {
   status?: "Success" | "Failed" | "";
   startPay?: { code: string; message: string };   // StartPay's own Code / Msg (6033 "BOOKING INPROGRESS !" is normal)
   failureReason?: string;                          // RetrieveBooking BookingFailureReason / Reason, as Akbar wrote it
+  paymentStatus?: string;                          // GetItineraryStatus PaymentStatus, as Akbar wrote it
+  bookingStatus?: string;                          // RetrieveBooking Status code (e.g. "BO1"), as Akbar wrote it
   pnrs?: string[]; tickets?: string[];
   errorCode?: string; message?: string; checkedAt?: string;
 }
@@ -272,6 +274,8 @@ export async function akbarPrepaymentCheck(deps: AkbarEngineDeps, input: Pick<Ak
 
 // Status of a leg whose StartPay was sent: GetItineraryStatus (until final or deadline),
 // then RetrieveBooking for the PNR / tickets. Read-only; safe to repeat.
+const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).trim() : "");
+
 export async function checkAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<typeof authed>, l: AkbarLegState, deadlineMs = 60_000): Promise<AkbarLegState> {
   const now = () => (deps.now ?? (() => new Date()))().toISOString();
   if (!l.transactionId) return l;
@@ -291,20 +295,26 @@ export async function checkAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<type
   }
   let refs = akbarBookingRefs(statusData);
   let failureReason = "";
+  let bookingStatus = "";
+  const paymentStatus = str((statusData as Record<string, unknown> | null)?.PaymentStatus);
   try {
     const booking = await call((t) => deps.client.retrieveBooking(l.transactionId!, t, l.itineraryTui ?? ""));
     const b = (booking ?? {}) as Record<string, unknown>;
     failureReason = [b.BookingFailureReason, b.Reason].map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean).join("; ");
+    bookingStatus = str(b.Status);
     const r = akbarBookingRefs(booking);
     refs = { pnrs: [...new Set([...refs.pnrs, ...r.pnrs])], tickets: [...new Set([...refs.tickets, ...r.tickets])] };
   } catch (err) {
     await deps.log("warn", `RetrieveBooking failed for transaction ${l.transactionId}: ${msgOf(err)}`);
   }
-  const next: AkbarLegState = { ...l, status, checkedAt: now(), ...(refs.pnrs.length ? { pnrs: refs.pnrs } : {}), ...(refs.tickets.length ? { tickets: refs.tickets } : {}), ...(failureReason ? { failureReason } : {}) };
+  const next: AkbarLegState = { ...l, status, checkedAt: now(), ...(refs.pnrs.length ? { pnrs: refs.pnrs } : {}), ...(refs.tickets.length ? { tickets: refs.tickets } : {}), ...(failureReason ? { failureReason } : {}),
+    ...(paymentStatus ? { paymentStatus } : {}), ...(bookingStatus ? { bookingStatus } : {}) };
   if (status === "Success" && refs.pnrs.length) return { ...next, state: "SUCCESS", message: undefined, errorCode: undefined };
   if (status === "Failed") {
     // Msg on GetItineraryStatus is the status call's own result ("Success"), not why the booking failed.
     const why = [
+      paymentStatus && `PaymentStatus "${paymentStatus}"`,
+      bookingStatus && `RetrieveBooking Status "${bookingStatus}"`,
       failureReason && `RetrieveBooking: ${failureReason}`,
       l.startPay && l.startPay.code !== "200" && `StartPay Code ${l.startPay.code}${l.startPay.message ? ` "${l.startPay.message}"` : ""}`,
     ].filter(Boolean).join("; ");

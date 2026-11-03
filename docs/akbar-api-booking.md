@@ -51,7 +51,9 @@ booked in order; a leg is never started while the previous one is not booked.
   If that state can't be saved, StartPay is not sent.
 - The booking lock (queue / Admin) prevents two runs at once.
 - Failure before StartPay → `offline.ticketing = PENDING`: staff ticket on Akbar's portal exactly as today.
-  Paid but unconfirmed / partial → `offline.ticketing = AKBAR_CHECK` and an error event for staff.
+  Paid but unconfirmed / partial → `offline.ticketing = AKBAR_CHECK` and an error event for staff. The booking
+  is `TICKETED` only when every leg has Akbar's PNR; customers see "Ticket being issued" (not "Confirmed") while a
+  paid booking has no PNR.
 - No database migration: state lives in the existing `flight_data` JSON column.
 
 ## Enabling (UAT first)
@@ -107,8 +109,16 @@ itinerary TUI, TransactionID, and the PNR / tickets exactly as Akbar returned th
 3. **Response samples** for GetSPricer, CreateItinerary, StartPay, GetItineraryStatus, RetrieveBooking and
    GetTravelCheckList (the collection has none). The parsers read `Code`, `Msg`, `TUI`, `NetAmount`,
    `TransactionID`, `CurrentStatus`, `CRSPNR` / `APNR` / `PNR` and `Ticket` / `TicketNumber`; confirm the names.
-4. **Round-trip pricing**: the environment has OW/RT variables (`IndexOW`, `IndexRT`, …) suggesting a combined
-   RT SmartPricer, but no sample. Zamra books legs as separate one-way itineraries.
+4. **Round-trip format (undocumented — not guessed)**: the environment has OW/RT variables (`IndexOW`, `IndexRT`,
+   `OrderIDOW`, `OrderIDRT`, `OWAmount`, `RTAmount`) suggesting a combined RT flow, but the collection has no RT
+   SmartPricer / CreateItinerary / StartPay sample. Zamra searches and books each direction as its own one-way
+   itinerary (Akbar records `TripType "ON"`), outbound first; the return is never created or paid unless the
+   outbound is booked. Akbar to confirm: (a) whether RT must be one ExpressSearch with `ReturnDate` /
+   `FareType "RT"`; (b) the SmartPricer body for two trips (Index / OrderID per direction, TripType); (c) whether
+   one CreateItinerary + one StartPay / TransactionID covers both directions; (d) whether two one-way itineraries
+   are acceptable for certification; (e) sample requests and responses for the full RT sequence.
+   UAT TransactionID 260151395 (CCJ–BLR, 1A 1C 1I): StartPay 6033, then CurrentStatus "Failed" with PaymentStatus
+   "Success", RetrieveBooking Status "BO1", no PNR, no reason — Akbar to explain and confirm the deposit.
 5. **Deposit / permissions**: StartPay uses `DepositPayment: true`; confirm the UAT account has deposit
    balance and CreateItinerary / StartPay permission, and that the gateway's IP is whitelisted for them.
 6. **GetSPricer polling** and **GetItineraryStatus** timing: confirm when to poll and the final status values.
