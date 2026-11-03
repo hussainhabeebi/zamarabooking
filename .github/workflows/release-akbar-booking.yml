@@ -44,6 +44,10 @@ on:
       pr_head_sha:
         description: 'PR #45 head commit (must be on main)'
         required: true
+      admin_files_base_sha:
+        description: 'Admin only: commit whose Akbar Admin files are live (deploy message "Akbar-API-booking-admin-<sha>-on-…"); blank = pr_base_sha'
+        required: false
+        default: ''
       api_rollback_version:
         description: 'rollback only: zamra-api version ID to restore'
         required: false
@@ -222,10 +226,22 @@ jobs:
           LIVE: ${{ inputs.admin_base_sha }}
           BASE: ${{ inputs.pr_base_sha }}
           HEAD: ${{ inputs.pr_head_sha }}
+          FILES_BASE: ${{ inputs.admin_files_base_sha }}
         run: |
-          git diff --binary "$BASE" "$HEAD" -- $ADMIN_FILES > "$RUNNER_TEMP/admin.patch"
-          git checkout --detach "$LIVE"
-          git apply --index "$RUNNER_TEMP/admin.patch"
+          if [ -n "$FILES_BASE" ]; then
+            # Live Admin = admin_base_sha + the allowlisted Admin files as they were at FILES_BASE
+            # (deploy message "Akbar-API-booking-admin-<FILES_BASE>-on-<admin_base_sha>", checked below
+            # before deploying). New tree = admin_base_sha + those same files as they are at HEAD.
+            git merge-base --is-ancestor "$FILES_BASE" "$HEAD" || { echo "::error::admin_files_base_sha $FILES_BASE is not an ancestor of $HEAD"; exit 1; }
+            echo "Admin changes going live (live files at $FILES_BASE -> $HEAD):"
+            git diff --stat "$FILES_BASE" "$HEAD" -- $ADMIN_FILES
+            git checkout --detach "$LIVE"
+            git checkout "$HEAD" -- $ADMIN_FILES
+          else
+            git diff --binary "$BASE" "$HEAD" -- $ADMIN_FILES > "$RUNNER_TEMP/admin.patch"
+            git checkout --detach "$LIVE"
+            git apply --index "$RUNNER_TEMP/admin.patch"
+          fi
           git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
           while IFS= read -r f; do
             case " $ADMIN_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
@@ -247,9 +263,17 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FILES_BASE: ${{ inputs.admin_files_base_sha }}
+          LIVE: ${{ inputs.admin_base_sha }}
         run: |
           pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
           tail -25 "$RUNNER_TEMP/deployments.txt"
+          # With admin_files_base_sha, the live Admin must be exactly that release: "…-<files base>-on-<admin_base_sha>".
+          if [ -n "$FILES_BASE" ]; then
+            latest=$(grep '^Message:' "$RUNNER_TEMP/deployments.txt" | tail -1)
+            echo "Latest deployment: $latest"
+            case "$latest" in *"$FILES_BASE-on-$LIVE"*) ;; *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE — someone deployed since. Re-check the inputs."; exit 1;; esac
+          fi
           echo "ROLLBACK TARGET (zamra-admin): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
       - name: Deploy zamra-admin
         working-directory: apps/admin
