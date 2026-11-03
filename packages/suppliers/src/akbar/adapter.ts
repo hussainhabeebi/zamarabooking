@@ -1,5 +1,6 @@
 import type { NormalizedFare, SearchParams, StopDetail, SupplierAdapter, SupplierCredentials } from "../base.js";
 import { AkbarClient, AkbarError, searchTui, type AkbarCredentials, type AkbarToken } from "./client.js";
+import { akbarWebSettings, type WebSettingsMap } from "./websettings.js";
 
 // Akbar Travels search for Zamra's flight results. Like Poomas, Akbar fares are
 // sold on Zamra and ticketed by staff on Akbar's portal until the CreateItinerary
@@ -101,7 +102,9 @@ export function normalizeAkbarJourney(j: Raw, tui: string, cabinClass: string): 
     fareClass:     str(first(j, ["RBD", "FareClass"])),
     ...(seats > 0 ? { seatsLeft: seats } : {}),
     ...(str(j.FCType) ? { fareIdentifier: str(j.FCType) } : {}),
-    raw:           { tui, index, orderId: j.OrderID ?? null, provider: str(j.Provider), grossFare: gross || null, netFare },
+    // carriers: validating / marketing / operating airline codes (WebSettings lists airline codes).
+    raw:           { tui, index, orderId: j.OrderID ?? null, provider: str(j.Provider), grossFare: gross || null, netFare,
+                     carriers: [...new Set([j.VAC, j.MAC, j.OAC].flatMap((c) => str(c).toUpperCase().split("|")).map((c) => c.trim()).filter(Boolean))] },
   };
 }
 
@@ -147,6 +150,7 @@ export class AkbarAdapter implements SupplierAdapter {
   }
 
   private async searchLeg(params: SearchParams): Promise<NormalizedFare[]> {
+    const started = Date.now();
     let token = await this.getToken();
     // Zamra's search waits 28 s for every source, so stop collecting Akbar results before then.
     const opts = { deadlineMs: 22_000, mode: this.mode };
@@ -156,7 +160,17 @@ export class AkbarAdapter implements SupplierAdapter {
       token = await this.getToken(true);
       return this.client.search(params, token, opts);
     });
-    return normalizeAkbarSearch(result.data, params.cabinClass);
+    const fares = normalizeAkbarSearch(result.data, params.cabinClass);
+    // API booking on (certification): WebSettings for this search's TUI, right after the search.
+    // Its Settings (Key → Value, as Akbar sent them) ride on each fare (raw.webSettings) to the
+    // booking, which works out SSR / SeatLayout for the fare's airline and sector. It never fails or
+    // holds up the search: it gets what is left of the 26 s before Zamra's 28 s limit, at most 8 s.
+    if (this.mode !== "AS" || !fares.length) return fares;
+    const tui = result.tui || searchTui(result.data);   // ExpressSearch's response TUI
+    const budget = Math.min(8_000, 26_000 - (Date.now() - started));
+    if (!tui || budget < 1_000) return fares;
+    const settings: WebSettingsMap | null = await this.client.webSettings(tui, token, budget).then(akbarWebSettings).catch(() => null);
+    return settings ? fares.map((f) => ({ ...f, raw: { ...(f.raw as Record<string, unknown>), webSettings: settings } })) : fares;
   }
 }
 

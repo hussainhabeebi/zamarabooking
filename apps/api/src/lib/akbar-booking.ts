@@ -19,9 +19,9 @@
 //     itinerary, booked in order; a later leg is never started while an earlier one isn't booked.
 
 import {
-  AkbarError, akbarBookingRefs, akbarMessages, akbarNetAmount, akbarOk, akbarTransactionId, akbarTravelRequirements,
+  AkbarError, akbarBookingRefs, akbarFeaturesFor, akbarWebSettings, akbarMessages, akbarNetAmount, akbarOk, akbarTransactionId, akbarTravelRequirements,
   itineraryFinalStatus, searchTui,
-  type AkbarClient, type AkbarContactInfo, type AkbarToken, type AkbarTraveller, type AkbarTravelRequirements,
+  type AkbarClient, type AkbarContactInfo, type WebSettingsMap, type AkbarToken, type AkbarTraveller, type AkbarTravelRequirements,
 } from "@zamrabooking/suppliers";
 import type { AkbarSettings } from "./flight-sources.js";
 
@@ -41,14 +41,26 @@ export function akbarBookingGate(env: { AKBAR_API_BOOKING_PRODUCTION?: string },
 // ── Inputs ───────────────────────────────────────────────────────────────────
 
 // The searched fare of one leg, as remembered at search time (NormalizedFare.raw).
-export interface AkbarLegRef { tui: string; index: string; orderId: number | string | null; netFare: number }
+// webSettings: Akbar WebSettings (Key → Value) for the leg's search; undefined = not read at search
+// time, null = read but no Settings list. carriers / origin / destination: what it is matched against.
+export interface AkbarLegRef {
+  tui: string; index: string; orderId: number | string | null; netFare: number;
+  carriers?: string[]; origin?: string; destination?: string;
+  webSettings?: WebSettingsMap | null;
+}
 
 export function akbarLegRefs(flightData: Record<string, any>): AkbarLegRef[] {
   const off = flightData?.offline ?? {};
-  const refs = Array.isArray(off.legs) && off.legs.length ? off.legs.map((l: any) => l?.sourceRef) : [off.sourceRef];
-  return refs.map((r: any) => ({
-    tui: String(r?.tui ?? ""), index: String(r?.index ?? ""), orderId: r?.orderId ?? null, netFare: Number(r?.netFare ?? 0),
-  }));
+  const legs: any[] = Array.isArray(off.legs) && off.legs.length ? off.legs : [{ ...(off.fare ?? {}), sourceRef: off.sourceRef }];
+  return legs.map((leg: any) => {
+    const r = leg?.sourceRef ?? {};
+    const carriers = Array.isArray(r.carriers) && r.carriers.length ? r.carriers.map(String) : [leg?.airline].filter(Boolean).map(String);
+    return {
+      tui: String(r.tui ?? ""), index: String(r.index ?? ""), orderId: r.orderId ?? null, netFare: Number(r.netFare ?? 0),
+      carriers, origin: String(leg?.origin ?? ""), destination: String(leg?.destination ?? ""),
+      ...(r.webSettings && typeof r.webSettings === "object" ? { webSettings: r.webSettings as WebSettingsMap } : {}),
+    };
+  });
 }
 
 export interface PaxInput {
@@ -128,6 +140,8 @@ export interface AkbarLegState {
   transactionId?: number; itineraryTui?: string; itineraryNetAmount?: number; itineraryAt?: string;
   paymentSentAt?: string;
   status?: "Success" | "Failed" | "";
+  startPay?: { code: string; message: string };   // StartPay's own Code / Msg (6033 "BOOKING INPROGRESS !" is normal)
+  failureReason?: string;                          // RetrieveBooking BookingFailureReason / Reason, as Akbar wrote it
   pnrs?: string[]; tickets?: string[];
   errorCode?: string; message?: string; checkedAt?: string;
 }
@@ -147,7 +161,7 @@ export function akbarOutcome(state: AkbarBookingState, legCount: number): AkbarO
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
-type Client = Pick<AkbarClient, "smartPricer" | "getSPricer" | "getTravelCheckList" | "ssr" | "seatLayout" | "createItinerary" | "startPay" | "getItineraryStatus" | "retrieveBooking">;
+type Client = Pick<AkbarClient, "webSettings" | "smartPricer" | "getSPricer" | "getTravelCheckList" | "ssr" | "seatLayout" | "createItinerary" | "startPay" | "getItineraryStatus" | "retrieveBooking">;
 
 export interface AkbarEngineDeps {
   client: Client;
@@ -225,7 +239,15 @@ const akbarCodeIsError = (d: unknown) => {
 
 export async function travelRequirements(deps: AkbarEngineDeps, call: ReturnType<typeof authed>, pricedTui: string) {
   try {
-    const r = akbarTravelRequirements(await call((t) => deps.client.getTravelCheckList(pricedTui, t)));
+    const data = await call((t) => deps.client.getTravelCheckList(pricedTui, t));
+    // UAT answers Code 200 with TravellerCheckList: "invalid Pricing TUI" — an error text, not a
+    // checklist. Say so instead of reading it as "no documents required".
+    const list = (data as Record<string, unknown> | null)?.TravellerCheckList;
+    if (typeof list === "string" && list.trim()) {
+      await deps.log("warn", `GetTravelCheckList returned no checklist (Akbar: "${list.trim()}"); continuing with the basic traveller checks`);
+      return null;
+    }
+    const r = akbarTravelRequirements(data);
     return { passport: r.passport, dob: r.dob, nationality: r.nationality, visa: r.visa };
   } catch (err) {
     await deps.log("warn", `GetTravelCheckList failed; continuing with the basic traveller checks: ${msgOf(err)}`);
@@ -268,16 +290,26 @@ export async function checkAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<type
     await sleep(3000);
   }
   let refs = akbarBookingRefs(statusData);
+  let failureReason = "";
   try {
     const booking = await call((t) => deps.client.retrieveBooking(l.transactionId!, t, l.itineraryTui ?? ""));
+    const b = (booking ?? {}) as Record<string, unknown>;
+    failureReason = [b.BookingFailureReason, b.Reason].map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean).join("; ");
     const r = akbarBookingRefs(booking);
     refs = { pnrs: [...new Set([...refs.pnrs, ...r.pnrs])], tickets: [...new Set([...refs.tickets, ...r.tickets])] };
   } catch (err) {
     await deps.log("warn", `RetrieveBooking failed for transaction ${l.transactionId}: ${msgOf(err)}`);
   }
-  const next: AkbarLegState = { ...l, status, checkedAt: now(), ...(refs.pnrs.length ? { pnrs: refs.pnrs } : {}), ...(refs.tickets.length ? { tickets: refs.tickets } : {}) };
+  const next: AkbarLegState = { ...l, status, checkedAt: now(), ...(refs.pnrs.length ? { pnrs: refs.pnrs } : {}), ...(refs.tickets.length ? { tickets: refs.tickets } : {}), ...(failureReason ? { failureReason } : {}) };
   if (status === "Success" && refs.pnrs.length) return { ...next, state: "SUCCESS", message: undefined, errorCode: undefined };
-  if (status === "Failed") return { ...next, state: "FAILED", errorCode: "BOOKING_FAILED", message: `Akbar reports the booking failed${akbarMessages(statusData) ? `: ${akbarMessages(statusData)}` : ""}.` };
+  if (status === "Failed") {
+    // Msg on GetItineraryStatus is the status call's own result ("Success"), not why the booking failed.
+    const why = [
+      failureReason && `RetrieveBooking: ${failureReason}`,
+      l.startPay && l.startPay.code !== "200" && `StartPay Code ${l.startPay.code}${l.startPay.message ? ` "${l.startPay.message}"` : ""}`,
+    ].filter(Boolean).join("; ");
+    return { ...next, state: "FAILED", errorCode: "BOOKING_FAILED", message: `Akbar's GetItineraryStatus reports CurrentStatus "Failed"${why ? ` (${why})` : " with no reason given"}.` };
+  }
   return { ...next, state: "PENDING", message: status === "Success" ? "Akbar reports success but returned no PNR yet." : "Akbar has not finished the booking yet." };
 }
 
@@ -323,11 +355,22 @@ export async function runAkbarBooking(deps: AkbarEngineDeps, input: AkbarEngineI
 
       // 2. Ancillary lookups (read-only). The collection's CreateItinerary sends SSR: [];
       //    selections are not sent until Akbar documents the SSR item format.
+      //    Only the features Akbar's WebSettings has not turned off; a fare from a search without
+      //    WebSettings reads it now, with the leg's search TUI. Unknown (null) = call as before.
       if (input.lookups && !l.transactionId) {
-        for (const [name, fn] of [
-          ["SeatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId: ref.orderId ?? 1 }, t)],
-          ["SSR", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
+        let settings = ref.webSettings;
+        if (settings === undefined) {
+          settings = await call((t) => deps.client.webSettings(ref.tui, t)).then(akbarWebSettings).catch(async (err) => {
+            await deps.log("warn", `WebSettings failed (SSR / SeatLayout called as before): ${msgOf(err)}`);
+            return null;
+          });
+        }
+        const features = akbarFeaturesFor(settings, { carriers: ref.carriers ?? [], origin: ref.origin ?? "", destination: ref.destination ?? "" });
+        for (const [name, key, fn] of [
+          ["SeatLayout", "seatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId: ref.orderId ?? 1 }, t)],
+          ["SSR", "ssr", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
         ] as const) {
+          if (features[key] === false) { await deps.log("info", `${name} skipped: Akbar WebSettings does not offer it for ${(ref.carriers ?? []).join("/") || "this airline"} on ${ref.origin}-${ref.destination}`); continue; }
           await call(fn).catch((err) => deps.log("warn", `${name} lookup failed (booking continues): ${msgOf(err)}`));
         }
       }
@@ -361,7 +404,8 @@ export async function runAkbarBooking(deps: AkbarEngineDeps, input: AkbarEngineI
     await deps.log("info", `Akbar leg ${i + 1}: StartPay for transaction ${l.transactionId} (₹${l.itineraryNetAmount})`);
     try {
       const pay = await call((t) => deps.client.startPay({ transactionId: l.transactionId!, netAmount: l.itineraryNetAmount!, tui: l.itineraryTui! }, t));
-      if (!akbarOk(pay)) await deps.log("warn", `StartPay answered Code ${String((pay as any)?.Code ?? "")}: ${akbarMessages(pay)} — checking the itinerary status`);
+      l = { ...l, startPay: { code: String((pay as any)?.Code ?? ""), message: akbarMessages(pay) } };
+      if (!akbarOk(pay)) await deps.log("warn", `StartPay answered Code ${l.startPay!.code}: ${l.startPay!.message} — checking the itinerary status`);
     } catch (err) {
       await deps.log("warn", `StartPay outcome unknown (${msgOf(err)}) — checking the itinerary status; StartPay will not be resent`);
     }
@@ -386,7 +430,14 @@ export async function refreshAkbarBooking(deps: AkbarEngineDeps, state: AkbarBoo
   const call = authed(deps, false);
   const next: AkbarBookingState = { ...state, legs: state.legs.map((l) => ({ ...l })) };
   for (const [i, l] of next.legs.entries()) {
-    if (paymentSent(l) && l.state !== "SUCCESS") next.legs[i] = await checkAkbarLeg(deps, call, l, deadlineMs);
+    if (!paymentSent(l)) continue;
+    if (l.state !== "SUCCESS") { next.legs[i] = await checkAkbarLeg(deps, call, l, deadlineMs); continue; }
+    // Booked with a PNR but RetrieveBooking had no ticket numbers yet (TicketNo "" on UAT): read them again.
+    // A booked leg stays booked whatever this check returns; only ticket numbers Akbar returns are added.
+    if (!l.tickets?.length) {
+      const checked = await checkAkbarLeg(deps, call, l, deadlineMs);
+      next.legs[i] = { ...l, checkedAt: checked.checkedAt, ...(checked.tickets?.length ? { tickets: checked.tickets } : {}) };
+    }
   }
   next.outcome = akbarOutcome(next, legCount);
   await deps.save(next);

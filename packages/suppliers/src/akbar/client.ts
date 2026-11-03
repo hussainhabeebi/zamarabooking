@@ -5,6 +5,8 @@ import type { SearchParams } from "../base.js";
 //
 //   {utilsUrl}/Utils/Signature        → JWT token, valid 48 hours
 //   {flightsUrl}/flights/ExpressSearch → starts a search, returns its TUI (token as Bearer)
+//   {utilsUrl}/Utils/WebSettings       → { ClientID, TUI }: supplier feature settings (SSR, SeatLayout, …)
+//                                        for a search; call after ExpressSearch with its TUI (Akbar, Nov 2026)
 //   {flightsUrl}/flights/GetExpSearch  → { ClientID, TUI }: results so far; call again
 //                                        until "Completed" is true, within 50 s of the search
 //   {flightsUrl}/flights/SmartPricer   → re-prices the chosen fare (Index / OrderID / Amount
@@ -483,6 +485,12 @@ export class AkbarClient {
     return this.post(`${this.flightsBase()}${endpoint}`, endpoint, expressSearchBody(params, auth.clientId, mode), auth.token, timeoutMs);
   }
 
+  // WebSettings for a search TUI (Akbar: POST {UtilsURL}/Utils/WebSettings after ExpressSearch).
+  async webSettings(tui: string, auth: AkbarToken, timeoutMs = 10_000): Promise<unknown> {
+    const endpoint = "/Utils/WebSettings";
+    return this.post(`${this.utilsBase()}${endpoint}`, endpoint, { ClientID: auth.clientId, TUI: tui }, auth.token, timeoutMs);
+  }
+
   // clientId: the Postman collection's GetExpSearch sample sends ClientID "" (used in Mode AS).
   async getExpSearch(tui: string, auth: AkbarToken, timeoutMs?: number, clientId: string = auth.clientId): Promise<unknown> {
     const endpoint = "/flights/GetExpSearch";
@@ -569,7 +577,8 @@ export class AkbarClient {
   // ExpressSearch (Mode SY: Akbar waits for every airline), then GetExpSearch only while the
   // answer holds no flights yet and isn't marked complete. A failed or slow follow-up keeps
   // the flights already received. `completed` is false when Akbar was still collecting fares.
-  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number }> {
+  // tui: the ExpressSearch response's TUI (the one WebSettings and GetExpSearch are called with).
+  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number; tui: string }> {
     const { pollIntervalMs = 2000, deadlineMs = 45_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
     const mode = opts.mode ?? "SY";
     const started = Date.now();
@@ -602,7 +611,7 @@ export class AkbarClient {
         if (hasJourneys(data)) best = data;
       }
       const result = hasJourneys(data) ? data : best ?? data;
-      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls };
+      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui };
     }
 
     while (!isSearchComplete(data) && !hasJourneys(data) && tui && left() > pollIntervalMs + 1000) {
@@ -615,6 +624,6 @@ export class AkbarClient {
       }
       polls++;
     }
-    return { data, completed: isSearchComplete(data) || hasJourneys(data), polls };
+    return { data, completed: isSearchComplete(data) || hasJourneys(data), polls, tui };
   }
 }

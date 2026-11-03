@@ -3,7 +3,7 @@
 // Zamra's database or production Worker.
 //
 // READ-ONLY by default (no itinerary, no payment, no ticket):
-//   Signature → ExpressSearch → GetExpSearch → SmartPricer (AS) → GetSPricer →
+//   Signature → ExpressSearch → GetExpSearch → WebSettings → SmartPricer (AS) → GetSPricer →
 //   GetTravelCheckList → FareRule → SSR → SeatLayout
 //
 // Booking steps (CreateItinerary → StartPay → GetItineraryStatus → RetrieveBooking) run
@@ -40,7 +40,7 @@ const env = process.env;
 const need = (k: string) => { const v = env[k]; if (!v) { console.error(`Missing ${k}`); process.exit(2); } return v; };
 
 export const STEP_BY_PATH: Record<string, string> = {
-  signature: "Signature", expresssearch: "ExpressSearch", getexpsearch: "GetExpSearch", smartpricer: "SmartPricer", getspricer: "GetSPricer",
+  signature: "Signature", expresssearch: "ExpressSearch", getexpsearch: "GetExpSearch", websettings: "WebSettings", smartpricer: "SmartPricer", getspricer: "GetSPricer",
   gettravelchecklist: "GetTravelCheckList", farerule: "FareRule", ssr: "SSR", seatlayout: "SeatLayout", createitinerary: "CreateItinerary",
   startpay: "StartPay", getitinerarystatus: "GetItineraryStatus", retrievebooking: "RetrieveBooking",
 };
@@ -92,9 +92,10 @@ async function main() {
   try {
     const auth = await client.signature();
     const params = { origin: from, destination: to, departureDate: date, adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: "INR" as const };
-    const search = await client.search(params, auth);
+    const search = await client.search(params, auth, { mode: "AS" });
     const journeys = akbarJourneys(search.data, 0).filter((j) => Number(j.NetFare) > 0 && !(Number(j.ReturnIdentifier) > 0));
     if (!journeys.length) return note("Stopped: the search returned no bookable journeys.");
+    await client.webSettings(searchTui(search.data), auth).catch((e) => console.warn(`WebSettings: ${e.message}`));
     const j = journeys.reduce((a, b) => (Number(b.NetFare) < Number(a.NetFare) ? b : a));
     const leg = { tui: searchTui(search.data), index: String(j.Index), orderId: (j.OrderID as number) ?? 1, netFare: Number(j.NetFare) };
     console.log(`Selected ${j.FlightNo ?? ""} ${j.DepartureTime ?? ""} NetFare ${leg.netFare} Index ${leg.index}`);

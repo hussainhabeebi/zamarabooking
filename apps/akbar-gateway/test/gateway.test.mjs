@@ -18,6 +18,8 @@ test("routes only Akbar's documented calls", () => {
   assert.equal(upstreamUrl(config, resolveRoute("/utils/Utils/Signature")), "https://b2bapiutils.benzyinfotech.com/Utils/Signature");
   assert.equal(upstreamUrl(config, resolveRoute("/flights/flights/ExpressSearch")), "https://b2bapiflights.benzyinfotech.com/flights/ExpressSearch");
   assert.equal(upstreamUrl(config, resolveRoute("/flights/Payment/StartPay")), "https://b2bapiflights.benzyinfotech.com/Payment/StartPay");
+  assert.equal(upstreamUrl(config, resolveRoute("/utils/Utils/WebSettings")), "https://b2bapiutils.benzyinfotech.com/Utils/WebSettings");
+  assert.equal(resolveRoute("/flights/Utils/WebSettings"), null);
   assert.equal(resolveRoute("/flights/Utils/Signature"), null);
   assert.equal(resolveRoute("/utils/flights/ExpressSearch"), null);
   assert.equal(resolveRoute("/flights/../admin"), null);
