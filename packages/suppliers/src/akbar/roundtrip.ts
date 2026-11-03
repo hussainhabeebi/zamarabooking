@@ -105,7 +105,16 @@ export function akbarSpecialFareCombinations(data: unknown): { onward: Raw; retu
 // ChannelCode null, Mode "SS", Options "", Source "SF", TripType "RS".
 export function akbarSpecialFarePricerBody(pair: { onward: Raw; return: Raw }, searchTui: string, clientId: string) {
   if (!akbarSpecialFarePairs(pair.onward, pair.return)) throw new Error("These flights are not an Akbar Special Fare pair");
-  const trip = (j: Raw, orderId: number) => ({ Amount: Number(j.NetFare), Index: String(j.Index ?? ""), OrderID: orderId, ChannelCode: null, TUI: searchTui });
+  if (!searchTui.trim()) throw new Error("Akbar Special Fare pricing requires a search TUI");
+  const trip = (j: Raw, orderId: number) => {
+    const amount = Number(j.NetFare);
+    const index = typeof j.Index === "string" ? j.Index.trim() : "";
+    if (j.NetFare === null || j.NetFare === undefined || !Number.isFinite(amount) || amount <= 0) {
+      throw new Error("Akbar Special Fare pricing requires a positive NetFare for each leg");
+    }
+    if (!index) throw new Error("Akbar Special Fare pricing requires an Index for each leg");
+    return { Amount: amount, Index: index, OrderID: orderId, ChannelCode: null, TUI: searchTui };
+  };
   return {
     Trips: [trip(pair.onward, 1), trip(pair.return, 2)],
     ClientID: clientId,
