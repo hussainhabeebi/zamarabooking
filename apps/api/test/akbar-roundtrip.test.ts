@@ -58,6 +58,21 @@ test("Special Fare SmartPricer body matches Akbar's RS sample", () => {
   assert.throws(() => akbarSpecialFarePricerBody({ onward: onward[0], return: ret[1] }, "t", ""), /not an Akbar Special Fare pair/);
 });
 
+test("Special Fare SmartPricer rejects missing pricing data instead of sending malformed requests", () => {
+  const [pair] = akbarSpecialFareCombinations(rs.getExpSearchResponse);
+  assert.throws(() => akbarSpecialFarePricerBody(pair, "", ""), /search TUI/);
+  for (const amount of [undefined, null, "invalid", 0, -1]) {
+    assert.throws(
+      () => akbarSpecialFarePricerBody({ onward: { ...pair.onward, NetFare: amount }, return: pair.return }, "test-tui", ""),
+      /positive NetFare/,
+    );
+  }
+  assert.throws(
+    () => akbarSpecialFarePricerBody({ onward: pair.onward, return: { ...pair.return, Index: "" } }, "test-tui", ""),
+    /Index/,
+  );
+});
+
 test("today's one-way parser never sells half of a Special Fare", () => {
   // Live search still books round trips as two one-way searches; an RS half must not appear as a fare.
   assert.deepEqual(normalizeAkbarSearch(rs.getExpSearchResponse, "ECONOMY"), []);
