@@ -11,7 +11,7 @@ import {
   type NormalizedFare,
 } from "@zamrabooking/suppliers";
 import {
-  akbarBookingUnits, akbarLegSource, akbarOutcome, runAkbarBooking, AkbarStepError,
+  akbarBookingUnits, akbarLegSource, akbarOutcome, akbarPrepaymentCheck, runAkbarBooking, AkbarStepError,
   type AkbarBookingState, type AkbarEngineDeps, type AkbarLegSource,
 } from "../src/lib/akbar-booking.js";
 import { lookupOfflineFare, rememberOfflineFares } from "../src/lib/flight-sources.js";
@@ -217,9 +217,10 @@ test("invalid round-trip selections are refused before any supplier call", () =>
 
 // ── Mocked end to end: search → selection → checkout → booking status ────────
 
-function akbarUat(opts: { pricedNet?: (sum: number) => number; status?: string; pnrs?: string[] } = {}) {
+function akbarUat(opts: { pricedNet?: (sum: number) => number; status?: string; pnrs?: string[]; pricingPolls?: number } = {}) {
   const calls: { path: string; body: any }[] = [];
   let sum = 0;
+  let pricerPolls = 0;
   const fetchImpl = (async (url: string, init: RequestInit) => {
     const path = new URL(url).pathname;
     const body = init.body ? JSON.parse(String(init.body)) : null;
@@ -237,7 +238,10 @@ function akbarUat(opts: { pricedNet?: (sum: number) => number; status?: string; 
       case "/flights/SmartPricer":
         sum = body.Trips.reduce((n: number, t: any) => n + t.Amount, 0);
         return json({ TUI: "priced-tui", Code: "200", Msg: ["Success"], NetAmount: 0 });
-      case "/flights/GetSPricer": return json({ TUI: "priced-tui", Code: "200", Msg: ["Success"], NetAmount: (opts.pricedNet ?? ((s) => s))(sum) });
+      case "/flights/GetSPricer":
+        // Still pricing: Code 200 with NetAmount 0 (as SmartPricer answers), for the first `pricingPolls` calls.
+        if (pricerPolls++ < (opts.pricingPolls ?? 0)) return json({ TUI: "priced-tui", Code: "200", Msg: ["Success"], NetAmount: 0 });
+        return json({ TUI: "priced-tui", Code: "200", Msg: ["Success"], NetAmount: (opts.pricedNet ?? ((s) => s))(sum) });
       case "/Utils/GetTravelCheckList": return json({ TUI: "x", Code: "200", Msg: ["Success"], TravellerCheckList: "invalid Pricing TUI" });
       case "/flights/SeatLayout": case "/flights/ssr": return json({ TUI: body?.Trips?.[0]?.TUI, Code: "200", Msg: ["Success"] });
       case "/flights/CreateItinerary": return json({ TUI: "it-tui", Code: "200", Msg: ["Success"], TransactionID: 260150001, NetAmount: body.NetAmount });
@@ -361,4 +365,27 @@ test("e2e: Akbar reports the round trip Failed after StartPay → FAILED, never 
   const again = await runAkbarBooking(d, { legs: units, pax, departureDates: ["2026-02-11"], contact, state });
   assert.equal(uat.paths().filter((p) => p === "StartPay").length, 1);
   assert.notEqual(akbarOutcome(again, units.length), "TICKETED");
+});
+
+// Checkout "This fare is no longer available" for RT / RS (SpiceJet): GetSPricer answered Code 200
+// with NetAmount 0 while still pricing, and the first 0 ended the polling as "no live fare".
+test("checkout pricing keeps polling GetSPricer while NetAmount is 0, then prices the round trip", async () => {
+  for (const kind of ["RS", "RT"] as const) {
+    const { onward, ret } = await searchAndSelect(kind);
+    const units = akbarBookingUnits([onward, ret].map((f) => akbarLegSource(f.raw as any, f)));
+    const uat = akbarUat({ pricingPolls: 2 });
+    const state = await akbarPrepaymentCheck(deps(uat.fetchImpl).d, { legs: units, pax, departureDates: ["2026-02-11"] });
+    assert.equal(uat.paths().filter((p) => p === "GetSPricer").length, 3);
+    assert.equal(state.legs[0].state, "PRICED");
+    assert.equal(state.legs[0].pricedNetAmount, onward.totalFare + ret.totalFare);
+  }
+});
+
+test("GetSPricer that never prices (NetAmount 0) is refused after the polls, not on the first answer", async () => {
+  const { onward, ret } = await searchAndSelect("RS");
+  const units = akbarBookingUnits([onward, ret].map((f) => akbarLegSource(f.raw as any, f)));
+  const uat = akbarUat({ pricingPolls: 99 });
+  await assert.rejects(akbarPrepaymentCheck(deps(uat.fetchImpl).d, { legs: units, pax, departureDates: ["2026-02-11"] }),
+    (e: unknown) => e instanceof AkbarStepError && e.code === "FARE_UNAVAILABLE");
+  assert.equal(uat.paths().filter((p) => p === "GetSPricer").length, 4);
 });
