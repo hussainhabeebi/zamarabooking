@@ -19,9 +19,9 @@
 //     itinerary, booked in order; a later leg is never started while an earlier one isn't booked.
 
 import {
-  AkbarError, akbarBookingRefs, akbarWebSettingsFeatures, akbarMessages, akbarNetAmount, akbarOk, akbarTransactionId, akbarTravelRequirements,
+  AkbarError, akbarBookingRefs, akbarFeaturesFor, akbarWebSettings, akbarMessages, akbarNetAmount, akbarOk, akbarTransactionId, akbarTravelRequirements,
   itineraryFinalStatus, searchTui,
-  type AkbarClient, type AkbarContactInfo, type AkbarFeatures, type AkbarToken, type AkbarTraveller, type AkbarTravelRequirements,
+  type AkbarClient, type AkbarContactInfo, type WebSettingsMap, type AkbarToken, type AkbarTraveller, type AkbarTravelRequirements,
 } from "@zamrabooking/suppliers";
 import type { AkbarSettings } from "./flight-sources.js";
 
@@ -41,16 +41,26 @@ export function akbarBookingGate(env: { AKBAR_API_BOOKING_PRODUCTION?: string },
 // ── Inputs ───────────────────────────────────────────────────────────────────
 
 // The searched fare of one leg, as remembered at search time (NormalizedFare.raw).
-// features: Akbar WebSettings for the leg's search (undefined = not read at search time).
-export interface AkbarLegRef { tui: string; index: string; orderId: number | string | null; netFare: number; features?: AkbarFeatures | null }
+// webSettings: Akbar WebSettings (Key → Value) for the leg's search; undefined = not read at search
+// time, null = read but no Settings list. carriers / origin / destination: what it is matched against.
+export interface AkbarLegRef {
+  tui: string; index: string; orderId: number | string | null; netFare: number;
+  carriers?: string[]; origin?: string; destination?: string;
+  webSettings?: WebSettingsMap | null;
+}
 
 export function akbarLegRefs(flightData: Record<string, any>): AkbarLegRef[] {
   const off = flightData?.offline ?? {};
-  const refs = Array.isArray(off.legs) && off.legs.length ? off.legs.map((l: any) => l?.sourceRef) : [off.sourceRef];
-  return refs.map((r: any) => ({
-    tui: String(r?.tui ?? ""), index: String(r?.index ?? ""), orderId: r?.orderId ?? null, netFare: Number(r?.netFare ?? 0),
-    ...(r?.webSettings && typeof r.webSettings === "object" ? { features: { ssr: r.webSettings.ssr ?? null, seatLayout: r.webSettings.seatLayout ?? null } } : {}),
-  }));
+  const legs: any[] = Array.isArray(off.legs) && off.legs.length ? off.legs : [{ ...(off.fare ?? {}), sourceRef: off.sourceRef }];
+  return legs.map((leg: any) => {
+    const r = leg?.sourceRef ?? {};
+    const carriers = Array.isArray(r.carriers) && r.carriers.length ? r.carriers.map(String) : [leg?.airline].filter(Boolean).map(String);
+    return {
+      tui: String(r.tui ?? ""), index: String(r.index ?? ""), orderId: r.orderId ?? null, netFare: Number(r.netFare ?? 0),
+      carriers, origin: String(leg?.origin ?? ""), destination: String(leg?.destination ?? ""),
+      ...(r.webSettings && typeof r.webSettings === "object" ? { webSettings: r.webSettings as WebSettingsMap } : {}),
+    };
+  });
 }
 
 export interface PaxInput {
@@ -348,18 +358,19 @@ export async function runAkbarBooking(deps: AkbarEngineDeps, input: AkbarEngineI
       //    Only the features Akbar's WebSettings has not turned off; a fare from a search without
       //    WebSettings reads it now, with the leg's search TUI. Unknown (null) = call as before.
       if (input.lookups && !l.transactionId) {
-        let features = ref.features;
-        if (features === undefined) {
-          features = await call((t) => deps.client.webSettings(ref.tui, t)).then(akbarWebSettingsFeatures).catch(async (err) => {
+        let settings = ref.webSettings;
+        if (settings === undefined) {
+          settings = await call((t) => deps.client.webSettings(ref.tui, t)).then(akbarWebSettings).catch(async (err) => {
             await deps.log("warn", `WebSettings failed (SSR / SeatLayout called as before): ${msgOf(err)}`);
             return null;
           });
         }
+        const features = akbarFeaturesFor(settings, { carriers: ref.carriers ?? [], origin: ref.origin ?? "", destination: ref.destination ?? "" });
         for (const [name, key, fn] of [
           ["SeatLayout", "seatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId: ref.orderId ?? 1 }, t)],
           ["SSR", "ssr", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
         ] as const) {
-          if (features?.[key] === false) { await deps.log("info", `${name} skipped: Akbar WebSettings shows it is not enabled for this fare`); continue; }
+          if (features[key] === false) { await deps.log("info", `${name} skipped: Akbar WebSettings does not offer it for ${(ref.carriers ?? []).join("/") || "this airline"} on ${ref.origin}-${ref.destination}`); continue; }
           await call(fn).catch((err) => deps.log("warn", `${name} lookup failed (booking continues): ${msgOf(err)}`));
         }
       }

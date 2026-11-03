@@ -97,9 +97,10 @@ itinerary TUI, TransactionID, and the PNR / tickets exactly as Akbar returned th
 
 ## Open items for Akbar (blockers / undocumented)
 
-1. **WebSettings** (now implemented): its response field names were not available when it was built (the documentation
-   page was unreachable from the build environment). Feature flags are matched loosely (keys or `Name`/`Enabled`
-   entries mentioning Seat / SSR / Meal / Baggage); unknown = feature used as before. Check the first real response.
+1. **WebSettings** (implemented): response `Settings[]` of `{ Key, Value }`; `ShowSSR|SeatLayout|Baggage|Meals` +
+   `Dom|Int` hold comma-separated airline codes, matched exactly against the fare's VAC / MAC / OAC for the
+   flight's sector (both airports in India = Dom). Unknown sector, empty Value or no Settings never switches a
+   feature off. Confirm with Akbar which carrier code (validating / marketing) the lists refer to.
 2. **CreateItinerary SSR / seat items**: the sample sends `SSR: []`. Paid baggage, meals and seats need the
    SSR item format and how SSRAmount is computed; until then CreateItinerary sends no SSR and baggage stays
    a staff-handled request.

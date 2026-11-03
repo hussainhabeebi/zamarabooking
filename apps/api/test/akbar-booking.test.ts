@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AkbarAdapter, AkbarClient, AkbarError, akbarWebSettingsFeatures, akbarBookingRefs, akbarTravelRequirements, createItineraryBody, startPayBody, smartPricerBody } from "@zamrabooking/suppliers";
+import { AkbarAdapter, AkbarClient, AkbarError, akbarWebSettings, akbarFeaturesFor, akbarSector, akbarBookingRefs, akbarTravelRequirements, createItineraryBody, startPayBody, smartPricerBody } from "@zamrabooking/suppliers";
 import {
   akbarBookingGate, akbarContact, akbarLegRefs, akbarMobile, akbarOutcome, akbarPrepaymentCheck, akbarTravellers, ageOn,
   refreshAkbarBooking, runAkbarBooking, type AkbarBookingState, type AkbarEngineDeps,
@@ -232,7 +232,8 @@ test("travellers, contact and stored fare references", () => {
   assert.equal(ageOn("2018-12-02", "2026-12-01"), 7);
   assert.equal(akbarMobile("+91 98765 43210"), "9876543210");
   assert.match(akbarContact({ contactAddress: "", contactCity: "", contactState: "", contactPin: "", contactCountryCode: "IN" }, pax[0], "a@b", "1").problems[0], /contact address/);
-  assert.deepEqual(akbarLegRefs({ offline: { sourceRef: { tui: "t", index: "i", orderId: 1, netFare: 10 } } }), [{ tui: "t", index: "i", orderId: 1, netFare: 10 }]);
+  assert.deepEqual(akbarLegRefs({ offline: { fare: { airline: "6E", origin: "BOM", destination: "DEL" }, sourceRef: { tui: "t", index: "i", orderId: 1, netFare: 10 } } }),
+    [{ tui: "t", index: "i", orderId: 1, netFare: 10, carriers: ["6E"], origin: "BOM", destination: "DEL" }]);
   assert.equal(akbarLegRefs({ offline: { legs: [{ sourceRef: { tui: "a" } }, { sourceRef: { tui: "b" } }] } }).length, 2);
 });
 
@@ -368,8 +369,8 @@ test("a website booking logs every documented Akbar step, in order, with TUIs an
   // 1. Search (website): ExpressSearch + GetExpSearch, then WebSettings with the search TUI (as the adapter does).
   const search = await rec.search(searchParams, token, { mode: "AS" });
   assert.equal(search.polls, 1);
-  const features = akbarWebSettingsFeatures(await rec.webSettings("search-tui", token));
-  const leg = { tui: "search-tui", index: "6E|1", orderId: 1, netFare: 4890.5, features };
+  const webSettings = akbarWebSettings(await rec.webSettings("search-tui", token));
+  const leg = { tui: "search-tui", index: "6E|1", orderId: 1, netFare: 4890.5, carriers: ["6E"], origin: "BOM", destination: "DEL", webSettings };
   const tokenFn = async (fresh?: boolean) => (fresh ? rec.signature() : token);
   const { deps } = engine(rec, { token: tokenFn });
   // 2. Checkout (POST /api/book): live fare + checklist before payment.
@@ -455,13 +456,31 @@ test("refresh reads ticket numbers for a booked leg that had TicketNo '' and nev
   assert.deepEqual(c3calls, []);
 });
 
-// ── WebSettings ──────────────────────────────────────────────────────────────
+// ── WebSettings (official structure: Settings[] of { Key, Value }) ───────────
+
+const officialSettings = {
+  TUI: "search-tui", Code: "200", Msg: ["Success"],
+  Settings: [
+    { Key: "ShowSSRDom", Value: "6E,SG,AI" },
+    { Key: "ShowSSRInt", Value: "AI,EK" },
+    { Key: "ShowSeatLayoutDom", Value: "6E,AI" },
+    { Key: "ShowSeatLayoutInt", Value: "SQ" },
+    { Key: "ShowBaggageDom", Value: "6E" },
+    { Key: "ShowBaggageInt", Value: "" },
+    { Key: "ShowMealsDom", Value: "6E,AI" },
+    { Key: "ShowMealsInt", Value: "AI" },
+    // Not availability settings: never read.
+    { Key: "IsSeatMandatory", Value: "false" },
+    { Key: "MealIncluded", Value: "N" },
+    { Key: "ShowFareRule", Value: "6E" },
+  ],
+};
 
 test("WebSettings: POST {UtilsURL}/Utils/WebSettings with ClientID and the search TUI (direct and via the gateway)", async () => {
   const sent: { url: string; body: any; auth?: string }[] = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
     sent.push({ url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
-    return json({ Code: "200" });
+    return json(officialSettings);
   }) as unknown as typeof fetch;
   await new AkbarClient(creds, fetchImpl).webSettings("search-tui", token);
   await new AkbarClient({ ...creds, gatewayUrl: "https://gw.test", gatewayKey: "gk" }, fetchImpl).webSettings("search-tui", token);
@@ -470,20 +489,41 @@ test("WebSettings: POST {UtilsURL}/Utils/WebSettings with ClientID and the searc
   assert.equal(sent[0].auth, "Bearer jwt");
 });
 
-test("WebSettings feature flags: plain flags, Name/Enabled entries, and nothing recognisable", () => {
-  assert.deepEqual(akbarWebSettingsFeatures({ Code: "200", Settings: { IsSeatLayoutEnabled: false, IsSSREnabled: "Y" } }), { ssr: true, seatLayout: false });
-  assert.deepEqual(akbarWebSettingsFeatures({ Features: [{ Name: "SeatLayout", Enabled: true }, { Name: "Meal", Enabled: "N" }, { Name: "Baggage", Enabled: "N" }] }), { ssr: false, seatLayout: true });
-  assert.deepEqual(akbarWebSettingsFeatures({ AllowSSR: "No", SeatAvailable: 0 }), { ssr: false, seatLayout: false });
-  // Never switched off by fields about something else than whether the API is enabled.
-  assert.deepEqual(akbarWebSettingsFeatures({
-    IsSeatMandatory: false, SeatSelectionRequired: "N", FreeSeat: false, MealIncluded: "N", BaggageIncluded: false,
-    IsPaidSSR: false, SSRCheckList: "invalid Pricing TUI", SSRAmount: 0, DefaultSeat: "N",
-    Features: [{ Name: "SeatMandatory", Enabled: false }, { Name: "SeatLayout", Value: "N" }, { Name: "SSR", Status: "I" }],
-  }), { ssr: null, seatLayout: null });
-  // One "on" wins over an "off".
-  assert.deepEqual(akbarWebSettingsFeatures({ IsSeatLayoutEnabled: "N", Features: [{ Name: "SeatLayout", IsEnabled: "Y" }] }).seatLayout, true);
-  assert.deepEqual(akbarWebSettingsFeatures({ Code: "200", Msg: ["Success"], TUI: "t" }), { ssr: null, seatLayout: null });
-  assert.deepEqual(akbarWebSettingsFeatures(null), { ssr: null, seatLayout: null });
+test("WebSettings Settings are read as Key → Value; only the Show* availability keys are kept", () => {
+  assert.deepEqual(akbarWebSettings(officialSettings), {
+    ShowSSRDom: "6E,SG,AI", ShowSSRInt: "AI,EK", ShowSeatLayoutDom: "6E,AI", ShowSeatLayoutInt: "SQ",
+    ShowBaggageDom: "6E", ShowBaggageInt: "", ShowMealsDom: "6E,AI", ShowMealsInt: "AI",
+  });
+  assert.equal(akbarWebSettings({ Code: "200", Msg: ["Success"] }), null);   // no Settings list
+  assert.deepEqual(akbarWebSettings({ Settings: [{ key: "showseatlayoutdom", value: "6E" }, { Key: "ShowSSRDom", Value: null }] }), {});
+  assert.deepEqual(akbarWebSettings({ Settings: [{ Key: "showSeatLayoutDom", Value: "6E" }] }), { ShowSeatLayoutDom: "6E" });
+});
+
+test("features: exact airline code, domestic vs international lists", () => {
+  const s = akbarWebSettings(officialSettings)!;
+  const f = (carriers: string[], o: string, d: string) => akbarFeaturesFor(s, { carriers, origin: o, destination: d });
+  assert.equal(akbarSector("BOM", "DEL"), "Dom");
+  assert.equal(akbarSector("COK", "SIN"), "Int");
+  assert.equal(akbarSector("ZZZ", "QQQ"), null);
+  // Domestic 6E: SSR and SeatLayout in the Dom lists.
+  assert.deepEqual(f(["6E"], "BOM", "DEL"), { ssr: true, seatLayout: true });
+  // Domestic SG: SSR yes (ShowSSRDom), SeatLayout no (not in ShowSeatLayoutDom).
+  assert.deepEqual(f(["SG"], "BOM", "DEL"), { ssr: true, seatLayout: false });
+  // Domestic IX: in no Dom list → both off.
+  assert.deepEqual(f(["IX"], "COK", "BOM"), { ssr: false, seatLayout: false });
+  // Same airline, other sector: SG international → SSR off (not in ShowSSRInt / ShowMealsInt; ShowBaggageInt empty = unknown).
+  assert.deepEqual(f(["SG"], "COK", "SIN"), { ssr: false, seatLayout: false });
+  // International SQ (validating) + AI (marketing): SeatLayout via SQ, SSR via AI.
+  assert.deepEqual(f(["SQ", "AI"], "COK", "SIN"), { ssr: true, seatLayout: true });
+  // Exact codes only: "I" / "A" / "6" never match "AI" / "6E".
+  assert.deepEqual(f(["I", "A", "6"], "BOM", "DEL"), { ssr: false, seatLayout: false });
+  // Unknown sector: on when either list allows it.
+  assert.deepEqual(f(["SQ"], "ZZZ", "QQQ"), { ssr: false, seatLayout: true });
+  // No Settings / no Show* keys → unknown → used as before.
+  assert.deepEqual(akbarFeaturesFor(null, { carriers: ["6E"], origin: "BOM", destination: "DEL" }), { ssr: null, seatLayout: null });
+  assert.deepEqual(akbarFeaturesFor({}, { carriers: ["6E"], origin: "BOM", destination: "DEL" }), { ssr: null, seatLayout: null });
+  // ALL / booleans.
+  assert.deepEqual(akbarFeaturesFor({ ShowSeatLayoutDom: "ALL", ShowSSRDom: "false" }, { carriers: ["XY"], origin: "BOM", destination: "DEL" }), { ssr: false, seatLayout: true });
 });
 
 const withFetch = async <T>(impl: (url: string, init: RequestInit) => Promise<Response>, fn: () => Promise<T>) => {
@@ -492,30 +532,35 @@ const withFetch = async <T>(impl: (url: string, init: RequestInit) => Promise<Re
   try { return await fn(); } finally { globalThis.fetch = real; }
 };
 
-test("one-way and round-trip searches read WebSettings for each search TUI; its settings ride on the fares", async () => {
+test("one-way and round-trip searches read WebSettings for each ExpressSearch TUI; Settings and carriers ride on the fares", async () => {
   const sent: { step: string; body: any }[] = [];
   const impl = async (url: string, init: RequestInit) => {
     const step = url.split("/").pop()!;
     const body = JSON.parse(String(init.body));
     sent.push({ step, body });
     if (step === "ExpressSearch") return json({ TUI: `tui-${body.Trips[0].From}`, Code: "200" });
-    if (step === "GetExpSearch") return json({ TUI: body.TUI, Code: "200", Completed: "Completed", Trips: [{ Journey: [{ ...journey(1), From: "X", To: "Y" }].map((j) => ({ ...j, From: body.TUI.slice(4), To: body.TUI.slice(4) === "BOM" ? "DEL" : "BOM" })) }] });
-    if (step === "WebSettings") return json({ Code: "200", TUI: body.TUI, Settings: { IsSeatLayoutEnabled: body.TUI === "tui-BOM" ? "N" : "Y" } });
+    if (step === "GetExpSearch") {
+      const from = body.TUI.slice(4), to = from === "BOM" ? "DEL" : "BOM";
+      return json({ TUI: body.TUI, Code: "200", Completed: "Completed", Trips: [{ Journey: [{ ...journey(1), From: from, To: to, VAC: "6E", MAC: "6E", OAC: "6E|6E" }] }] });
+    }
+    if (step === "WebSettings") return json({ ...officialSettings, TUI: body.TUI });
     return json({ Code: "404" }, 404);
   };
   const adapter = new AkbarAdapter({ ...creds, apiBooking: "MANUAL", getToken: async () => token } as any);
-  // One-way
   const ow = await withFetch(impl, () => adapter.search(searchParams));
   assert.deepEqual(sent.filter((x) => x.step === "WebSettings").map((x) => x.body), [{ ClientID: "enc-client", TUI: "tui-BOM" }]);
-  assert.deepEqual((ow[0].raw as any).webSettings, { ssr: null, seatLayout: false });
-  // Round trip: one WebSettings per leg's search TUI.
+  assert.deepEqual((ow[0].raw as any).carriers, ["6E"]);
+  assert.equal((ow[0].raw as any).webSettings.ShowSeatLayoutDom, "6E,AI");
   sent.length = 0;
   const rt = await withFetch(impl, () => adapter.search({ ...searchParams, tripType: "ROUNDTRIP", returnDate: "2026-12-20" }));
   assert.deepEqual(sent.filter((x) => x.step === "WebSettings").map((x) => x.body.TUI).sort(), ["tui-BOM", "tui-DEL"]);
-  const byLeg = (i: number) => (rt.find((f) => f.legIndex === i)!.raw as any).webSettings;
-  assert.deepEqual([byLeg(0), byLeg(1)], [{ ssr: null, seatLayout: false }, { ssr: null, seatLayout: true }]);
-  // The settings reach the booking through the stored fare reference.
-  assert.deepEqual(akbarLegRefs({ offline: { sourceRef: rt[0].raw } })[0].features, byLeg(rt[0].legIndex!));
+  // The booking gets each leg's route, carriers and Settings from the stored fare.
+  const legs = rt.map(({ raw, ...f }) => ({ ...f, sourceRef: raw }));
+  const refs = akbarLegRefs({ offline: { legs } });
+  assert.deepEqual(refs.map((r) => [r.origin, r.destination, r.carriers, r.webSettings?.ShowSSRDom]), [["BOM", "DEL", ["6E"], "6E,SG,AI"], ["DEL", "BOM", ["6E"], "6E,SG,AI"]]);
+  // One-way bookings: route from the stored fare, Settings from its source reference.
+  const single = akbarLegRefs({ offline: { fare: { ...ow[0], raw: undefined }, sourceRef: ow[0].raw } })[0];
+  assert.deepEqual([single.origin, single.destination, single.carriers], ["BOM", "DEL", ["6E"]]);
 });
 
 test("WebSettings is called with the ExpressSearch response TUI", async () => {
@@ -525,13 +570,11 @@ test("WebSettings is called with the ExpressSearch response TUI", async () => {
     const body = JSON.parse(String(init.body));
     sent.push({ step, body });
     if (step === "ExpressSearch") return json({ TUI: "express-tui", Code: "200" });
-    // Even if GetExpSearch ever answered with another TUI, WebSettings keeps ExpressSearch's.
     if (step === "GetExpSearch") return json({ ...searchReply, TUI: "other-tui", Completed: "Completed" });
-    return json({ Code: "200" });
+    return json(officialSettings);
   };
   await withFetch(impl, () => new AkbarAdapter({ ...creds, apiBooking: "MANUAL", getToken: async () => token } as any).search(searchParams));
   assert.deepEqual(sent.map((x) => x.step), ["ExpressSearch", "GetExpSearch", "WebSettings"]);
-  assert.equal(sent[1].body.TUI, "express-tui");
   assert.deepEqual(sent[2].body, { ClientID: "enc-client", TUI: "express-tui" });
 });
 
@@ -552,25 +595,29 @@ test("a failed WebSettings never fails the search; API booking off never calls i
   assert.ok(!steps.includes("WebSettings"));
 });
 
-test("the booking respects WebSettings: features turned off are skipped, unknown ones are called", async () => {
-  const run = async (features: any, webSettings?: object | (() => Response)) => {
+test("the booking respects WebSettings for the fare's airline and sector; unavailable features are skipped", async () => {
+  const run = async (ref: Record<string, unknown>, webSettings?: object | (() => Response)) => {
     const { calls, client } = mockAkbar({ webSettings });
     const { deps, logs } = engine(client);
-    const state = await runAkbarBooking(deps, { legs: [{ ...leg, ...(features !== undefined ? { features } : {}) }], pax, departureDates: ["2026-12-01"], contact, lookups: true });
-    assert.equal(state.outcome, "TICKETED");
+    const state = await runAkbarBooking(deps, { legs: [{ ...leg, ...ref } as any], pax, departureDates: ["2026-12-01"], contact, lookups: true });
+    assert.equal(state.outcome, "TICKETED");   // booking unaffected either way
     return { steps: paths(calls).filter((p) => ["WebSettings", "SeatLayout", "ssr"].includes(p!)), logs };
   };
-  // Settings from the search: SeatLayout off → only SSR.
-  const off = await run({ ssr: true, seatLayout: false });
-  assert.deepEqual(off.steps, ["ssr"]);
-  assert.ok(off.logs.some((m) => /SeatLayout skipped: Akbar WebSettings shows it is not enabled/.test(m)));
-  assert.deepEqual((await run({ ssr: false, seatLayout: false })).steps, []);
-  // Settings said nothing about them → both called, as before.
-  assert.deepEqual((await run({ ssr: null, seatLayout: null })).steps, ["SeatLayout", "ssr"]);
-  // No search-time settings → WebSettings read now with the search TUI, then respected.
-  assert.deepEqual((await run(undefined, { Settings: { IsSSREnabled: "N" } })).steps, ["WebSettings", "SeatLayout"]);
+  const settings = akbarWebSettings(officialSettings)!;
+  // Domestic SG: SSR offered, SeatLayout not.
+  const sg = await run({ carriers: ["SG"], origin: "BOM", destination: "DEL", webSettings: settings });
+  assert.deepEqual(sg.steps, ["ssr"]);
+  assert.ok(sg.logs.some((m) => /SeatLayout skipped: Akbar WebSettings does not offer it for SG on BOM-DEL/.test(m)));
+  // International SG: neither offered.
+  assert.deepEqual((await run({ carriers: ["SG"], origin: "COK", destination: "SIN", webSettings: settings })).steps, []);
+  // Domestic 6E: both.
+  assert.deepEqual((await run({ carriers: ["6E"], origin: "BOM", destination: "DEL", webSettings: settings })).steps, ["SeatLayout", "ssr"]);
+  // Response without Settings → both called, as before.
+  assert.deepEqual((await run({ carriers: ["SG"], origin: "BOM", destination: "DEL", webSettings: null })).steps, ["SeatLayout", "ssr"]);
+  // No search-time WebSettings → read now with the search TUI (official structure), then respected.
+  assert.deepEqual((await run({ carriers: ["SG"], origin: "BOM", destination: "DEL" }, officialSettings)).steps, ["WebSettings", "ssr"]);
   // WebSettings failing → both called, with a warning.
-  const failed = await run(undefined, () => new Response("busy", { status: 503 }));
+  const failed = await run({ carriers: ["SG"], origin: "BOM", destination: "DEL" }, () => new Response("busy", { status: 503 }));
   assert.deepEqual(failed.steps, ["WebSettings", "SeatLayout", "ssr"]);
   assert.ok(failed.logs.some((m) => /WebSettings failed \(SSR \/ SeatLayout called as before\)/.test(m)));
 });

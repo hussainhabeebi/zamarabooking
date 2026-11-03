@@ -281,55 +281,6 @@ export function createItineraryBody(p: AkbarCreateItinerary, clientId: string) {
 
 // ── Response helpers ─────────────────────────────────────────────────────────
 
-// Supplier features from a WebSettings response. Akbar's documentation page could not be read
-// from the build environment, so the field names are not known. To never switch a feature off by
-// mistake, only an explicit on/off flag counts:
-//   • a key naming the feature AND enablement, e.g. IsSeatLayoutEnabled, AllowSSR, SeatAvailable,
-//     SSRApplicable — but not keys about something else (Mandatory, Required, Included, Free, Paid,
-//     Charge, Amount, CheckList …): IsSeatMandatory: false or MealIncluded: "N" say nothing about
-//     whether the API is enabled;
-//   • a { Name / Code / Key: "SeatLayout", Enabled / IsEnabled / Allowed / Available / Active: … } entry.
-// Values: true / false, "Y" / "N", "Yes" / "No", "1" / "0", "Enabled" / "Disabled".
-// Any "on" wins over an "off"; nothing recognisable = null = the feature is used as before.
-export interface AkbarFeatures { ssr: boolean | null; seatLayout: boolean | null }
-const ON = new Set(["true", "y", "yes", "1", "enabled"]);
-const OFF = new Set(["false", "n", "no", "0", "disabled"]);
-const flag = (v: unknown): boolean | null => {
-  if (typeof v === "boolean") return v;
-  if (typeof v !== "string" && typeof v !== "number") return null;
-  const t = String(v).trim().toLowerCase();
-  return ON.has(t) ? true : OFF.has(t) ? false : null;
-};
-const featureOf = (name: string): keyof AkbarFeatures | null =>
-  /seat/i.test(name) ? "seatLayout" : /ssr|meal|baggage|ancillar/i.test(name) ? "ssr" : null;
-const ENABLEMENT = /enable|allow|availab|active|applicable|show|display/i;
-const OTHER_MEANING = /mandator|requir|includ|free|paid|charge|amount|fee|price|count|limit|checklist|selected|default/i;
-const ENTRY_VALUE_KEYS = ["Enabled", "IsEnabled", "Allowed", "IsAllowed", "Available", "IsAvailable", "Active", "IsActive"];
-export function akbarWebSettingsFeatures(data: unknown): AkbarFeatures {
-  const seen: Record<keyof AkbarFeatures, boolean[]> = { ssr: [], seatLayout: [] };
-  const walk = (v: unknown, depth: number) => {
-    if (!v || typeof v !== "object" || depth > 10) return;
-    if (Array.isArray(v)) { v.forEach((x) => walk(x, depth + 1)); return; }
-    const o = v as Record<string, unknown>;
-    const label = [o.Name, o.Code, o.Key, o.Feature, o.Service].find((x) => typeof x === "string") as string | undefined;
-    const named = label && !OTHER_MEANING.test(label) ? featureOf(label) : null;
-    if (named) {
-      const value = ENTRY_VALUE_KEYS.map((k) => flag(o[k])).find((x) => x !== null);
-      if (value != null) seen[named].push(value);
-    }
-    for (const [k, x] of Object.entries(o)) {
-      if (x && typeof x === "object") { walk(x, depth + 1); continue; }
-      const f = featureOf(k);
-      if (!f || !ENABLEMENT.test(k) || OTHER_MEANING.test(k)) continue;
-      const b = flag(x);
-      if (b != null) seen[f].push(b);
-    }
-  };
-  walk(data, 0);
-  const pick = (xs: boolean[]) => (xs.includes(true) ? true : xs.includes(false) ? false : null);
-  return { ssr: pick(seen.ssr), seatLayout: pick(seen.seatLayout) };
-}
-
 // Akbar answers HTTP 200 with its own "Code" ("200" on success) and "Msg" (string[]).
 export function akbarCode(data: unknown): string {
   const v = data && typeof data === "object" ? (data as Record<string, unknown>).Code : undefined;
