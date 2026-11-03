@@ -275,7 +275,9 @@ export async function priceAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<type
   for (let i = 0; i < 4; i++) {
     if (i) await sleep(2000);
     priced = await call((t) => deps.client.getSPricer(tui, t));
-    if (akbarNetAmount(priced) != null) break;
+    // A NetAmount of 0 means "not priced yet" (SmartPricer itself answers NetAmount 0 while it
+    // prices), so keep asking; only a positive amount or an error code ends the polling.
+    if ((akbarNetAmount(priced) ?? 0) > 0) break;
     if (akbarCodeIsError(priced)) break;
   }
   const net = akbarNetAmount(priced);

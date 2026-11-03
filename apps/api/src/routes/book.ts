@@ -819,8 +819,14 @@ async function bookOfflineFare(
       } catch (err) {
         if (err instanceof AkbarStepError && err.code === "TRAVELLER_DETAILS_MISSING") return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: err.message, requestId }, 400);
         if (err instanceof AkbarStepError && err.code === "FARE_INCREASED") return fail(409, "FARE_CHANGED", "The airline has changed this fare. Please search again for the latest price.", err.detail);
-        console.warn("[book-akbar-price]", JSON.stringify({ requestId, error: err instanceof Error ? err.message : String(err) }));
-        return fail(409, "FARE_EXPIRED", "We couldn't confirm this fare with the airline. Please search again.");
+        const reason = err instanceof Error ? err.message : String(err);
+        const step = err instanceof AkbarStepError ? err.code : "AKBAR_CALL_FAILED";
+        console.warn("[book-akbar-price]", JSON.stringify({ requestId, step, error: reason }));
+        // Akbar's own answer (e.g. "GetSPricer: …") in Admin → Supplier logs, next to the raw calls of this requestId.
+        runInBackground(c, logSupplierCall(db, { tenantId, supplier: "AKBAR", endpoint: "/flights/SmartPricer", level: "ERROR", requestId,
+          errorCode: step, errorMessage: reason.slice(0, 500),
+          requestSummary: { stage: "checkout pre-payment pricing", tripType: body.tripType, legs: legs.length, roundTrip: units ? units[0]?.roundTrip?.fareType ?? null : null } }));
+        return fail(409, "FARE_EXPIRED", "We couldn't confirm this fare with the airline. Please search again.", { step });
       }
     }
   }
