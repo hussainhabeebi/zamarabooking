@@ -40,4 +40,5 @@ export {
   type AkbarCredentials, type AkbarToken, type AkbarExchange, type AkbarSearchOptions, type AkbarPricerTrip, type AkbarStartPay, type AkbarCancel, type AkbarCreateItinerary, type AkbarContactInfo, type AkbarTraveller, type AkbarTravelRequirements,
 } from "./akbar/client.js";
 export { akbarWebSettings, akbarFeaturesFor, akbarSector, type AkbarFeatures, type WebSettingsMap, type FareScope } from "./akbar/websettings.js";
+export { akbarRoundTripSearchBody, akbarRoundTripJourneys, akbarSpecialFarePairs, akbarSpecialFareCombinations, akbarSpecialFarePricerBody, type AkbarRoundTripFareType } from "./akbar/roundtrip.js";
 export { AkbarAdapter, akbarJourneyLegs, normalizeAkbarSearch, normalizeAkbarJourney, akbarJourneys, akbarDurationMinutes } from "./akbar/adapter.js";

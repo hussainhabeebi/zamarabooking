@@ -109,14 +109,17 @@ itinerary TUI, TransactionID, and the PNR / tickets exactly as Akbar returned th
 3. **Response samples** for GetSPricer, CreateItinerary, StartPay, GetItineraryStatus, RetrieveBooking and
    GetTravelCheckList (the collection has none). The parsers read `Code`, `Msg`, `TUI`, `NetAmount`,
    `TransactionID`, `CurrentStatus`, `CRSPNR` / `APNR` / `PNR` and `Ticket` / `TicketNumber`; confirm the names.
-4. **Round-trip format (undocumented — not guessed)**: the environment has OW/RT variables (`IndexOW`, `IndexRT`,
-   `OrderIDOW`, `OrderIDRT`, `OWAmount`, `RTAmount`) suggesting a combined RT flow, but the collection has no RT
-   SmartPricer / CreateItinerary / StartPay sample. Zamra searches and books each direction as its own one-way
-   itinerary (Akbar records `TripType "ON"`), outbound first; the return is never created or paid unless the
-   outbound is booked. Akbar to confirm: (a) whether RT must be one ExpressSearch with `ReturnDate` /
-   `FareType "RT"`; (b) the SmartPricer body for two trips (Index / OrderID per direction, TripType); (c) whether
-   one CreateItinerary + one StartPay / TransactionID covers both directions; (d) whether two one-way itineraries
-   are acceptable for certification; (e) sample requests and responses for the full RT sequence.
+4. **Round trips (Akbar sample payloads, Nov 2026)** — `packages/suppliers/src/akbar/roundtrip.ts`, not wired yet.
+   Verified from the samples: normal round trip = ExpressSearch `FareType "RT"`, Round Trip Special Fare =
+   `FareType "RS"` (one Trip with `OnwardDate` + `ReturnDate`, `SecType` D / I); GetExpSearch `Trips[0]` = onward,
+   `Trips[1]` = return; RS journeys have `ReturnIdentifier` > 0 (once per side). Special Fare pair: both
+   ReturnIdentifiers > 0 and equal, same `VAC`, same `Provider` (Index may differ). RS SmartPricer: both legs, one
+   search TUI, OrderID 1 / 2, each leg's NetFare as Amount, `Mode "SS"`, `TripType "RS"`.
+   Still needed from Akbar before RT / RS can be booked or priced: SmartPricer request for a normal RT; GetSPricer,
+   CreateItinerary, StartPay, GetItineraryStatus and RetrieveBooking responses for RT and RS; which amount is the
+   journey total (guidance: "the first leg's NetAmount already includes the combined fare", but the RS SmartPricer
+   sample sends 4863 + 5120); whether a normal RT may combine different airlines / providers. Until then Zamra books a
+   round trip as two one-way itineraries (Akbar records `TripType "ON"`), outbound first.
    UAT TransactionID 260151395 (CCJ–BLR, 1A 1C 1I): StartPay 6033, then CurrentStatus "Failed" with PaymentStatus
    "Success", RetrieveBooking Status "BO1", no PNR, no reason — Akbar to explain and confirm the deposit.
 5. **Deposit / permissions**: StartPay uses `DepositPayment: true`; confirm the UAT account has deposit
