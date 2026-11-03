@@ -163,7 +163,7 @@ export class AkbarAdapter implements SupplierAdapter {
     // SeatLayout calls Akbar says are not enabled. It never fails or holds up the search: it gets
     // what is left of the 26 s before Zamra's 28 s search limit, at most 8 s.
     if (this.mode !== "AS" || !fares.length) return fares;
-    const tui = searchTui(result.data);
+    const tui = result.tui || searchTui(result.data);   // ExpressSearch's response TUI
     const budget = Math.min(8_000, 26_000 - (Date.now() - started));
     if (!tui || budget < 1_000) return fares;
     const features: AkbarFeatures | null = await this.client.webSettings(tui, token, budget).then(akbarWebSettingsFeatures).catch(() => null);

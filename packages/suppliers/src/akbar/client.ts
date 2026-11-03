@@ -282,36 +282,47 @@ export function createItineraryBody(p: AkbarCreateItinerary, clientId: string) {
 // ── Response helpers ─────────────────────────────────────────────────────────
 
 // Supplier features from a WebSettings response. Akbar's documentation page could not be read
-// from the build environment, so the field names are matched loosely: a flag whose key (or whose
-// Name / Code / Key in a { Name, Enabled } style entry) mentions Seat → seatLayout, SSR / Meal /
-// Baggage / Ancillary → ssr. true / "Y" / "1" / "Enabled" … = on; false / "N" / "0" / "Disabled" … = off.
-// null = WebSettings said nothing recognisable about the feature (it is then treated as available,
-// exactly as before WebSettings existed). Confirm the names against the first real response.
+// from the build environment, so the field names are not known. To never switch a feature off by
+// mistake, only an explicit on/off flag counts:
+//   • a key naming the feature AND enablement, e.g. IsSeatLayoutEnabled, AllowSSR, SeatAvailable,
+//     SSRApplicable — but not keys about something else (Mandatory, Required, Included, Free, Paid,
+//     Charge, Amount, CheckList …): IsSeatMandatory: false or MealIncluded: "N" say nothing about
+//     whether the API is enabled;
+//   • a { Name / Code / Key: "SeatLayout", Enabled / IsEnabled / Allowed / Available / Active: … } entry.
+// Values: true / false, "Y" / "N", "Yes" / "No", "1" / "0", "Enabled" / "Disabled".
+// Any "on" wins over an "off"; nothing recognisable = null = the feature is used as before.
 export interface AkbarFeatures { ssr: boolean | null; seatLayout: boolean | null }
-const ON = new Set(["true", "y", "yes", "1", "enabled", "enable", "active", "a", "on"]);
-const OFF = new Set(["false", "n", "no", "0", "disabled", "disable", "inactive", "i", "off"]);
+const ON = new Set(["true", "y", "yes", "1", "enabled"]);
+const OFF = new Set(["false", "n", "no", "0", "disabled"]);
 const flag = (v: unknown): boolean | null => {
   if (typeof v === "boolean") return v;
-  const t = String(v ?? "").trim().toLowerCase();
+  if (typeof v !== "string" && typeof v !== "number") return null;
+  const t = String(v).trim().toLowerCase();
   return ON.has(t) ? true : OFF.has(t) ? false : null;
 };
 const featureOf = (name: string): keyof AkbarFeatures | null =>
   /seat/i.test(name) ? "seatLayout" : /ssr|meal|baggage|ancillar/i.test(name) ? "ssr" : null;
+const ENABLEMENT = /enable|allow|availab|active|applicable|show|display/i;
+const OTHER_MEANING = /mandator|requir|includ|free|paid|charge|amount|fee|price|count|limit|checklist|selected|default/i;
+const ENTRY_VALUE_KEYS = ["Enabled", "IsEnabled", "Allowed", "IsAllowed", "Available", "IsAvailable", "Active", "IsActive"];
 export function akbarWebSettingsFeatures(data: unknown): AkbarFeatures {
   const seen: Record<keyof AkbarFeatures, boolean[]> = { ssr: [], seatLayout: [] };
   const walk = (v: unknown, depth: number) => {
     if (!v || typeof v !== "object" || depth > 10) return;
     if (Array.isArray(v)) { v.forEach((x) => walk(x, depth + 1)); return; }
     const o = v as Record<string, unknown>;
-    // { Name: "SeatLayout", Enabled: true } style entries
     const label = [o.Name, o.Code, o.Key, o.Feature, o.Service].find((x) => typeof x === "string") as string | undefined;
-    const value = [o.Enabled, o.IsEnabled, o.Value, o.Status, o.Active, o.IsActive].map(flag).find((x) => x !== null);
-    const named = label ? featureOf(label) : null;
-    if (named && value != null) seen[named].push(value);
+    const named = label && !OTHER_MEANING.test(label) ? featureOf(label) : null;
+    if (named) {
+      const value = ENTRY_VALUE_KEYS.map((k) => flag(o[k])).find((x) => x !== null);
+      if (value != null) seen[named].push(value);
+    }
     for (const [k, x] of Object.entries(o)) {
       if (x && typeof x === "object") { walk(x, depth + 1); continue; }
-      const f = featureOf(k), b = flag(x);
-      if (f && b != null) seen[f].push(b);
+      const f = featureOf(k);
+      if (!f || !ENABLEMENT.test(k) || OTHER_MEANING.test(k)) continue;
+      const b = flag(x);
+      if (b != null) seen[f].push(b);
     }
   };
   walk(data, 0);
@@ -615,7 +626,8 @@ export class AkbarClient {
   // ExpressSearch (Mode SY: Akbar waits for every airline), then GetExpSearch only while the
   // answer holds no flights yet and isn't marked complete. A failed or slow follow-up keeps
   // the flights already received. `completed` is false when Akbar was still collecting fares.
-  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number }> {
+  // tui: the ExpressSearch response's TUI (the one WebSettings and GetExpSearch are called with).
+  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number; tui: string }> {
     const { pollIntervalMs = 2000, deadlineMs = 45_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
     const mode = opts.mode ?? "SY";
     const started = Date.now();
@@ -648,7 +660,7 @@ export class AkbarClient {
         if (hasJourneys(data)) best = data;
       }
       const result = hasJourneys(data) ? data : best ?? data;
-      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls };
+      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui };
     }
 
     while (!isSearchComplete(data) && !hasJourneys(data) && tui && left() > pollIntervalMs + 1000) {
@@ -661,6 +673,6 @@ export class AkbarClient {
       }
       polls++;
     }
-    return { data, completed: isSearchComplete(data) || hasJourneys(data), polls };
+    return { data, completed: isSearchComplete(data) || hasJourneys(data), polls, tui };
   }
 }

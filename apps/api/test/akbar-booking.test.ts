@@ -473,6 +473,15 @@ test("WebSettings: POST {UtilsURL}/Utils/WebSettings with ClientID and the searc
 test("WebSettings feature flags: plain flags, Name/Enabled entries, and nothing recognisable", () => {
   assert.deepEqual(akbarWebSettingsFeatures({ Code: "200", Settings: { IsSeatLayoutEnabled: false, IsSSREnabled: "Y" } }), { ssr: true, seatLayout: false });
   assert.deepEqual(akbarWebSettingsFeatures({ Features: [{ Name: "SeatLayout", Enabled: true }, { Name: "Meal", Enabled: "N" }, { Name: "Baggage", Enabled: "N" }] }), { ssr: false, seatLayout: true });
+  assert.deepEqual(akbarWebSettingsFeatures({ AllowSSR: "No", SeatAvailable: 0 }), { ssr: false, seatLayout: false });
+  // Never switched off by fields about something else than whether the API is enabled.
+  assert.deepEqual(akbarWebSettingsFeatures({
+    IsSeatMandatory: false, SeatSelectionRequired: "N", FreeSeat: false, MealIncluded: "N", BaggageIncluded: false,
+    IsPaidSSR: false, SSRCheckList: "invalid Pricing TUI", SSRAmount: 0, DefaultSeat: "N",
+    Features: [{ Name: "SeatMandatory", Enabled: false }, { Name: "SeatLayout", Value: "N" }, { Name: "SSR", Status: "I" }],
+  }), { ssr: null, seatLayout: null });
+  // One "on" wins over an "off".
+  assert.deepEqual(akbarWebSettingsFeatures({ IsSeatLayoutEnabled: "N", Features: [{ Name: "SeatLayout", IsEnabled: "Y" }] }).seatLayout, true);
   assert.deepEqual(akbarWebSettingsFeatures({ Code: "200", Msg: ["Success"], TUI: "t" }), { ssr: null, seatLayout: null });
   assert.deepEqual(akbarWebSettingsFeatures(null), { ssr: null, seatLayout: null });
 });
@@ -507,6 +516,23 @@ test("one-way and round-trip searches read WebSettings for each search TUI; its 
   assert.deepEqual([byLeg(0), byLeg(1)], [{ ssr: null, seatLayout: false }, { ssr: null, seatLayout: true }]);
   // The settings reach the booking through the stored fare reference.
   assert.deepEqual(akbarLegRefs({ offline: { sourceRef: rt[0].raw } })[0].features, byLeg(rt[0].legIndex!));
+});
+
+test("WebSettings is called with the ExpressSearch response TUI", async () => {
+  const sent: { step: string; body: any }[] = [];
+  const impl = async (url: string, init: RequestInit) => {
+    const step = url.split("/").pop()!;
+    const body = JSON.parse(String(init.body));
+    sent.push({ step, body });
+    if (step === "ExpressSearch") return json({ TUI: "express-tui", Code: "200" });
+    // Even if GetExpSearch ever answered with another TUI, WebSettings keeps ExpressSearch's.
+    if (step === "GetExpSearch") return json({ ...searchReply, TUI: "other-tui", Completed: "Completed" });
+    return json({ Code: "200" });
+  };
+  await withFetch(impl, () => new AkbarAdapter({ ...creds, apiBooking: "MANUAL", getToken: async () => token } as any).search(searchParams));
+  assert.deepEqual(sent.map((x) => x.step), ["ExpressSearch", "GetExpSearch", "WebSettings"]);
+  assert.equal(sent[1].body.TUI, "express-tui");
+  assert.deepEqual(sent[2].body, { ClientID: "enc-client", TUI: "express-tui" });
 });
 
 test("a failed WebSettings never fails the search; API booking off never calls it", async () => {
