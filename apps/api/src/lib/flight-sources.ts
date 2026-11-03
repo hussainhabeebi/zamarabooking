@@ -33,6 +33,9 @@ export interface AkbarSettings {
   // OFF: staff ticket on Akbar's portal (default). MANUAL: Admin → Bookings "Book on Akbar API".
   // AUTO: booked right after payment. PRODUCTION also needs AKBAR_API_BOOKING_PRODUCTION=approved.
   apiBooking:  "OFF" | "MANUAL" | "AUTO";
+  // Round trips in one RT / RS search, booked as one Akbar itinerary (Akbar's RT / RS samples).
+  // OFF (default): round trips are searched and booked one way at a time, as before. ON needs API booking.
+  roundTripFares: "OFF" | "ON";
   // CreateItinerary ContactInfo address (the agency's; Akbar's sample requires it).
   contactAddress:     string;
   contactCity:        string;
@@ -66,7 +69,7 @@ export const AKBAR_TEST_URLS = { utilsUrl: "https://b2bapiutils.benzyinfotech.co
 export const DEFAULT_AKBAR: AkbarSettings = {
   enabled: false, environment: "UAT", ...AKBAR_TEST_URLS,
   merchantId: "", apiKey: "", clientId: "", password: "", agentCode: "", browserKey: "", key: "", gatewayUrl: "",
-  apiBooking: "OFF", contactAddress: "", contactCity: "", contactState: "", contactPin: "", contactCountryCode: "IN",
+  apiBooking: "OFF", roundTripFares: "OFF", contactAddress: "", contactCity: "", contactState: "", contactPin: "", contactCountryCode: "IN",
 };
 
 // The client for these settings, with the gateway key from the Worker's secrets.

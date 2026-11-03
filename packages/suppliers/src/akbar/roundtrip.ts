@@ -1,23 +1,23 @@
 // Akbar round trips in one search: normal round trip (FareType "RT") and Round Trip Special
 // Fare (FareType "RS").
 //
-// Source of truth: Akbar's sample payloads (Nov 2026):
-//   • RT  — ExpressSearch request / response, GetExpSearch request / response (BOM–DEL, SG).
-//   • RS  — ExpressSearch request / response, GetExpSearch request / response, SmartPricer request
-//           (BOM–DXB, SG).
+// Source of truth: Akbar's sample payloads and Akbar support's reply (Nov 2026):
+//   • RT  — ExpressSearch request / response, GetExpSearch request / response (BOM–DEL, SG);
+//           SmartPricer request (6E onward + SG return: a normal RT may combine airlines / providers).
+//   • RS  — ExpressSearch request / response, GetExpSearch request / response (BOM–DXB, SG);
+//           SmartPricer request (two samples).
+//   • "CreateItinerary, GetSPricer, StartPay, GetItineraryStatus and RetrieveBooking are the same for
+//     round trip and onward booking"; SmartPricer gets the amount of each leg separately.
 // GetExpSearch, both types: Trips[0].Journey = onward flights, Trips[1].Journey = return flights.
-// RS: every Journey has ReturnIdentifier > 0 (equal to the number after "|" in its Index), and each
-// ReturnIdentifier appears once on each side.
+// RS: every Journey has ReturnIdentifier > 0, and each ReturnIdentifier appears once on each side.
+// Normal RT journeys have ReturnIdentifier 0 and any onward goes with any return.
 //
 // Akbar's pairing rules for a Special Fare (onward + return become one fare) — all must hold:
 //   both ReturnIdentifiers > 0; ONWARD.ReturnIdentifier = RETURN.ReturnIdentifier;
 //   ONWARD.VAC = RETURN.VAC; ONWARD.Provider = RETURN.Provider. The Index values may differ.
 //
-// NOT here (no sample yet, so not built): the SmartPricer request of a normal RT, the GetSPricer /
-// CreateItinerary / StartPay / RetrieveBooking responses of RT / RS, and how the combined price is
-// read (Akbar: "the first leg's NetAmount already includes the combined fare", while the RS
-// SmartPricer sample sends each leg's own NetFare as its Amount). Nothing calls these helpers yet:
-// live search and booking still book a round trip as two one-way itineraries.
+// Both legs come from one search TUI and are priced together (one SmartPricer, OrderID 1 / 2), so
+// they become ONE itinerary: one GetSPricer NetAmount, one CreateItinerary, one StartPay.
 
 import type { SearchParams } from "../base.js";
 import { akbarSector } from "./websettings.js";
@@ -100,27 +100,46 @@ export function akbarSpecialFareCombinations(data: unknown): { onward: Raw; retu
   return onward.flatMap((o) => (byRid.get(rid(o)) ?? []).filter((r) => akbarSpecialFarePairs(o, r)).map((r) => ({ onward: o, return: r })));
 }
 
-// SmartPricer request for a Special Fare pair, field for field as in Akbar's RS sample:
-// one search TUI, OrderID 1 = onward, 2 = return, each leg's own Index and NetFare as Amount,
-// ChannelCode null, Mode "SS", Options "", Source "SF", TripType "RS".
-export function akbarSpecialFarePricerBody(pair: { onward: Raw; return: Raw }, searchTui: string, clientId: string) {
+export interface AkbarRoundTripPricerLeg { amount: number; index: string }
+
+// SmartPricer request for a round trip, field for field as in Akbar's samples: one search TUI,
+// OrderID 1 = onward, 2 = return, each leg's own amount, Mode "SS", Source "SF".
+//   RT sample: ChannelCode null, ClientID = the agency ClientID, Options "A", TripType "RT".
+//   RS sample: ChannelCode "", ClientID "", Options "", TripType "RS".
+// Never sends a malformed request: every leg needs a positive amount and an Index, and the TUI is required.
+export function akbarRoundTripPricerBody(legs: [AkbarRoundTripPricerLeg, AkbarRoundTripPricerLeg], searchTui: string, clientId: string, fareType: AkbarRoundTripFareType) {
+  const tui = typeof searchTui === "string" ? searchTui.trim() : "";
+  if (!tui) throw new Error("Akbar round-trip pricing requires a search TUI");
+  const trips = legs.map((l) => {
+    const index = typeof l.index === "string" ? l.index.trim() : "";
+    if (l.amount == null || !Number.isFinite(l.amount) || l.amount <= 0) throw new Error(`Akbar round-trip pricing requires a positive amount for each leg (got ${l.amount})`);
+    if (!index) throw new Error("Akbar round-trip pricing requires an Index for each leg");
+    return { amount: l.amount, index };
+  });
+  const rs = fareType === "RS";
+  return {
+    Trips: trips.map((l, i) => ({ Amount: l.amount, Index: l.index, ChannelCode: rs ? "" : null, OrderID: i + 1, TUI: tui })),
+    ClientID: rs ? "" : clientId,
+    Mode: "SS",
+    Options: rs ? "" : "A",
+    Source: "SF",
+    TripType: fareType,
+  };
+}
+
+// SmartPricer request for a Special Fare pair of journeys (refuses a pair Akbar's rules don't allow, and
+// a leg without a positive NetFare or an Index). The RS samples send ClientID "", so clientId is unused.
+export function akbarSpecialFarePricerBody(pair: { onward: Raw; return: Raw }, searchTui: string, _clientId = "") {
   if (!akbarSpecialFarePairs(pair.onward, pair.return)) throw new Error("These flights are not an Akbar Special Fare pair");
-  if (!searchTui.trim()) throw new Error("Akbar Special Fare pricing requires a search TUI");
-  const trip = (j: Raw, orderId: number) => {
+  if (typeof searchTui !== "string" || !searchTui.trim()) throw new Error("Akbar Special Fare pricing requires a search TUI");
+  const leg = (j: Raw): AkbarRoundTripPricerLeg => {
     const amount = Number(j.NetFare);
     const index = typeof j.Index === "string" ? j.Index.trim() : "";
     if (j.NetFare === null || j.NetFare === undefined || !Number.isFinite(amount) || amount <= 0) {
       throw new Error("Akbar Special Fare pricing requires a positive NetFare for each leg");
     }
     if (!index) throw new Error("Akbar Special Fare pricing requires an Index for each leg");
-    return { Amount: amount, Index: index, OrderID: orderId, ChannelCode: null, TUI: searchTui };
+    return { amount, index };
   };
-  return {
-    Trips: [trip(pair.onward, 1), trip(pair.return, 2)],
-    ClientID: clientId,
-    Mode: "SS",
-    Options: "",
-    Source: "SF",
-    TripType: "RS",
-  };
+  return akbarRoundTripPricerBody([leg(pair.onward), leg(pair.return)], searchTui, "", "RS");
 }

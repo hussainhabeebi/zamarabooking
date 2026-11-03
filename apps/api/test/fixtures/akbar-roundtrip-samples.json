@@ -1,5 +1,5 @@
 {
- "_source": "Akbar Travels sample payloads (Nov 2026). Responses trimmed to the first journeys (RT) / ReturnIdentifier 2001-2003 (RS); every kept Journey is unmodified.",
+ "_source": "Akbar Travels sample payloads and support reply (Nov 2026). Search responses trimmed to the first journeys (RT) / ReturnIdentifier 2001-2003 (RS); every kept Journey is unmodified. Akbar's ClientID replaced with SAMPLE-CLIENT-ID. rs.smartPricerRequestFirst = first RS sample (ChannelCode null); rs.smartPricerRequest = latest RS sample (ChannelCode \"\").",
  "rt": {
   "expressSearchRequest": {
    "FareType": "RT",
@@ -488,6 +488,29 @@
    "Msg": [
     "Success"
    ]
+  },
+  "smartPricerRequest": {
+   "Trips": [
+    {
+     "Amount": 7072,
+     "Index": "6E|111",
+     "ChannelCode": null,
+     "OrderID": 1,
+     "TUI": "f0605336-743d-4177-9ccd-ce4fe6dad261|6aec96bc-7bf2-4989-9879-64f463003dc9|20261103163204"
+    },
+    {
+     "Amount": 3491,
+     "Index": "SG|1",
+     "ChannelCode": null,
+     "OrderID": 2,
+     "TUI": "f0605336-743d-4177-9ccd-ce4fe6dad261|6aec96bc-7bf2-4989-9879-64f463003dc9|20261103163204"
+    }
+   ],
+   "ClientID": "SAMPLE-CLIENT-ID",
+   "Mode": "SS",
+   "Options": "A",
+   "Source": "SF",
+   "TripType": "RT"
   }
  },
  "rs": {
@@ -980,7 +1003,7 @@
     "Success"
    ]
   },
-  "smartPricerRequest": {
+  "smartPricerRequestFirst": {
    "Trips": [
     {
      "Amount": 4863,
@@ -995,6 +1018,29 @@
      "OrderID": 2,
      "ChannelCode": null,
      "TUI": "443726ac-04ec-4314-bc68-bbc5772ba51f|3664e0e0-3732-4ae3-a91b-3afe73d77222|20260127161939"
+    }
+   ],
+   "ClientID": "",
+   "Mode": "SS",
+   "Options": "",
+   "Source": "SF",
+   "TripType": "RS"
+  },
+  "smartPricerRequest": {
+   "Trips": [
+    {
+     "Amount": 6123,
+     "Index": "SG|2005",
+     "OrderID": 1,
+     "ChannelCode": "",
+     "TUI": "d35c6ccc-3df8-4235-8694-bb98b0eb8c17|d75d6bc0-0e4d-421f-8bc8-87bb9b6c49d8|20261103162511"
+    },
+    {
+     "Amount": 6320,
+     "Index": "SG|2005",
+     "OrderID": 2,
+     "ChannelCode": "",
+     "TUI": "d35c6ccc-3df8-4235-8694-bb98b0eb8c17|d75d6bc0-0e4d-421f-8bc8-87bb9b6c49d8|20261103162511"
     }
    ],
    "ClientID": "",
