@@ -69,7 +69,9 @@ function PaymentResult() {
 
   const successful = status === "success";
   const failed = status === "failed";
-  const ticketed = ["CONFIRMED", "TICKETED"].includes(booking?.status ?? "");
+  // "Ticket issued" only with an airline PNR: manual / Akbar fares are CONFIRMED (paid) until ticketed.
+  const ticketed = booking?.status === "TICKETED" || (booking?.status === "CONFIRMED" && Boolean(booking?.pnr));
+  const issuing = booking?.status === "CONFIRMED" && !booking?.pnr;
   const bookingFailed = successful && booking?.status === "PAYMENT_FAILED";
   const tripHref = booking?.hasAccount ? `/trips/${bookingId}` : "/trips/find";
 
@@ -80,11 +82,13 @@ function PaymentResult() {
           {successful ? "✓" : failed ? "×" : "…"}
         </div>
         <h1 style={{ margin: "0 0 9px", color: "#0f172a", fontSize: 24 }}>
-          {ticketed ? "Booking confirmed" : bookingFailed ? "Booking could not be completed" : successful ? "Payment confirmed" : failed ? "Payment was not completed" : "Confirming your payment"}
+          {ticketed ? "Booking confirmed" : issuing ? "Booking received" : bookingFailed ? "Booking could not be completed" : successful ? "Payment confirmed" : failed ? "Payment was not completed" : "Confirming your payment"}
         </h1>
         <p style={{ margin: "0 0 22px", color: "#64748b", lineHeight: 1.55, fontSize: 14 }}>
           {ticketed
             ? `Your ticket is issued${booking?.pnr ? ` — PNR ${booking.pnr}` : ""}. The e-ticket is on its way to your email.`
+            : issuing
+              ? "Payment received. Your ticket is being issued — the e-ticket with your airline PNR will be emailed to you once the airline confirms it."
             : bookingFailed
               ? "The airline couldn't confirm this booking. Your payment is being refunded automatically (wallet payments return to your wallet)."
             : successful
@@ -93,7 +97,7 @@ function PaymentResult() {
               ? "No charge was confirmed. You can return to checkout and try again."
               : "You have been returned to ZamraBooking. Keep this page open while we verify the payment securely."}
         </p>
-        {ticketed || bookingFailed ? (
+        {ticketed || issuing || bookingFailed ? (
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <a href={tripHref} style={button}>View booking</a>
             <a href="/" style={{ ...button, background: "#fff", color: "#0f172a", border: "1.5px solid #e2e8f0" }}>Back to home</a>

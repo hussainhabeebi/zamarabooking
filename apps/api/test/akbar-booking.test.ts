@@ -45,7 +45,7 @@ test("CreateItinerary and StartPay bodies have every field of the Postman sample
 });
 
 // A mock Akbar that follows the collection's TUI hand-off and checks each request.
-function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknown; startPay?: () => Response; createCode?: string; webSettings?: object | (() => Response) } = {}) {
+function mockAkbar(opts: { priced?: number; status?: string[]; paymentStatus?: string; retrieve?: unknown; startPay?: () => Response; createCode?: string; webSettings?: object | (() => Response) } = {}) {
   const calls: { path: string; body: any }[] = [];
   const status = [...(opts.status ?? ["Success"])];
   const fetchImpl = (async (url: string, init: RequestInit) => {
@@ -73,7 +73,7 @@ function mockAkbar(opts: { priced?: number; status?: string[]; retrieve?: unknow
         return opts.startPay ? opts.startPay() : json({ Code: "200", TransactionID: 230003316 });
       case "/Payment/GetItineraryStatus":
         assert.deepEqual(body, { TUI: "it-tui", TransactionID: 230003316 });
-        return json({ CurrentStatus: status.length > 1 ? status.shift() : status[0], Code: "200" });
+        return json({ CurrentStatus: status.length > 1 ? status.shift() : status[0], Code: "200", ...(opts.paymentStatus ? { PaymentStatus: opts.paymentStatus } : {}) });
       case "/Utils/RetrieveBooking":
         assert.equal(body.ReferenceNumber, "230003316");
         return json(opts.retrieve ?? { Code: "200", Trips: [{ Journey: [{ Segments: [{ CRSPNR: "X7KQ2P", Pax: [{ ID: 1, Ticket: "" }] }] }] }] });
@@ -427,12 +427,37 @@ test("a Failed status gives Akbar's real reason, never the status call's 'Succes
   assert.equal(l.state, "FAILED");
   assert.deepEqual(l.startPay, { code: "6033", message: "BOOKING  INPROGRESS !" });
   assert.equal(l.failureReason, "Fare sold out");
-  assert.equal(l.message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" (RetrieveBooking: Fare sold out; StartPay Code 6033 "BOOKING  INPROGRESS !").`);
+  assert.equal(l.message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" (RetrieveBooking Status "TO0"; RetrieveBooking: Fare sold out; StartPay Code 6033 "BOOKING  INPROGRESS !").`);
   assert.ok(!/: Success/.test(l.message!));
   // No reason anywhere: said plainly.
   const { client: c2 } = mockAkbar({ status: ["Failed"], retrieve: uatRetrieve([]) });
   const s2 = await runAkbarBooking(engine(c2).deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
-  assert.equal(s2.legs[0].message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" with no reason given.`);
+  assert.equal(s2.legs[0].message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" (RetrieveBooking Status "TO0").`);
+  const { client: c3 } = mockAkbar({ status: ["Failed"], retrieve: { Code: "200", Msg: ["Success"] } });
+  const s3 = await runAkbarBooking(engine(c3).deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  assert.equal(s3.legs[0].message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" with no reason given.`);
+});
+
+// CCJ–BLR–CCJ UAT booking (TransactionID 260151395, 3 Nov 2026): leg 1 StartPay 6033, then
+// CurrentStatus "Failed" with PaymentStatus "Success"; RetrieveBooking Status "BO1", no PNR, no reason.
+test("round trip: a failed first leg stops the journey, is never ticketed, and keeps Akbar's status codes", async () => {
+  const startPay6033 = () => json({ Code: "6033", Msg: ["BOOKING INPROGRESS !"], TransactionID: 260151395 });
+  const retrieveBO1 = { Code: "200", Msg: ["Success"], TransactionID: 260151395, Status: "BO1", PaymentStatus: "I8", BookingFailureReason: "", Reason: "", TripType: "ON",
+    Trips: [{ Journey: [{ Segments: [{ Flight: { TicketInfo: [{ PaxID: 1, TicketNo: "", Status: "BO1" }] } }] }] }] };
+  const { calls, client } = mockAkbar({ status: ["Failed"], paymentStatus: "Success", startPay: startPay6033, retrieve: retrieveBO1 });
+  const legs = [{ ...leg, netFare: 8243 }, { ...leg, tui: "search-tui-2", netFare: 7973 }];
+  const state = await runAkbarBooking(engine(client).deps, { legs, pax, departureDates: ["2026-11-30", "2026-12-04"], contact });
+  const l = state.legs[0];
+  assert.equal(l.state, "FAILED");
+  assert.equal(l.paymentStatus, "Success");
+  assert.equal(l.bookingStatus, "BO1");
+  assert.equal(l.pnrs, undefined);
+  assert.equal(l.message, `Akbar's GetItineraryStatus reports CurrentStatus "Failed" (PaymentStatus "Success"; RetrieveBooking Status "BO1"; StartPay Code 6033 "BOOKING INPROGRESS !").`);
+  // The return leg is never created or paid while the outbound leg is not booked.
+  assert.equal(paths(calls).filter((p) => p === "StartPay").length, 1);
+  assert.equal(paths(calls).filter((p) => p === "CreateItinerary").length, 1);
+  assert.notEqual(akbarOutcome(state, 2), "TICKETED");
+  assert.equal(akbarOutcome(state, 2), "FAILED");
 });
 
 test("refresh reads ticket numbers for a booked leg that had TicketNo '' and never downgrades it", async () => {
