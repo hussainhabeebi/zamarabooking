@@ -6,6 +6,7 @@ import { searchStopLabel } from "../../lib/log-stop-labels.js";
 import { buildZip } from "../../lib/zip.js";
 import { certificationRequest, tripjackHost } from "../../lib/certification.js";
 import { tripjackEnvironment } from "../../lib/hotels.js";
+import { searchJourneys, traceCall, traceChecks, type TraceCall, type TraceJourney } from "../../lib/akbar-trace.js";
 import type { Env, Variables } from "../../types.js";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
@@ -211,4 +212,59 @@ supplierLogsAdminRoutes.get("/exchanges/:id/:part", async (c) => {
     "Content-Type": f.name.endsWith(".txt") ? "text/plain; charset=utf-8" : "application/json",
     "Content-Disposition": `attachment; filename="${f.name}"`, "Cache-Control": "private, no-store",
   } });
+});
+
+// ── Akbar request trace (read-only) ──────────────────────────────────────────
+// GET /akbar-trace?requestId=<checkout request id>: the Akbar calls of that request (pre-payment
+// SmartPricer / GetSPricer …, stored even when no booking was created) and of the search it came
+// from (same searchId: ExpressSearch / GetExpSearch / WebSettings), summarised field by field, plus
+// each pricing call checked against that search. Allowlisted fields only — no ContactInfo,
+// Travellers, credentials, tokens or ClientID values. Raw files: exchanges.zip?ids=<ids>.
+supplierLogsAdminRoutes.get("/akbar-trace", async (c) => {
+  const requestId = (c.req.query("requestId") ?? "").trim();
+  if (!/^[A-Za-z0-9-]{8,80}$/.test(requestId)) throw new HTTPException(400, { message: "Pass ?requestId= (the request ID shown in Supplier logs)" });
+  const db = c.get("db");
+  const tenantId = c.get("tenantId");
+  const cols = {
+    id: supplierExchanges.id, endpoint: supplierExchanges.endpoint, httpStatus: supplierExchanges.httpStatus, durationMs: supplierExchanges.durationMs,
+    error: supplierExchanges.error, searchId: supplierExchanges.searchId, requestId: supplierExchanges.requestId, startedAt: supplierExchanges.startedAt,
+    requestKey: supplierExchanges.requestKey, responseKey: supplierExchanges.responseKey,
+  };
+  const akbar = and(eq(supplierExchanges.tenantId, tenantId), eq(supplierExchanges.supplier, "AKBAR"))!;
+  const own = await db.select(cols).from(supplierExchanges).where(and(akbar, eq(supplierExchanges.requestId, requestId))).orderBy(asc(supplierExchanges.startedAt)).limit(40);
+  const searchIds = [...new Set(own.map((x) => x.searchId).filter((v): v is string => !!v))];
+  const fromSearch = searchIds.length
+    ? await db.select(cols).from(supplierExchanges).where(and(akbar, inArray(supplierExchanges.searchId, searchIds))).orderBy(asc(supplierExchanges.startedAt)).limit(80)
+    : [];
+  const rows = [...new Map([...fromSearch, ...own].map((x) => [x.id, x])).values()].sort((a, b) => +new Date(a.startedAt) - +new Date(b.startedAt));
+  const errors = await db.select({ createdAt: supplierApiLogs.createdAt, endpoint: supplierApiLogs.endpoint, level: supplierApiLogs.level, errorCode: supplierApiLogs.errorCode, errorMessage: supplierApiLogs.errorMessage })
+    .from(supplierApiLogs).where(and(eq(supplierApiLogs.tenantId, tenantId), eq(supplierApiLogs.requestId, requestId))).limit(20);
+
+  const readJson = async (key: string | null) => {
+    if (!key) return null;
+    const obj = await c.env.DOCUMENTS_R2.get(key).catch(() => null);
+    if (!obj) return null;
+    try { return JSON.parse(await obj.text()); } catch { return null; }
+  };
+  const calls: TraceCall[] = [];
+  const searches = new Map<string, { journeys: Map<string, TraceJourney>[]; startedAt: string }>();
+  const expressAt = new Map<string, string>();
+  for (const x of rows) {
+    const [req, res] = await Promise.all([readJson(x.requestKey), readJson(x.responseKey)]);
+    const call = traceCall(x, req, res);
+    calls.push(call);
+    if (/ExpressSearch$/i.test(x.endpoint) && call.response?.tui) expressAt.set(call.response.tui, call.startedAt);
+    if (/GetExpSearch$/i.test(x.endpoint) && call.response?.tui) {
+      const journeys = searchJourneys(res);
+      const count = journeys.reduce((m, j) => m + j.size, 0);
+      const prev = searches.get(call.response.tui);
+      if (!prev || count >= prev.journeys.reduce((m, j) => m + j.size, 0)) {
+        searches.set(call.response.tui, { journeys, startedAt: expressAt.get(call.response.tui) ?? prev?.startedAt ?? call.startedAt });
+      }
+    }
+  }
+  return c.json({
+    requestId, searchIds, errors, calls, checks: traceChecks(calls, searches),
+    note: own.length ? undefined : "No Akbar calls are stored with this request ID (calls are stored after the request finishes; very old calls may have been removed).",
+  });
 });
