@@ -1,6 +1,7 @@
 import { serverAuthHeaders } from "../../../lib/server";
 import { LogDetail } from "./LogDetail";
 import { RawApiCalls } from "./RawApiCalls";
+import { AkbarTrace } from "./AkbarTrace";
 
 const SERVER_API   = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 const SERVER_TOKEN = process.env.ADMIN_SERVICE_TOKEN ?? "";
@@ -253,6 +254,8 @@ export default async function SupplierLogsPage({
           <a href={buildHref({ offset: String(nextOffset) })} style={pgA}>Next →</a>
         )}
       </div>
+
+      <AkbarTrace />
 
       <RawApiCalls initialScope="flight" />
     </div>
