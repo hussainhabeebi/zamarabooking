@@ -19,7 +19,7 @@ import { and, eq } from "drizzle-orm";
 import type { Env, Variables } from "../types.js";
 import { collectExchanges, persistExchanges, persistInBackground, type ExchangeCollector } from "../lib/api-exchanges.js";
 import { getAkbarSettings } from "../lib/flight-sources.js";
-import { akbarBookingGate, AkbarStepError, type AkbarBookingState } from "../lib/akbar-booking.js";
+import { akbarBookingGate, akbarBookingUnits, akbarLegSource, AkbarStepError, type AkbarBookingState } from "../lib/akbar-booking.js";
 import { akbarPrepayment } from "../lib/akbar-booking-runner.js";
 import { passengerNameProblem } from "../lib/passenger-names.js";
 import { fallbackHoldDeadline, findHoldDeadline, holdLabel } from "../lib/fare-hold.js";
@@ -788,11 +788,28 @@ async function bookOfflineFare(
   let akbarPricing: AkbarBookingState | null = null;
   if (supplier === "AKBAR") {
     const settings = await getAkbarSettings(c.env, tenantId).catch(() => null);
-    if (settings && akbarBookingGate(c.env, settings).allowed) {
+    const gateOpen = !!settings && akbarBookingGate(c.env, settings).allowed;
+    // RT / RS round trip from one search: one Akbar itinerary for both legs. Only with "Round-trip
+    // fares" on and API booking allowed (it must be priced with Akbar before payment), and only as
+    // the onward + return pair of one search that Akbar's rules allow.
+    const sources = legs.map((f) => akbarLegSource(f.raw as Record<string, any>, f));
+    const roundTrip = sources.some((l) => l.fareType);
+    if (roundTrip && !(gateOpen && settings!.roundTripFares === "ON")) {
+      return fail(409, "FARE_EXPIRED", "This round-trip fare is no longer available. Please search again.");
+    }
+    let units: ReturnType<typeof akbarBookingUnits> | null = null;
+    if (roundTrip) {
+      try { units = akbarBookingUnits(sources); }
+      catch (err) {
+        if (!(err instanceof AkbarStepError)) throw err;
+        return fail(409, "JOURNEY_MISMATCH", "The selected onward and return flights can't be booked together. Please search again.", { reason: err.message });
+      }
+    }
+    if (gateOpen) {
       const collector = ((c as any).get("exchanges") as ExchangeCollector | undefined) ?? collectExchanges();
       try {
         akbarPricing = await akbarPrepayment(c.env, tenantId, collector, {
-          legs: legs.map((f) => {
+          legs: units ?? legs.map((f) => {
             const r = (f.raw ?? {}) as Record<string, any>;
             return { tui: String(r.tui ?? ""), index: String(r.index ?? ""), orderId: r.orderId ?? null, netFare: Number(r.netFare ?? f.totalFare) };
           }),

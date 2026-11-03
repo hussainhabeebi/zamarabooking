@@ -22,6 +22,7 @@ import {
   AkbarError, akbarBookingRefs, akbarFeaturesFor, akbarWebSettings, akbarMessages, akbarNetAmount, akbarOk, akbarTransactionId, akbarTravelRequirements,
   itineraryFinalStatus, searchTui,
   type AkbarClient, type AkbarContactInfo, type WebSettingsMap, type AkbarToken, type AkbarTraveller, type AkbarTravelRequirements,
+  type AkbarRoundTripFareType, type AkbarRoundTripPricerLeg,
 } from "@zamrabooking/suppliers";
 import type { AkbarSettings } from "./flight-sources.js";
 
@@ -43,24 +44,71 @@ export function akbarBookingGate(env: { AKBAR_API_BOOKING_PRODUCTION?: string },
 // The searched fare of one leg, as remembered at search time (NormalizedFare.raw).
 // webSettings: Akbar WebSettings (Key → Value) for the leg's search; undefined = not read at search
 // time, null = read but no Settings list. carriers / origin / destination: what it is matched against.
+// roundTrip: an RT / RS round trip from one search, priced and booked as ONE itinerary (one
+// SmartPricer with both legs, then the usual GetSPricer → CreateItinerary → StartPay); netFare is
+// then the sum of the two legs' searched amounts, which Akbar's priced NetAmount may not exceed.
 export interface AkbarLegRef {
   tui: string; index: string; orderId: number | string | null; netFare: number;
   carriers?: string[]; origin?: string; destination?: string;
   webSettings?: WebSettingsMap | null;
+  roundTrip?: { fareType: AkbarRoundTripFareType; legs: [AkbarRoundTripPricerLeg, AkbarRoundTripPricerLeg] };
+}
+
+// One searched leg as remembered (NormalizedFare.raw), with the RT / RS markers of a one-search round trip.
+export interface AkbarLegSource extends AkbarLegRef {
+  fareType?: AkbarRoundTripFareType; side?: "ONWARD" | "RETURN"; returnIdentifier?: number; vac?: string; provider?: string;
+}
+
+export function akbarLegSource(raw: Record<string, any> | null | undefined, leg: { airline?: string; origin?: string; destination?: string; totalFare?: number } = {}): AkbarLegSource {
+  const r = raw ?? {};
+  const carriers = Array.isArray(r.carriers) && r.carriers.length ? r.carriers.map(String) : [leg.airline].filter(Boolean).map(String);
+  return {
+    tui: String(r.tui ?? ""), index: String(r.index ?? ""), orderId: r.orderId ?? null, netFare: Number(r.netFare ?? leg.totalFare ?? 0),
+    carriers, origin: String(leg.origin ?? ""), destination: String(leg.destination ?? ""),
+    ...(r.webSettings && typeof r.webSettings === "object" ? { webSettings: r.webSettings as WebSettingsMap } : {}),
+    ...(r.fareType === "RT" || r.fareType === "RS" ? {
+      fareType: r.fareType, side: r.side, returnIdentifier: Number(r.returnIdentifier ?? 0), vac: String(r.vac ?? ""), provider: String(r.provider ?? ""),
+    } : {}),
+  };
+}
+
+// The Akbar itineraries of a booking. One-way legs (and round trips searched one way at a time) are
+// one itinerary each, unchanged. An RT / RS round trip is one itinerary for both legs — refused unless
+// it is exactly the onward + return of one search and, for RS, a pair Akbar's rules allow.
+export function akbarBookingUnits(sources: AkbarLegSource[]): AkbarLegRef[] {
+  const strip = ({ fareType: _f, side: _s, returnIdentifier: _r, vac: _v, provider: _p, ...ref }: AkbarLegSource): AkbarLegRef => ref;
+  if (!sources.some((l) => l.fareType)) return sources.map(strip);
+  const bad = (why: string): never => { throw new AkbarStepError("ROUNDTRIP_PAIR_INVALID", `Akbar round trip: ${why}`); };
+  if (sources.length !== 2) bad("exactly one onward and one return flight are needed");
+  const [o, r] = sources;
+  if (!o.fareType || o.fareType !== r.fareType) bad("both flights must come from the same round-trip fare type");
+  if (o.side !== "ONWARD" || r.side !== "RETURN") bad("the onward flight must come first, then the return flight");
+  if (!o.tui || o.tui !== r.tui) bad("both flights must come from the same search");
+  for (const l of [o, r]) {
+    if (!l.index) bad("a flight Index is missing");
+    if (!(Number.isFinite(l.netFare) && l.netFare > 0)) bad(`invalid fare amount ${l.netFare}`);
+  }
+  if (o.fareType === "RS") {
+    const rid = o.returnIdentifier ?? 0;
+    if (!(rid > 0 && rid === r.returnIdentifier)) bad("Special Fare ReturnIdentifiers must be equal and above 0");
+    if (!o.vac || o.vac.toUpperCase() !== (r.vac ?? "").toUpperCase()) bad("Special Fare validating airline (VAC) must be the same both ways");
+    if (!o.provider || o.provider.toUpperCase() !== (r.provider ?? "").toUpperCase()) bad("Special Fare Provider must be the same both ways");
+  } else if ((o.returnIdentifier ?? 0) !== 0 || (r.returnIdentifier ?? 0) !== 0) {
+    bad("a normal round-trip fare has ReturnIdentifier 0");
+  }
+  return [{
+    ...strip(o),
+    orderId: 1,
+    netFare: Math.round((o.netFare + r.netFare) * 100) / 100,
+    carriers: [...new Set([...(o.carriers ?? []), ...(r.carriers ?? [])])],
+    roundTrip: { fareType: o.fareType!, legs: [{ amount: o.netFare, index: o.index }, { amount: r.netFare, index: r.index }] },
+  }];
 }
 
 export function akbarLegRefs(flightData: Record<string, any>): AkbarLegRef[] {
   const off = flightData?.offline ?? {};
   const legs: any[] = Array.isArray(off.legs) && off.legs.length ? off.legs : [{ ...(off.fare ?? {}), sourceRef: off.sourceRef }];
-  return legs.map((leg: any) => {
-    const r = leg?.sourceRef ?? {};
-    const carriers = Array.isArray(r.carriers) && r.carriers.length ? r.carriers.map(String) : [leg?.airline].filter(Boolean).map(String);
-    return {
-      tui: String(r.tui ?? ""), index: String(r.index ?? ""), orderId: r.orderId ?? null, netFare: Number(r.netFare ?? 0),
-      carriers, origin: String(leg?.origin ?? ""), destination: String(leg?.destination ?? ""),
-      ...(r.webSettings && typeof r.webSettings === "object" ? { webSettings: r.webSettings as WebSettingsMap } : {}),
-    };
-  });
+  return akbarBookingUnits(legs.map((leg: any) => akbarLegSource(leg?.sourceRef, { airline: leg?.airline, origin: leg?.origin, destination: leg?.destination })));
 }
 
 export interface PaxInput {
@@ -163,7 +211,7 @@ export function akbarOutcome(state: AkbarBookingState, legCount: number): AkbarO
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
-type Client = Pick<AkbarClient, "webSettings" | "smartPricer" | "getSPricer" | "getTravelCheckList" | "ssr" | "seatLayout" | "createItinerary" | "startPay" | "getItineraryStatus" | "retrieveBooking">;
+type Client = Pick<AkbarClient, "webSettings" | "smartPricer" | "smartPricerRoundTrip" | "getSPricer" | "getTravelCheckList" | "ssr" | "seatLayout" | "createItinerary" | "startPay" | "getItineraryStatus" | "retrieveBooking">;
 
 export interface AkbarEngineDeps {
   client: Client;
@@ -216,7 +264,10 @@ function authed(deps: AkbarEngineDeps, fresh: boolean) {
 export async function priceAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<typeof authed>, leg: AkbarLegRef, tolerance = 1) {
   if (!leg.tui || !leg.index || !(leg.netFare > 0)) throw new AkbarStepError("FARE_REFERENCE_MISSING", "The searched Akbar fare reference (TUI / Index / NetFare) is missing.");
   const trip = { amount: leg.netFare, index: leg.index, orderId: leg.orderId ?? 1, tui: leg.tui };
-  const sp = await call((t) => deps.client.smartPricer([trip], "ON", t, "AS", ""));
+  const rt = leg.roundTrip;
+  const sp = rt
+    ? await call((t) => deps.client.smartPricerRoundTrip(rt.legs, leg.tui, rt.fareType, t))   // both legs, one itinerary
+    : await call((t) => deps.client.smartPricer([trip], "ON", t, "AS", ""));
   if (!akbarOk(sp)) throw new AkbarStepError("FARE_UNAVAILABLE", `SmartPricer: ${akbarMessages(sp) || "fare not available"}`);
   const tui = searchTui(sp) || leg.tui;
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
@@ -376,9 +427,9 @@ export async function runAkbarBooking(deps: AkbarEngineDeps, input: AkbarEngineI
           });
         }
         const features = akbarFeaturesFor(settings, { carriers: ref.carriers ?? [], origin: ref.origin ?? "", destination: ref.destination ?? "" });
-        for (const [name, key, fn] of [
-          ["SeatLayout", "seatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId: ref.orderId ?? 1 }, t)],
-          ["SSR", "ssr", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId: ref.orderId ?? 1, index: "" }, false, t)],
+        for (const orderId of ref.roundTrip ? [1, 2] : [ref.orderId ?? 1]) for (const [name, key, fn] of [
+          ["SeatLayout", "seatLayout", (t: AkbarToken) => deps.client.seatLayout({ tui: l.pricedTui!, orderId }, t)],
+          ["SSR", "ssr", (t: AkbarToken) => deps.client.ssr({ tui: l.pricedTui!, orderId, index: "" }, false, t)],
         ] as const) {
           if (features[key] === false) { await deps.log("info", `${name} skipped: Akbar WebSettings does not offer it for ${(ref.carriers ?? []).join("/") || "this airline"} on ${ref.origin}-${ref.destination}`); continue; }
           await call(fn).catch((err) => deps.log("warn", `${name} lookup failed (booking continues): ${msgOf(err)}`));

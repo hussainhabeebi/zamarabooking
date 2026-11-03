@@ -88,9 +88,12 @@ env:
     apps/api/test/akbar-booking.test.ts
     apps/api/test/eticket-pdf.test.ts
     apps/api/test/flight-sources.test.ts
+    apps/api/test/akbar-roundtrip.test.ts
+    apps/api/test/fixtures/akbar-roundtrip-samples.json
     packages/suppliers/src/akbar/client.ts
     packages/suppliers/src/akbar/adapter.ts
     packages/suppliers/src/akbar/websettings.ts
+    packages/suppliers/src/akbar/roundtrip.ts
     packages/suppliers/src/index.ts
   ADMIN_FILES: >-
     apps/admin/app/(dashboard)/bookings/[id]/AkbarApiBooking.tsx
@@ -181,7 +184,7 @@ jobs:
           apps/api/test/akbar-booking.test.ts apps/api/test/flight-sources.test.ts apps/api/test/akbar-journey-booking.test.ts
           apps/api/test/certification-pack.test.ts apps/api/test/log-stop-labels.test.ts apps/api/test/baggage-request.test.ts
           apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/tripjack-reviewed-total.test.ts
-          apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts
+          apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts apps/api/test/akbar-roundtrip.test.ts
       - name: Live zamra-api must still be the expected baseline (rollback target below)
         working-directory: apps/api
         env:

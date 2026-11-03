@@ -1,6 +1,7 @@
 import type { NormalizedFare, SearchParams, StopDetail, SupplierAdapter, SupplierCredentials } from "../base.js";
 import { AkbarClient, AkbarError, searchTui, type AkbarCredentials, type AkbarToken } from "./client.js";
 import { akbarWebSettings, type WebSettingsMap } from "./websettings.js";
+import { akbarRoundTripJourneys, akbarSpecialFarePairs, type AkbarRoundTripFareType } from "./roundtrip.js";
 
 // Akbar Travels search for Zamra's flight results. Like Poomas, Akbar fares are
 // sold on Zamra and ticketed by staff on Akbar's portal until the CreateItinerary
@@ -116,11 +117,52 @@ export function normalizeAkbarSearch(data: unknown, cabinClass: string): Normali
     .filter((f): f is NormalizedFare => f !== null);
 }
 
+// One RT / RS GetExpSearch response → ONWARD and RETURN fares of that one search.
+//   • ids carry the side: in one round-trip search the onward and return lists share the TUI and
+//     reuse the same Index ("SG|1", "SG|2001" on both sides), so `AK|<TUI>|<Index>` would collide.
+//   • raw.fareType / side / returnIdentifier / vac link the two halves back to the search; the
+//     booking prices both with one SmartPricer (OrderID 1 / 2) as one itinerary.
+//   • RT: journeys with ReturnIdentifier 0; any onward may go with any return (Akbar: airlines and
+//     providers may differ).
+//   • RS: only journeys whose partner satisfies Akbar's pairing rule; marked SPECIAL_RETURN with
+//     sri / msri = "<TUI>:<ReturnIdentifier>", so the journey page offers only the partner.
+//   • A journey without a positive NetFare, an Index or the fields every fare needs is dropped.
+export function normalizeAkbarRoundTrip(data: unknown, cabinClass: string, fareType: AkbarRoundTripFareType): NormalizedFare[] {
+  const tui = searchTui(data);
+  if (!tui) return [];
+  const { onward, return: ret } = akbarRoundTripJourneys(data);
+  const rid = (j: Raw) => num(j.ReturnIdentifier);
+  const valid = (j: Raw) => str(j.Index) !== "" && num(j.NetFare) > 0;
+  let pairs: { side: "ONWARD" | "RETURN"; j: Raw }[];
+  if (fareType === "RT") {
+    pairs = [...onward.filter((j) => rid(j) === 0 && valid(j)).map((j) => ({ side: "ONWARD" as const, j })),
+             ...ret.filter((j) => rid(j) === 0 && valid(j)).map((j) => ({ side: "RETURN" as const, j }))];
+  } else {
+    const o = onward.filter(valid), r = ret.filter(valid);
+    pairs = [...o.filter((x) => r.some((y) => akbarSpecialFarePairs(x, y))).map((j) => ({ side: "ONWARD" as const, j })),
+             ...r.filter((y) => o.some((x) => akbarSpecialFarePairs(x, y))).map((j) => ({ side: "RETURN" as const, j }))];
+  }
+  return pairs.flatMap(({ side, j }) => {
+    const f = normalizeAkbarJourney(j, tui, cabinClass);
+    if (!f) return [];
+    const key = `${tui}:${rid(j)}`;
+    return [{
+      ...f,
+      id: `${f.id}|${side}`,
+      tripKey: side,
+      legIndex: side === "ONWARD" ? 0 : 1,
+      ...(fareType === "RS" ? { fareIdentifier: "SPECIAL_RETURN", ...(side === "ONWARD" ? { sri: key } : { msri: [key] }) } : {}),
+      raw: { ...(f.raw as Raw), fareType, side, returnIdentifier: rid(j), vac: str(j.VAC).toUpperCase(), orderId: side === "ONWARD" ? 1 : 2 },
+    }];
+  });
+}
+
 export class AkbarAdapter implements SupplierAdapter {
   readonly name = "AKBAR" as const;
   private client: AkbarClient;
   private getToken: (fresh?: boolean) => Promise<AkbarToken>;
   private mode: "SY" | "AS" = "SY";
+  private roundTrip = false;
 
   constructor(credentials: SupplierCredentials) {
     this.client = new AkbarClient(credentials as unknown as AkbarCredentials);
@@ -129,12 +171,20 @@ export class AkbarAdapter implements SupplierAdapter {
     // API booking off: Mode SY, unchanged.
     const { apiBooking } = credentials as { apiBooking?: unknown };
     if (apiBooking === "MANUAL" || apiBooking === "AUTO") this.mode = "AS";
+    // Round trips in one RT / RS search (booked as one itinerary): Admin → Akbar → "Round-trip fares",
+    // off by default, and only with API booking on (the fare must be priced with Akbar at checkout).
+    this.roundTrip = this.mode === "AS" && (credentials as { roundTripFares?: unknown }).roundTripFares === "ON";
     const provided = credentials.getToken as ((fresh?: boolean) => Promise<AkbarToken>) | undefined;
     this.getToken = provided ?? (() => this.client.signature());
   }
 
   async search(params: SearchParams): Promise<NormalizedFare[]> {
     if (params.tripType === "ONEWAY") return this.searchLeg(params);
+    if (this.roundTrip && params.tripType === "ROUNDTRIP" && params.returnDate && !params.legs?.length) {
+      const fares = await this.searchRoundTrip(params).catch(() => null);
+      if (fares?.length) return fares;
+      // No RT / RS fares (or the search failed): the one-way searches, as before.
+    }
     const legs = akbarJourneyLegs(params);
     if (legs.length < 2) return [];
     // One-way ExpressSearch per leg, all at once. Any failed leg fails the search with
@@ -147,6 +197,30 @@ export class AkbarAdapter implements SupplierAdapter {
       const tripKey = akbarTripKey(params, i, legs.length);
       return fares.map((f) => ({ ...f, tripKey, legIndex: i }));
     });
+  }
+
+  // RT and RS searches at once (Akbar's samples); RS failing never fails RT.
+  private async searchRoundTrip(params: SearchParams): Promise<NormalizedFare[]> {
+    const started = Date.now();
+    let token = await this.getToken();
+    const run = (fareType: AkbarRoundTripFareType) => this.client.search(params, token, { deadlineMs: 22_000, fareType }).catch(async (err) => {
+      if (!(err instanceof AkbarError && err.statusCode === 401)) throw err;
+      token = await this.getToken(true);
+      return this.client.search(params, token, { deadlineMs: 22_000, fareType });
+    });
+    const [rt, rs] = await Promise.all([run("RT"), run("RS").catch(() => null)]);
+    const results = [{ r: rt, fareType: "RT" as const }, ...(rs ? [{ r: rs, fareType: "RS" as const }] : [])];
+    const out: NormalizedFare[] = [];
+    for (const { r, fareType } of results) {
+      const fares = normalizeAkbarRoundTrip(r.data, params.cabinClass, fareType);
+      const tui = r.tui || searchTui(r.data);
+      const budget = Math.min(8_000, 26_000 - (Date.now() - started));
+      const settings: WebSettingsMap | null = fares.length && tui && budget >= 1_000
+        ? await this.client.webSettings(tui, token, budget).then(akbarWebSettings).catch(() => null) : null;
+      out.push(...(settings ? fares.map((f) => ({ ...f, raw: { ...(f.raw as Record<string, unknown>), webSettings: settings } })) : fares));
+    }
+    // A round trip needs both directions.
+    return out.some((f) => f.tripKey === "ONWARD") && out.some((f) => f.tripKey === "RETURN") ? out : [];
   }
 
   private async searchLeg(params: SearchParams): Promise<NormalizedFare[]> {

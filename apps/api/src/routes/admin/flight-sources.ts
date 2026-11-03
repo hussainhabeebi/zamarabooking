@@ -58,6 +58,7 @@ flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
   key:         z.string().max(500).optional(),
   gatewayUrl:  url,
   apiBooking:  z.enum(["OFF", "MANUAL", "AUTO"]).default("OFF"),
+  roundTripFares: z.enum(["OFF", "ON"]).default("OFF"),
   contactAddress:     z.string().trim().max(200).default(""),
   contactCity:        z.string().trim().max(80).default(""),
   contactState:       z.string().trim().max(80).default(""),

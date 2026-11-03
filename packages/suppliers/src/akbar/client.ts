@@ -1,4 +1,5 @@
 import type { SearchParams } from "../base.js";
+import { akbarRoundTripPricerBody, akbarRoundTripSearchBody, type AkbarRoundTripFareType, type AkbarRoundTripPricerLeg } from "./roundtrip.js";
 
 // Akbar Travels B2B API (built by Benzy Infotech) — flights.
 // Docs: https://wrc.benzyinfotech.com/home/b2b-revamp-flight/flight/
@@ -415,6 +416,8 @@ export interface AkbarSearchOptions {
   // "SY" (default): ExpressSearch waits for every airline; GetExpSearch only while it has no flights.
   // "AS" (Akbar API booking / certification): the Postman collection's ExpressSearch → GetExpSearch.
   mode?: "SY" | "AS";
+  // Round trip in one search (Akbar's RT / RS samples): FareType "RT" or "RS", Mode AS only.
+  fareType?: AkbarRoundTripFareType;
 }
 
 export class AkbarClient {
@@ -495,6 +498,18 @@ export class AkbarClient {
   async getExpSearch(tui: string, auth: AkbarToken, timeoutMs?: number, clientId: string = auth.clientId): Promise<unknown> {
     const endpoint = "/flights/GetExpSearch";
     return this.post(`${this.flightsBase()}${endpoint}`, endpoint, { ClientID: clientId, TUI: tui }, auth.token, timeoutMs);
+  }
+
+  // Round trip (RT / RS) priced as one itinerary: both legs, one search TUI (Akbar's samples).
+  async smartPricerRoundTrip(legs: [AkbarRoundTripPricerLeg, AkbarRoundTripPricerLeg], searchTui: string, fareType: AkbarRoundTripFareType, auth: AkbarToken): Promise<unknown> {
+    const endpoint = "/flights/SmartPricer";
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, akbarRoundTripPricerBody(legs, searchTui, auth.clientId, fareType), auth.token);
+  }
+
+  async roundTripExpressSearch(params: SearchParams, auth: AkbarToken, fareType: AkbarRoundTripFareType, timeoutMs?: number): Promise<unknown> {
+    if (!this.creds.flightsUrl && !this.creds.gatewayUrl) throw new AkbarError("Akbar: Flights URL not configured");
+    const endpoint = "/flights/ExpressSearch";
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, akbarRoundTripSearchBody(params, auth.clientId, fareType, "AS"), auth.token, timeoutMs);
   }
 
   async smartPricer(trips: AkbarPricerTrip[], tripType: "ON" | "RT", auth: AkbarToken, mode: "SY" | "AS" | "SS" = "SY", options = "A"): Promise<unknown> {
@@ -580,10 +595,12 @@ export class AkbarClient {
   // tui: the ExpressSearch response's TUI (the one WebSettings and GetExpSearch are called with).
   async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number; tui: string }> {
     const { pollIntervalMs = 2000, deadlineMs = 45_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
-    const mode = opts.mode ?? "SY";
+    const mode = opts.fareType ? "AS" : opts.mode ?? "SY";
     const started = Date.now();
     const left = () => deadlineMs - (Date.now() - started);
-    const first = await this.expressSearch(params, auth, deadlineMs, mode);
+    const first = opts.fareType
+      ? await this.roundTripExpressSearch(params, auth, opts.fareType, deadlineMs)
+      : await this.expressSearch(params, auth, deadlineMs, mode);
     let data = first;
     const tui = searchTui(data);
     let polls = 0;

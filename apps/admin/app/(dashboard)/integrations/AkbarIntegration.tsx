@@ -8,7 +8,7 @@ type Akbar = {
   enabled: boolean; environment: "UAT" | "PRODUCTION"; utilsUrl: string; flightsUrl: string;
   merchantId: string; apiKey: string; clientId: string; password: string; agentCode: string; browserKey: string; key: string;
   gatewayUrl: string; gatewayKeySet: boolean;
-  apiBooking: "OFF" | "MANUAL" | "AUTO"; productionBookingApproved: boolean;
+  apiBooking: "OFF" | "MANUAL" | "AUTO"; productionBookingApproved: boolean; roundTripFares?: "OFF" | "ON";
   contactAddress: string; contactCity: string; contactState: string; contactPin: string; contactCountryCode: string;
 };
 
@@ -90,6 +90,15 @@ export function AkbarIntegration() {
           </select>
           {akbar.apiBooking !== "OFF" && akbar.environment === "PRODUCTION" && !akbar.productionBookingApproved && (
             <span style={{ color: "#fca5a5", fontWeight: 500 }}>Live API booking stays blocked until the Worker variable AKBAR_API_BOOKING_PRODUCTION is set to "approved" after UAT certification.</span>
+          )}
+        </Field>
+        <Field label="Round-trip fares (RT / Special Fare RS)" wide>
+          <select value={akbar.roundTripFares ?? "OFF"} onChange={(e) => set("akbar", { roundTripFares: e.target.value as "OFF" | "ON" })} style={input}>
+            <option value="OFF">Off — round trips searched and booked one way at a time</option>
+            <option value="ON">On — one RT / RS search, booked as one Akbar itinerary (needs API booking)</option>
+          </select>
+          {akbar.roundTripFares === "ON" && akbar.apiBooking === "OFF" && (
+            <span style={{ color: "#fca5a5", fontWeight: 500 }}>Has no effect while API booking is Off: RT / RS fares must be priced with Akbar at checkout.</span>
           )}
         </Field>
         <Field label="Contact address (CreateItinerary)" wide><input value={akbar.contactAddress ?? ""} onChange={(e) => set("akbar", { contactAddress: e.target.value })} placeholder="Agency address sent to Akbar" style={input} /></Field>
