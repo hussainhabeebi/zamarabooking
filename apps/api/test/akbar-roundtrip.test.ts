@@ -11,10 +11,10 @@ import {
   type NormalizedFare,
 } from "@zamrabooking/suppliers";
 import {
-  akbarBookingUnits, akbarLegSource, akbarOutcome, akbarPrepaymentCheck, runAkbarBooking, AkbarStepError,
+  akbarBookingUnits, akbarFareChange, akbarLegSource, akbarOutcome, akbarPrepaymentCheck, runAkbarBooking, AkbarStepError,
   type AkbarBookingState, type AkbarEngineDeps, type AkbarLegSource,
 } from "../src/lib/akbar-booking.js";
-import { lookupOfflineFare, rememberOfflineFares } from "../src/lib/flight-sources.js";
+import { forgetOfflineFares, lookupOfflineFare, rememberOfflineFares } from "../src/lib/flight-sources.js";
 
 // The journey page's onward → return pairing (apps/web/app/search/journey/page.tsx, optionsFor / pick).
 // Copied here as a predicate; the test below checks the page still has exactly these expressions.
@@ -217,7 +217,7 @@ test("invalid round-trip selections are refused before any supplier call", () =>
 
 // ── Mocked end to end: search → selection → checkout → booking status ────────
 
-function akbarUat(opts: { pricedNet?: (sum: number) => number; status?: string; pnrs?: string[]; pricingPolls?: number } = {}) {
+function akbarUat(opts: { pricedNet?: (sum: number) => number; status?: string; pnrs?: string[]; pricingPolls?: number; getSPricer?: (sum: number) => unknown } = {}) {
   const calls: { path: string; body: any }[] = [];
   let sum = 0;
   let pricerPolls = 0;
@@ -239,6 +239,7 @@ function akbarUat(opts: { pricedNet?: (sum: number) => number; status?: string; 
         sum = body.Trips.reduce((n: number, t: any) => n + t.Amount, 0);
         return json({ TUI: "priced-tui", Code: "200", Msg: ["Success"], NetAmount: 0 });
       case "/flights/GetSPricer":
+        if (opts.getSPricer) return json(opts.getSPricer(sum));
         // Still pricing: Code 200 with NetAmount 0 (as SmartPricer answers), for the first `pricingPolls` calls.
         if (pricerPolls++ < (opts.pricingPolls ?? 0)) return json({ TUI: "priced-tui", Code: "200", Msg: ["Success"], NetAmount: 0 });
         return json({ TUI: "priced-tui", Code: "200", Msg: ["Success"], NetAmount: (opts.pricedNet ?? ((s) => s))(sum) });
@@ -263,7 +264,7 @@ async function withFetch<T>(fetchImpl: typeof fetch, fn: () => Promise<T>): Prom
 
 function kv() {
   const store = new Map<string, string>();
-  return { async get(k: string, type?: string) { const v = store.get(k) ?? null; return v && type === "json" ? JSON.parse(v) : v; }, async put(k: string, v: string) { store.set(k, v); } };
+  return { async get(k: string, type?: string) { const v = store.get(k) ?? null; return v && type === "json" ? JSON.parse(v) : v; }, async put(k: string, v: string) { store.set(k, v); }, async delete(k: string) { store.delete(k); } };
 }
 
 const searchParams = { ...base, origin: "BOM", destination: "DXB", departureDate: "2026-02-11", returnDate: "2026-03-20" } as any;
@@ -388,4 +389,45 @@ test("GetSPricer that never prices (NetAmount 0) is refused after the polls, not
   await assert.rejects(akbarPrepaymentCheck(deps(uat.fetchImpl).d, { legs: units, pax, departureDates: ["2026-02-11"] }),
     (e: unknown) => e instanceof AkbarStepError && e.code === "FARE_UNAVAILABLE");
   assert.equal(uat.paths().filter((p) => p === "GetSPricer").length, 4);
+});
+
+// SpiceJet RS checkout 2af83de1… (UAT): SmartPricer 200 (17670), then GetSPricer Code 1500
+// "fare changed from 17670 to 17811" was reported as "fare no longer available", and a later
+// checkout priced the same stale references again (SmartPricer 1601 "No Record found").
+const fareChanged = (sum: number) => ({ TUI: "priced-tui", Code: "1500", Msg: [`Fare has been changed from ${sum} to ${sum + 141}`], NetAmount: 0 });
+
+test("GetSPricer Code 1500 is a fare change (new amount kept), never 'unavailable', never accepted", async () => {
+  assert.deepEqual(akbarFareChange({ Code: "1500", Msg: ["Fare has been changed from 17670 to 17811"], NetAmount: 0 }), { priced: 17811 });
+  assert.deepEqual(akbarFareChange({ Code: "1500", Msg: ["Fare changed"], NetAmount: 17811 }), { priced: 17811 });
+  assert.equal(akbarFareChange({ Code: "200", Msg: ["Success"], NetAmount: 17670 }), null);
+  assert.equal(akbarFareChange({ Code: "1601", Msg: ["No Record found"] }), null);
+  const { onward, ret } = await searchAndSelect("RS");
+  const units = akbarBookingUnits([onward, ret].map((f) => akbarLegSource(f.raw as any, f)));
+  const uat = akbarUat({ getSPricer: fareChanged });
+  await assert.rejects(akbarPrepaymentCheck(deps(uat.fetchImpl).d, { legs: units, pax, departureDates: ["2026-02-11"] }), (e: unknown) =>
+    e instanceof AkbarStepError && e.code === "FARE_CHANGED" && e.detail.searched === units[0].netFare && e.detail.priced === units[0].netFare + 141 && e.detail.akbarCode === "1500");
+  assert.equal(uat.paths().filter((p) => p === "GetSPricer").length, 1);   // an error code ends the polling
+  assert.equal(uat.paths().filter((p) => p === "SmartPricer").length, 1);  // no re-pricing with the same references
+});
+
+test("after payment, a fare change stops the booking before CreateItinerary / StartPay", async () => {
+  const { onward, ret } = await searchAndSelect("RT");
+  const units = akbarBookingUnits([onward, ret].map((f) => akbarLegSource(f.raw as any, f)));
+  const uat = akbarUat({ getSPricer: fareChanged });
+  const state = await runAkbarBooking(deps(uat.fetchImpl).d, { legs: units, pax, departureDates: ["2026-02-11"], contact });
+  assert.equal(state.legs[0].errorCode, "FARE_CHANGED");
+  assert.ok(!uat.paths().includes("CreateItinerary") && !uat.paths().includes("StartPay"));
+  assert.equal(akbarOutcome(state, units.length), "FAILED_BEFORE_PAYMENT");
+});
+
+test("fares Akbar re-priced or refused are forgotten: a retry gets 'search again', other fares stay", async () => {
+  const { fares, onward, ret } = await searchAndSelect("RS");
+  const env = { FARE_CACHE_KV: kv() } as any;
+  const p = { adults: 1, children: 0, infants: 0 };
+  await rememberOfflineFares(env, "t1", fares, p);
+  const other = fares.find((f) => f.id !== onward.id && f.id !== ret.id && (f.raw as any).tui === (onward.raw as any).tui)!;
+  await forgetOfflineFares(env, "t1", [onward.id, ret.id]);
+  for (const f of [onward, ret]) assert.deepEqual(await lookupOfflineFare(env, null as any, "t1", "AKBAR", f.id, p), { reason: "NOT_FOUND" });
+  const kept = await lookupOfflineFare(env, null as any, "t1", "AKBAR", other.id, p);
+  assert.ok("fare" in kept && kept.fare.id === other.id);
 });

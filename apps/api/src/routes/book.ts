@@ -25,7 +25,7 @@ import { passengerNameProblem } from "../lib/passenger-names.js";
 import { fallbackHoldDeadline, findHoldDeadline, holdLabel } from "../lib/fare-hold.js";
 import { parseBookingDetails } from "../lib/trips.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "../lib/customer-notify.js";
-import { isOfflineSupplier, lookupOfflineFare, quoteOfflineFare, type OfflineSupplier } from "../lib/flight-sources.js";
+import { forgetOfflineFares, isOfflineSupplier, lookupOfflineFare, quoteOfflineFare, type OfflineSupplier } from "../lib/flight-sources.js";
 import { baggageRequestSummary, buildBaggageRequest } from "../lib/baggage-request.js";
 import { logBookingEvent } from "../lib/booking-recovery.js";
 
@@ -818,7 +818,16 @@ async function bookOfflineFare(
         });
       } catch (err) {
         if (err instanceof AkbarStepError && err.code === "TRAVELLER_DETAILS_MISSING") return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: err.message, requestId }, 400);
-        if (err instanceof AkbarStepError && err.code === "FARE_INCREASED") return fail(409, "FARE_CHANGED", "The airline has changed this fare. Please search again for the latest price.", err.detail);
+        // Akbar re-priced or refused these fares: their search references are stale, so forget them —
+        // a retry is told to search again instead of sending the same references to Akbar.
+        if (err instanceof AkbarStepError && ["FARE_INCREASED", "FARE_CHANGED", "FARE_UNAVAILABLE"].includes(err.code)) {
+          runInBackground(c, forgetOfflineFares(c.env, tenantId, fareIds));
+        }
+        if (err instanceof AkbarStepError && (err.code === "FARE_INCREASED" || err.code === "FARE_CHANGED")) {
+          runInBackground(c, logSupplierCall(db, { tenantId, supplier: "AKBAR", endpoint: "/flights/GetSPricer", level: "WARN", requestId,
+            errorCode: err.code, errorMessage: err.message.slice(0, 500), requestSummary: { stage: "checkout pre-payment pricing", ...err.detail } }));
+          return fail(409, "FARE_CHANGED", "The airline has changed this fare. Please search again for the latest price.", err.detail);
+        }
         const reason = err instanceof Error ? err.message : String(err);
         const step = err instanceof AkbarStepError ? err.code : "AKBAR_CALL_FAILED";
         console.warn("[book-akbar-price]", JSON.stringify({ requestId, step, error: reason }));
