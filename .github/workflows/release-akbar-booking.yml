@@ -90,12 +90,14 @@ env:
     apps/api/src/lib/api-exchanges.ts
     apps/api/src/lib/eticket-pdf.ts
     apps/api/src/lib/akbar-trace.ts
+    apps/api/src/lib/akbar-failed-booking.ts
     apps/api/src/routes/admin/supplier-logs.ts
     apps/api/test/akbar-booking.test.ts
     apps/api/test/eticket-pdf.test.ts
     apps/api/test/flight-sources.test.ts
     apps/api/test/akbar-roundtrip.test.ts
     apps/api/test/akbar-trace.test.ts
+    apps/api/test/akbar-failed-booking.test.ts
     apps/api/test/fixtures/akbar-roundtrip-samples.json
     packages/suppliers/src/akbar/client.ts
     packages/suppliers/src/akbar/adapter.ts
@@ -193,7 +195,7 @@ jobs:
           apps/api/test/akbar-booking.test.ts apps/api/test/flight-sources.test.ts apps/api/test/akbar-journey-booking.test.ts
           apps/api/test/certification-pack.test.ts apps/api/test/log-stop-labels.test.ts apps/api/test/baggage-request.test.ts
           apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/tripjack-reviewed-total.test.ts
-          apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts apps/api/test/akbar-roundtrip.test.ts apps/api/test/akbar-trace.test.ts
+          apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts apps/api/test/akbar-roundtrip.test.ts apps/api/test/akbar-trace.test.ts apps/api/test/akbar-failed-booking.test.ts
       - name: Live zamra-api must still be the expected baseline (rollback target below)
         working-directory: apps/api
         env:
