@@ -154,6 +154,26 @@ export async function rememberOfflineFares(env: Env, tenantId: string, fares: No
   ]);
 }
 
+// Fares Akbar refused or re-priced at checkout: forgotten, so a later checkout with the same (now
+// stale) search references is told to search again instead of pricing them with Akbar again.
+export async function forgetOfflineFares(env: Env, tenantId: string, fareIds: string[]) {
+  const byTui = new Map<string, string[]>();
+  for (const id of fareIds) {
+    const tui = akbarTui(id);
+    if (tui) (byTui.get(tui) ?? byTui.set(tui, []).get(tui)!).push(id);
+    else await env.FARE_CACHE_KV.delete(offlineFareKey(tenantId, id)).catch(() => {});
+  }
+  for (const [tui, ids] of byTui) {
+    const key = offlineSearchKey(tenantId, tui);
+    const search = await env.FARE_CACHE_KV.get(key, "json").catch(() => null) as { pax: Pax; fares: Record<string, NormalizedFare> } | null;
+    if (search?.fares) {
+      for (const id of ids) delete search.fares[id];
+      await env.FARE_CACHE_KV.put(key, JSON.stringify(search), { expirationTtl: OFFLINE_FARE_TTL }).catch(() => {});
+    }
+    for (const id of ids) await env.FARE_CACHE_KV.delete(offlineFareKey(tenantId, id)).catch(() => {});
+  }
+}
+
 export type OfflineFareLookup =
   | { fare: NormalizedFare }
   | { reason: "NOT_FOUND" }

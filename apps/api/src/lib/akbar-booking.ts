@@ -280,6 +280,13 @@ export async function priceAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<type
     if ((akbarNetAmount(priced) ?? 0) > 0) break;
     if (akbarCodeIsError(priced)) break;
   }
+  // Akbar Code 1500 "fare changed": the searched price is gone. Never accepted automatically and
+  // never retried with the same search references — the customer searches again.
+  const change = akbarFareChange(priced);
+  if (change) {
+    throw new AkbarStepError("FARE_CHANGED", `GetSPricer: ${akbarMessages(priced) || "fare changed"}`,
+      { searched: leg.netFare, ...(change.priced != null ? { priced: change.priced } : {}), akbarCode: akbarCodeOf(priced) });
+  }
   const net = akbarNetAmount(priced);
   if (!akbarOk(priced) || net == null || net <= 0) throw new AkbarStepError("FARE_UNAVAILABLE", `GetSPricer: ${akbarMessages(priced) || "no live fare returned"}`);
   if (net > leg.netFare + tolerance) {
@@ -287,6 +294,19 @@ export async function priceAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<type
   }
   return { pricedTui: searchTui(priced) || tui, pricedNetAmount: net };
 }
+const akbarCodeOf = (d: unknown) => (d && typeof d === "object" ? String((d as Record<string, unknown>).Code ?? "") : "");
+
+// GetSPricer reporting a fare change (UAT: Code "1500", Msg "… fare changed from 17670 to 17811 …").
+// priced = the new amount: NetAmount when Akbar sends one, else the last amount in the message.
+export function akbarFareChange(d: unknown): { priced: number | null } | null {
+  const code = akbarCodeOf(d);
+  const msg = akbarMessages(d);
+  if (code !== "1500" && !/fare\s*(has\s*)?(been\s*)?chang/i.test(msg)) return null;
+  const net = akbarNetAmount(d);
+  const amounts = [...msg.matchAll(/(\d[\d,]*(?:\.\d+)?)/g)].map((m) => Number(m[1].replace(/,/g, ""))).filter((x) => x > 0);
+  return { priced: net != null && net > 0 ? net : amounts.length ? amounts[amounts.length - 1] : null };
+}
+
 const akbarCodeIsError = (d: unknown) => {
   const code = d && typeof d === "object" ? String((d as Record<string, unknown>).Code ?? "") : "";
   return !!code && code !== "200" && !/progress|pending/i.test(akbarMessages(d));
