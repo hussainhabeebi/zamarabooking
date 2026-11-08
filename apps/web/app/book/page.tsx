@@ -6,6 +6,7 @@ import { ScanDocument, type ScannedTraveller } from "../components/ScanDocument"
 import SocialSignIn from "./SocialSignIn";
 import { bookingError } from "./booking-error";
 import BaggageSelection, { availableBaggage } from "./BaggageSelection";
+import FlightItinerary, { itinCss, legsFromJourney, legsFromSegments, type ItinLeg } from "./FlightItinerary";
 import { BUSINESS } from "../lib/business";
 import { passengerNameProblem } from "./passenger-names";
 import PassengerDateInput from "../components/PassengerDateInput";
@@ -284,6 +285,9 @@ export default function BookPage() {
   // TripJack review (run on load): conditions, SSR options, fare alerts.
   const [review, setReview] = useState<Review | null>(null);
   const [legBaggage, setLegBaggage] = useState<LegBaggage[]>([]);
+  // Selected flight's full itinerary from the results page (segments, cabin, fare option).
+  const [linkLegs, setLinkLegs] = useState<ItinLeg[]>([]);
+  const [fareExtras, setFareExtras] = useState({ cabinClass: "", fareLabel: "", meal: "" });
   const [seatMaps, setSeatMaps] = useState<SegmentSeatMap[] | null>(null);
   const [seatLoading, setSeatLoading] = useState(false);
   const [seatError, setSeatError] = useState("");
@@ -377,11 +381,19 @@ export default function BookPage() {
     if (tt === "ROUNDTRIP" || tt === "MULTICITY") setTripType(tt);
     // Included baggage per flight: journeys keep each leg's allowance from the results page.
     let legs: LegBaggage[] = [];
+    let itin: ItinLeg[] = [];
     try {
       const ids = q.get("priceIds");
       const saved = ids ? JSON.parse(sessionStorage.getItem(`journey:${ids}`) ?? "null") as { origin: string; destination: string; baggage?: { checked?: string; cabin?: string } }[] | null : null;
       if (Array.isArray(saved)) legs = saved.map((l) => ({ origin: l.origin, destination: l.destination, checked: l.baggage?.checked ?? "", cabin: l.baggage?.cabin ?? "" }));
+      itin = legsFromJourney(saved);
     } catch {}
+    if (!itin.length) {
+      try { itin = legsFromSegments(JSON.parse(q.get("seg") ?? "[]"), q.get("bag") ?? "", q.get("cab") ?? ""); } catch {}
+    }
+    setLinkLegs(itin);
+    const meal = q.get("meal");
+    setFareExtras({ cabinClass: q.get("cls") ?? "", fareLabel: q.get("fl") ?? "", meal: meal === "1" ? "Free meal included" : meal === "0" ? "Meal at cost" : "" });
     if (!legs.length) legs = [{ origin: q.get("from") ?? "", destination: q.get("to") ?? "", checked: q.get("bag") ?? "", cabin: q.get("cab") ?? "" }];
     setLegBaggage(legs);
     if (supplier.toUpperCase() === "TRIPJACK") {
@@ -609,8 +621,19 @@ export default function BookPage() {
     setPassengers((p) => p.map((x, n) => n === i ? { ...x, seat: { ...x.seat, [key]: code } } : x));
   const picks = (m: Record<string, string>) => Object.entries(m).filter(([, c]) => c).map(([key, code]) => ({ key, code }));
 
-  const t = (s?: string) =>
-    s ? new Date(s).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--";
+  // Itinerary shown on the flight card: from the results page, else the airline's
+  // review (TripJack), else the single flight in the link.
+  const itinerary: ItinLeg[] = linkLegs.length ? linkLegs
+    : review?.segments?.length ? legsFromSegments(review.segments, fare?.cabinChecked ?? "", legBaggage[0]?.cabin ?? "")
+    : fare ? [{ origin: fare.origin, destination: fare.destination, checked: fare.cabinChecked, cabin: legBaggage[0]?.cabin ?? "", stops: fare.stops,
+        segments: [{ airlineName: fare.airlineName, flightNumber: fare.flightNumber, origin: fare.origin, destination: fare.destination,
+          departureTime: fare.departureTime, arrivalTime: fare.arrivalTime, duration: fare.stops === 0 ? fare.duration : 0 }] }]
+    : [];
+  const paxCount = (type: Passenger["type"]) => passengers.filter((p) => p.type === type).length;
+  const travellerSummary = ([["ADULT", "adult"], ["CHILD", "child"], ["INFANT", "infant"]] as const)
+    .map(([type, word]) => { const n = paxCount(type); return n ? `${n} ${word}${n > 1 ? (word === "child" ? "ren" : "s") : ""}` : ""; })
+    .filter(Boolean).join(", ");
+
 
   async function startOnlinePayment(bookingId: string, checkoutToken: string) {
     const res = await fetch(`${apiUrl}/api/payments/checkout`, {
@@ -909,7 +932,7 @@ export default function BookPage() {
   }
 
   return (
-    <main className="ck"><style>{css}{checkoutCss}</style>
+    <main className="ck"><style>{css}{checkoutCss}{itinCss}</style>
       <header>
         <button type="button" aria-label={reviewing ? "Edit traveller details" : "Back to results"} disabled={submitting} onClick={() => reviewing ? setReviewing(false) : history.back()}>‹</button>
         <div><b>{reviewing ? "Review your booking" : "Complete your booking"}</b><span>{reviewing ? "Check names and contact details" : "Continue as a guest — no account required"}</span></div>
@@ -977,16 +1000,15 @@ export default function BookPage() {
               {inForeign && grandTotal > 0 && <span style={{ color: "#64748b" }}>≈ {money.format(grandTotal)} · 1 {shownCur} = ₹{rates[shownCur]}{chargedNote(grandTotal) ? ` · ${chargedNote(grandTotal)}` : ""}</span>}
             </div>
           )}
-          <div className="route">
-            <div><b>{t(fare.departureTime)}</b><span>{fare.origin}</span></div>
-            <div className="plane">✈</div>
-            <div className="end"><b>{t(fare.arrivalTime)}</b><span>{fare.destination}</span></div>
-          </div>
-          <div className="meta">
-            <span>{fare.stops === 0 ? "Nonstop" : `${fare.stops} stop`} · {Math.floor(fare.duration / 60)}h {fare.duration % 60}m</span>
-            <span>{fare.isRefundable ? "✓ Refundable" : "Non-refundable"}</span>
-            <span>{fare.cabinChecked || "Checked baggage allowance not provided"}</span>
-          </div>
+          <FlightItinerary
+            legs={itinerary}
+            tripType={tripType}
+            cabinClass={fareExtras.cabinClass}
+            fareLabel={fareExtras.fareLabel}
+            refundable={fare.isRefundable}
+            meal={fareExtras.meal}
+            travellers={travellerSummary}
+          />
         </section>
       )}
 
