@@ -378,6 +378,15 @@ function buildBookUrl(fare: any, fareCurrency: string, price: number, adults: nu
 function optionLinkParams(fare: any, options: any[]): Record<string, string> {
   const extra: Record<string, string> = { cab: fare.baggage?.cabin ?? "", fl: fareLabel(fare.fareIdentifier || fare.fareClass) };
   if (typeof fare.mealIncluded === "boolean") extra.meal = fare.mealIncluded ? "1" : "0";
+  if (fare.cabinClass) extra.cls = String(fare.cabinClass);
+  // Each flight of the itinerary, so checkout can show the full schedule.
+  if (Array.isArray(fare.segments) && fare.segments.length) {
+    extra.seg = JSON.stringify(fare.segments.map((s: any) => ({
+      airline: s.airline ?? "", airlineName: s.airlineName ?? "", flightNumber: s.flightNumber ?? "",
+      origin: s.origin ?? "", destination: s.destination ?? "", departureTime: s.departureTime ?? "",
+      arrivalTime: s.arrivalTime ?? "", duration: Number(s.duration) || 0, ...(s.isReturn ? { isReturn: true } : {}),
+    })));
+  }
   // A switch on the booking page keeps the supplier, so only offer the same supplier's fares.
   const alts = altOptions(options.filter((o) => o.supplier === fare.supplier), fare.id);
   if (alts.length) extra.alts = JSON.stringify(alts);
