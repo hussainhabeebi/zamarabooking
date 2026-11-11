@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import SearchResultControls, { ChangeDatesAction } from "./SearchResultControls";
@@ -134,13 +135,14 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
     .filter(([, ok]) => !ok).map(([name]) => name);
   const allFares = result.fares as any[];
   const filteredFares = filterAndSortFares(allFares, params);
+  const rank = (fare: any) => airportRank(fare, params);
   // One card per flight; the airline's fare options (Saver / Standard / Flexi…) inside it.
   const groups = groupFareOptions(filteredFares as any[]);
   const optionsByKey = new Map(groups.map((g) => [g.key, g.options]));
   const leadFares = groups.map((g) => g.lead);
   const displayFares = params.all === "1" || params.sort
     ? leadFares
-    : recommendedFares(leadFares);
+    : recommendedFares(leadFares, params);
   const allQuery = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null) as [string, string][]);
   allQuery.set("all", "1");
 
@@ -260,8 +262,11 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
                 <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700, marginBottom: 2 }}>Recommended for you</div>
               )}
               {displayFares.map((fare, i) => (
+                <Fragment key={`${fare.id ?? i}-${i}`}>
+                {rank(fare) > 0 && (i === 0 || rank(displayFares[i - 1]) === 0) && (
+                  <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700, margin: "8px 0 2px" }}>Flights from nearby airports</div>
+                )}
                 <FareCard
-                  key={`${fare.id ?? i}-${i}`}
                   fare={fare}
                   options={optionsByKey.get(flightKey(fare)) ?? [fare]}
                   requestedCurrency={requestedCurrency}
@@ -271,6 +276,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
                   children={children}
                   infants={infants}
                 />
+                </Fragment>
               ))}
               {params.all !== "1" && groups.length > displayFares.length && (
                 <a
@@ -304,19 +310,38 @@ function filterAndSortFares(fares: any[], params: SearchParams): any[] {
     return true;
   });
 
+  let sorted = filtered;
   if (params.sort === "price") {
-    return [...filtered].sort((a, b) => Number(a.displayPrice ?? a.totalFare ?? Infinity) - Number(b.displayPrice ?? b.totalFare ?? Infinity));
+    sorted = [...filtered].sort((a, b) => Number(a.displayPrice ?? a.totalFare ?? Infinity) - Number(b.displayPrice ?? b.totalFare ?? Infinity));
+  } else if (params.sort === "duration") {
+    sorted = [...filtered].sort((a, b) => Number(a.duration ?? Infinity) - Number(b.duration ?? Infinity));
+  } else if (params.sort === "departure") {
+    sorted = [...filtered].sort((a, b) => new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime());
   }
-  if (params.sort === "duration") {
-    return [...filtered].sort((a, b) => Number(a.duration ?? Infinity) - Number(b.duration ?? Infinity));
-  }
-  if (params.sort === "departure") {
-    return [...filtered].sort((a, b) => new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime());
-  }
-  return filtered;
+  // Flights between the searched airports first; nearby airports after (sort is stable,
+  // so each group keeps the chosen order).
+  return [...sorted].sort((a, b) => airportRank(a, params) - airportRank(b, params));
 }
 
-function recommendedFares(fares: any[]): any[] {
+// 0: both airports are the ones searched; 1: one is a nearby airport; 2: both are.
+function airportRank(fare: any, params: SearchParams): number {
+  const from = (params.origin ?? "").toUpperCase(), to = (params.destination ?? "").toUpperCase();
+  if (!from || !to) return 0;
+  return (String(fare.origin ?? "").toUpperCase() === from ? 0 : 1)
+    + (String(fare.destination ?? "").toUpperCase() === to ? 0 : 1);
+}
+
+// The shortlist comes from flights between the searched airports; nearby airports only
+// fill it when there are fewer than three of those.
+function recommendedFares(fares: any[], params: SearchParams): any[] {
+  const exact = fares.filter((f) => airportRank(f, params) === 0);
+  if (exact.length === 0) return pickRecommended(fares);
+  const picked = pickRecommended(exact);
+  for (const fare of fares) if (picked.length < 3 && !picked.some((x) => x.id === fare.id)) picked.push(fare);
+  return picked;
+}
+
+function pickRecommended(fares: any[]): any[] {
   if (fares.length <= 3) return fares;
   const bookable = fares.filter((f) => f.isBookable);
   const pool = bookable.length >= 3 ? bookable : fares;
