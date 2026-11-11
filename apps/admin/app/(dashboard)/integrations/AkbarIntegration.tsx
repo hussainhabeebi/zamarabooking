@@ -27,6 +27,7 @@ export function AkbarIntegration() {
   const [msg, setMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [busy, setBusy] = useState("");
   const [akbarSecrets, setAkbarSecrets] = useState({ password: "", apiKey: "", key: "" });
+  const [clearKey, setClearKey] = useState(false);
   const [akbarRaw, setAkbarRaw] = useState("");
   const [test, setTest] = useState({ origin: "COK", destination: "DXB", departureDate: inAWeek() });
 
@@ -55,8 +56,8 @@ export function AkbarIntegration() {
       </p>
       <form onSubmit={(e) => { e.preventDefault(); run("akbar", async () => {
         const { gatewayKeySet: _k, productionBookingApproved: _p, ...fields } = akbar;
-        await call("/akbar", "PUT", { ...fields, ...akbarSecrets });
-        setAkbarSecrets({ password: "", apiKey: "", key: "" }); await load(); return "Saved.";
+        await call("/akbar", "PUT", { ...fields, ...akbarSecrets, ...(clearKey ? { clearKey: true } : {}) });
+        setAkbarSecrets({ password: "", apiKey: "", key: "" }); setClearKey(false); await load(); return "Saved.";
       }); }} style={formGrid}>
         <Toggle label="Show Akbar fares in search" checked={akbar.enabled} onChange={(v) => set("akbar", { enabled: v })} />
         <Field label="Environment">
@@ -80,7 +81,13 @@ export function AkbarIntegration() {
           <input type="password" value={akbarSecrets.password} onChange={(e) => setAkbarSecrets((s) => ({ ...s, password: e.target.value }))} placeholder={akbar.password ? "Leave blank to keep" : ""} autoComplete="new-password" style={input} />
         </Field>
         <Field label={`Key${akbar.key ? ` (saved ${akbar.key})` : ""}`}>
-          <input type="password" value={akbarSecrets.key} onChange={(e) => setAkbarSecrets((s) => ({ ...s, key: e.target.value }))} placeholder={akbar.key ? "Leave blank to keep" : "Only if Akbar sent one"} autoComplete="off" style={input} />
+          <input type="password" value={akbarSecrets.key} onChange={(e) => setAkbarSecrets((s) => ({ ...s, key: e.target.value }))} placeholder={akbar.key ? "Leave blank to keep" : "Only if Akbar sent one"} autoComplete="off" disabled={clearKey} style={input} />
+          {akbar.key && (
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+              <input type="checkbox" checked={clearKey} onChange={(e) => setClearKey(e.target.checked)} />
+              Clear saved Key (live credentials have none)
+            </label>
+          )}
         </Field>
         <Field label="API booking (CreateItinerary → StartPay)" wide>
           <select value={akbar.apiBooking ?? "OFF"} onChange={(e) => set("akbar", { apiBooking: e.target.value as Akbar["apiBooking"] })} style={input}>
