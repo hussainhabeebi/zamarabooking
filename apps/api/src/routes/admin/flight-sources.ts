@@ -56,6 +56,7 @@ flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
   agentCode:   z.string().trim().max(100),
   browserKey:  z.string().trim().max(200),
   key:         z.string().max(500).optional(),
+  clearKey:    z.boolean().optional(),   // live credentials have no Key: drop the saved test one
   gatewayUrl:  url,
   apiBooking:  z.enum(["OFF", "MANUAL", "AUTO"]).default("OFF"),
   roundTripFares: z.enum(["OFF", "ON"]).default("OFF"),
@@ -68,10 +69,11 @@ flightSourcesAdminRoutes.put("/akbar", zValidator("json", z.object({
   fullAdminOnly(c.get("userRole"));
   const body = c.req.valid("json");
   const saved = await getAkbarSettings(c.env, c.get("tenantId"));
+  const { clearKey, ...fields } = body;
   const next = {
-    ...body,
+    ...fields,
     utilsUrl: body.utilsUrl.replace(/\/+$/, ""), flightsUrl: body.flightsUrl.replace(/\/+$/, ""), gatewayUrl: body.gatewayUrl.replace(/\/+$/, ""),
-    password: keep(body.password, saved.password), apiKey: keep(body.apiKey, saved.apiKey), key: keep(body.key, saved.key),
+    password: keep(body.password, saved.password), apiKey: keep(body.apiKey, saved.apiKey), key: clearKey ? "" : keep(body.key, saved.key),
   };
   if (next.enabled && !(next.utilsUrl && next.flightsUrl && next.merchantId && next.apiKey && next.clientId && next.password && next.browserKey)) {
     return c.json({ error: "Fill in both URLs, MerchantID, ApiKey, ClientID, Password and BrowserKey before turning Akbar on." }, 400);
