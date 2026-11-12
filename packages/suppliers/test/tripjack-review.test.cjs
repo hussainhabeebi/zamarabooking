@@ -162,8 +162,9 @@ test('actual results filter and booking handoff preserve unknown baggage', async
   const file = path.resolve(__dirname, '../../../apps/web/app/search/page.tsx');
   const source = fs.readFileSync(file, 'utf8');
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const functions = ast.statements.filter((s) => ts.isFunctionDeclaration(s) && ['filterAndSortFares', 'buildBookUrl'].includes(s.name?.text));
-  assert.equal(functions.length, 2);
+  // filterAndSortFares ranks results by airport (searched airports first) with airportRank.
+  const functions = ast.statements.filter((s) => ts.isFunctionDeclaration(s) && ['filterAndSortFares', 'buildBookUrl', 'airportRank'].includes(s.name?.text));
+  assert.equal(functions.length, 3);
   const js = ts.transpileModule(functions.map((f) => f.getText(ast)).join('\n'), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   // filterAndSortFares uses the shared stop helper the page imports.
   const stopsFile = path.resolve(__dirname, '../../../apps/web/app/lib/stops.ts');
@@ -191,8 +192,12 @@ test('actual results filter and booking handoff preserve unknown baggage', async
   const read = new Function('q', `return ${allowance}`);
   for (const query of ['', 'bag=']) assert.equal(read(new URLSearchParams(query)), '');
   assert.equal(read(new URLSearchParams('bag=20+KG')), '20 KG');
-  assert.match(book, /Checked baggage allowance not provided/);
+  // The checkout itinerary (FlightItinerary.tsx since the full-itinerary checkout) says an unknown
+  // allowance is not provided; neither file invents one.
+  const itinerary = fs.readFileSync(path.resolve(__dirname, '../../../apps/web/app/book/FlightItinerary.tsx'), 'utf8');
+  assert.match(itinerary, /Check-in: <b>\{leg\.checked \|\| "Not provided"\}<\/b>/);
   assert.doesNotMatch(book, /15 KG/);
+  assert.doesNotMatch(itinerary, /15 KG/);
 });
 
 test('extra-baggage selections, prices and supplier booking payload are preserved', async (t) => {

@@ -17,6 +17,16 @@ export type FxRates = Partial<Record<DisplayCurrency, number | null>>;
 export const GCC = ["AED", "SAR", "QAR", "OMR", "KWD", "BHD"] as const;
 
 export const isDisplayCurrency = (v: unknown): v is DisplayCurrency => CURRENCY_LIST.some((c) => c.code === v);
+
+// AED (and the other Gulf currencies, which are charged in AED) can only be paid by card through
+// Nomod; PhonePe and the wallet take INR only. Until Nomod is set up, customers can only pick
+// currencies they can actually pay in: INR, and USD (shown in USD, charged in INR).
+// Set to true once Nomod (Admin → Settings → Payments) is configured for AED.
+export const AED_PAYMENTS_ENABLED = false;
+const isGcc = (code: string) => (GCC as readonly string[]).includes(code);
+export const SHOWN_CURRENCIES = CURRENCY_LIST.filter((c) => AED_PAYMENTS_ENABLED || !isGcc(c.code));
+// A currency customers may choose (a saved AED choice from before is ignored: back to INR).
+export const isShownCurrency = (v: unknown): v is DisplayCurrency => SHOWN_CURRENCIES.some((c) => c.code === v);
 export const currencyMeta = (code: string) => CURRENCY_LIST.find((c) => c.code === code);
 
 // INR → chosen currency, rounded UP to the currency's smallest unit (like the payment API).

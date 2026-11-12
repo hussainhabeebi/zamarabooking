@@ -12,7 +12,7 @@ import { passengerNameProblem } from "./passenger-names";
 import PassengerDateInput from "../components/PassengerDateInput";
 import { passengerDatesProblem } from "../lib/passenger-dates";
 import { CURRENCY_EVENT, readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
-import { convertInr, fetchFxRates, formatIn, GCC, isDisplayCurrency, type DisplayCurrency, type FxRates } from "../lib/fx";
+import { AED_PAYMENTS_ENABLED, convertInr, fetchFxRates, formatIn, GCC, isShownCurrency, type DisplayCurrency, type FxRates } from "../lib/fx";
 
 type Passenger = {
   type: "ADULT" | "CHILD" | "INFANT";
@@ -256,7 +256,7 @@ export default function BookPage() {
   const [leadAgentNumber, setLeadAgentNumber] = useState("");
   // Currency changed in the site menu: follow it here.
   useEffect(() => {
-    const onChange = (e: Event) => { const c = (e as CustomEvent).detail; if (isDisplayCurrency(c)) setDisplayCurrency(c); };
+    const onChange = (e: Event) => { const c = (e as CustomEvent).detail; if (isShownCurrency(c)) setDisplayCurrency(c); };
     window.addEventListener(CURRENCY_EVENT, onChange);
     return () => window.removeEventListener(CURRENCY_EVENT, onChange);
   }, []);
@@ -411,11 +411,11 @@ export default function BookPage() {
 
     // Offer AED when the admin has set a rate; start with the customer's chosen currency.
     // The visitor's fixed currency wins; links only decide when none was chosen yet.
-    const wanted = readPrefCurrency() ?? q.get("pc") ?? (!priceKnown && q.get("cur") === "AED" ? "AED" : null);
+    const wanted = readPrefCurrency() ?? q.get("pc") ?? (AED_PAYMENTS_ENABLED && !priceKnown && q.get("cur") === "AED" ? "AED" : null);
     if (fareCurrency === "INR") {
       fetchFxRates(apiUrl).then((r) => {
         setRates(r);
-        if (isDisplayCurrency(wanted) && (wanted === "INR" || r[wanted])) setDisplayCurrency(wanted);
+        if (isShownCurrency(wanted) && (wanted === "INR" || r[wanted])) setDisplayCurrency(wanted);
       });
     }
   }
@@ -522,7 +522,8 @@ export default function BookPage() {
     setDisplayCurrency(cur);
     savePrefCurrency(cur);
   }
-  const switchOptions = (["INR", "AED", ...(shownCur !== "INR" && shownCur !== "AED" ? [shownCur] : [])] as DisplayCurrency[])
+  // Only currencies the customer can pay in (AED needs Nomod; see lib/fx.ts AED_PAYMENTS_ENABLED).
+  const switchOptions = ([...(["INR", ...(AED_PAYMENTS_ENABLED ? ["AED"] : [])]), ...(shownCur !== "INR" && shownCur !== "AED" ? [shownCur] : [])] as DisplayCurrency[])
     .filter((c) => c === "INR" || rates[c]);
   const currencySwitch = fareInInr && switchOptions.length > 1 ? (
     <div className="curSwitch" role="radiogroup" aria-label="Price currency">

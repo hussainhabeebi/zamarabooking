@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { AiTripSearch, type AiTripFields } from "./AiTripSearch";
 import { useRouter } from "next/navigation";
 import { CURRENCY_EVENT, readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
-import { CURRENCY_LIST, type DisplayCurrency } from "../lib/fx";
+import { AED_PAYMENTS_ENABLED, SHOWN_CURRENCIES, type DisplayCurrency } from "../lib/fx";
 
 const AIRPORTS = [
   { code: "BOM", city: "Mumbai",        country: "IN" },
@@ -63,10 +63,11 @@ const CABIN_MAP: Record<string, string> = {
   "Business": "BUSINESS", "First": "FIRST",
 };
 
-// INR and AED as quick picks; the other GCC currencies and USD under "More".
-const CURRENCIES = CURRENCY_LIST;
-const QUICK_CURRENCIES = CURRENCY_LIST.filter((c) => c.code === "INR" || c.code === "AED");
-const MORE_CURRENCIES = CURRENCY_LIST.filter((c) => c.code !== "INR" && c.code !== "AED");
+// Only currencies customers can pay in (lib/fx.ts). With AED payments: INR and AED as quick picks,
+// the other GCC currencies and USD under "More"; without: INR and USD, no "More".
+const CURRENCIES = SHOWN_CURRENCIES;
+const QUICK_CURRENCIES = SHOWN_CURRENCIES.filter((c) => c.code === "INR" || c.code === (AED_PAYMENTS_ENABLED ? "AED" : "USD"));
+const MORE_CURRENCIES = SHOWN_CURRENCIES.filter((c) => !QUICK_CURRENCIES.includes(c));
 type CurrencyCode = DisplayCurrency;
 
 type Airport = typeof AIRPORTS[number];
@@ -357,7 +358,7 @@ export default function SearchWidget() {
               {cur.code === "INR" ? "₹ INR" : cur.code}
             </button>
           ))}
-          {(() => {
+          {MORE_CURRENCIES.length > 0 && (() => {
             const inMore = MORE_CURRENCIES.some((c) => c.code === currency);
             return (
               <select

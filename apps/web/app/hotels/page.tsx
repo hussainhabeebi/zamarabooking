@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
+import { AED_PAYMENTS_ENABLED } from "../lib/fx";
 
 const CITIES = [
   { code: "DXB", city: "Dubai",         country: "AE" },
@@ -52,6 +53,8 @@ const CURRENCIES = [
   { code: "AED" as CurrencyCode, symbol: "د.إ" },
   { code: "USD" as CurrencyCode, symbol: "$" },
 ];
+// Only currencies customers can pay in (AED needs Nomod; lib/fx.ts AED_PAYMENTS_ENABLED).
+const HOTEL_CURRENCIES: CurrencyCode[] = AED_PAYMENTS_ENABLED ? ["INR", "AED", "USD"] : ["INR", "USD"];
 const POPULAR_HUB_CODES = ["DXB", "AUH", "DOH", "BOM", "DEL", "COK"];
 const HUB_IMAGES: Record<string, string> = {
   DXB: "/routes/dubai.jpg",
@@ -133,7 +136,7 @@ export default function HotelsPage() {
   const [adults,   setAdults]   = useState(1);
   const [currency, setCurrencyState] = useState<CurrencyCode>("INR");
   // Same currency as flights: chosen once for the visit.
-  useEffect(() => { const c = readPrefCurrency(); if (c === "INR" || c === "AED" || c === "USD") setCurrencyState(c); }, []);
+  useEffect(() => { const c = readPrefCurrency(); if (c && (HOTEL_CURRENCIES as string[]).includes(c)) setCurrencyState(c as CurrencyCode); }, []);
   const setCurrency = (code: CurrencyCode) => { setCurrencyState(code); savePrefCurrency(code); };
   // Guests' nationality: TripJack prices hotels by it and asks Indian guests
   // for a PAN at hotels abroad (foreign guests don't need one).
@@ -201,7 +204,7 @@ export default function HotelsPage() {
             <div className="hw-widget-intro"><strong>Search hotels</strong><span>Find a stay that fits your journey</span></div>
             <div className="hw-currency" role="group" aria-label="Hotel search currency">
               <span className="hw-currency-label">Currency</span>
-              {(["INR", "AED", "USD"] as CurrencyCode[]).map((code) => (
+              {HOTEL_CURRENCIES.map((code) => (
                 <button
                   key={code} type="button"
                   className={currency === code ? "hw-cur hw-cur-active" : "hw-cur"}
@@ -301,7 +304,7 @@ export default function HotelsPage() {
             <p>See the details that matter before choosing a stay.</p>
           </div>
           <div className="hw-benefit-grid">
-            <div className="hw-benefit"><span className="hw-benefit-icon" aria-hidden="true">₹</span><h3>Choose your currency</h3><p>Search in INR, AED or USD using the existing hotel search options.</p></div>
+            <div className="hw-benefit"><span className="hw-benefit-icon" aria-hidden="true">₹</span><h3>Choose your currency</h3><p>Search in {HOTEL_CURRENCIES.join(" or ")} using the existing hotel search options.</p></div>
             <div className="hw-benefit"><span className="hw-benefit-icon" aria-hidden="true">▤</span><h3>Review room details</h3><p>See available room type, meal plan and amenities when supplied with a result.</p></div>
             <div className="hw-benefit"><span className="hw-benefit-icon" aria-hidden="true">✓</span><h3>Check stay terms</h3><p>Review each result’s cancellation status before continuing to booking.</p></div>
           </div>
