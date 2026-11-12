@@ -56,6 +56,8 @@ interface NotifyBookingMsg {
   bookingId:  string;
   tenantId:   string;
   eticketKey: string;
+  // Ticket numbers arrived after the confirmation (Akbar): email the updated e-ticket once, no WhatsApp.
+  update?:    "TICKET_NUMBERS";
 }
 
 interface NotifyOtpMsg {
@@ -1040,15 +1042,20 @@ async function handleNotifyBookingConfirmation(
     console.error(`[eticket-pdf] booking ${booking.id}:`, err);
   }
 
-  // Send email confirmation (once per booking — Resend Idempotency-Key)
+  // Send email confirmation (once per booking — Resend Idempotency-Key). A ticket-number update is its
+  // own email, also once per booking.
+  const ticketUpdate = data.update === "TICKET_NUMBERS";
   if (booking.contactEmail) {
     const dep = String(fd.departureTime ?? booking.departureDate?.toISOString?.() ?? "");
     await sendMail(env, db, data.tenantId, {
-      to: booking.contactEmail, category: "booking", idempotencyKey: `booking-confirmed:${booking.id}`, copyOps: true,
-      subject: `Booking confirmed — PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
+      to: booking.contactEmail, category: "booking", copyOps: true,
+      idempotencyKey: ticketUpdate ? `booking-tickets:${booking.id}` : `booking-confirmed:${booking.id}`,
+      subject: ticketUpdate
+        ? `Your e-ticket — ticket numbers issued · PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`
+        : `Booking confirmed — PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
       html: emailLayout({
-        title: "Your booking is confirmed ✈️", preheader: `PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
-        body: `<p>Thank you for booking with ${escapeHtml(tenantRow?.name ?? "ZamraBooking")}. ${eticketPdf
+        title: ticketUpdate ? "Your ticket numbers are issued 🎫" : "Your booking is confirmed ✈️", preheader: `PNR ${booking.pnr ?? ""} · ${booking.origin} → ${booking.destination}`,
+        body: ticketUpdate ? `<p>The airline has issued your ticket numbers. Your updated e-ticket is attached — please use this one at the airport.</p>` : `<p>Thank you for booking with ${escapeHtml(tenantRow?.name ?? "ZamraBooking")}. ${eticketPdf
           ? "Your e-ticket is attached as a PDF — keep it handy at the airport with your passport / ID."
           : "Your e-ticket will be available under My Trips as soon as the airline issues it."}</p>`,
         rows: [
@@ -1065,8 +1072,8 @@ async function handleNotifyBookingConfirmation(
     });
   }
 
-  // Send WhatsApp via Leadvyne/Chatwoot
-  if (booking.contactPhone && leadvyne?.chatwootBaseUrl && leadvyne.chatwootInboxId && leadvyne.chatwootApiToken) {
+  // Send WhatsApp via Leadvyne/Chatwoot (the confirmation only; not again for a ticket-number update)
+  if (!ticketUpdate && booking.contactPhone && leadvyne?.chatwootBaseUrl && leadvyne.chatwootInboxId && leadvyne.chatwootApiToken) {
     try {
       const waMessage = buildBookingConfirmationMessage({
         brandName:    tenantRow?.name ?? "ZamraBooking",

@@ -39,6 +39,7 @@ import { customerTripRoutes, guestTripRoutes } from "./routes/trips.js";
 import { customerAccountRoutes, customerSupportRoutes, createGuestSupportRequest } from "./routes/customer-account.js";
 import { syncAllManualFareSheets } from "./lib/flight-sources.js";
 import { releaseGroupSeats } from "./lib/group-fares.js";
+import { runAkbarAutoChecks } from "./lib/akbar-auto-check.js";
 import { createDb } from "@zamrabooking/db";
 
 // wrangler.toml [triggers] crons.
@@ -157,6 +158,10 @@ export default {
       ctx.waitUntil(releaseGroupSeats(createDb(env.DATABASE_URL))
         .then((r) => console.info("[group-fares] seats released", JSON.stringify(r)))
         .catch((err) => console.error("[group-fares] seat release", err)));
+      // Akbar bookings paid on Akbar but still without a PNR or ticket numbers: read-only status check.
+      ctx.waitUntil(runAkbarAutoChecks(env, createDb(env.DATABASE_URL))
+        .then((r) => console.info("[akbar-auto-check]", JSON.stringify(r)))
+        .catch((err) => console.error("[akbar-auto-check]", err)));
       return;
     }
     ctx.waitUntil(sweepFareAlerts(env).then((r) => console.info("[fare-alert-sweep]", r)).catch((err) => console.error("[fare-alert-sweep]", err)));
