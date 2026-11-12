@@ -202,8 +202,39 @@ export const manualFares = pgTable("manual_fares", {
   isRefundable:     boolean("is_refundable").notNull().default(false),
   notes:            text("notes"),
   isActive:         boolean("is_active").notNull().default(true),
+  // Group fares (migration 0014, Admin only): listed on the website when published and on sale.
+  isGroupFare:      boolean("is_group_fare").notNull().default(false),
+  isPublished:      boolean("is_published").notNull().default(false),
+  title:            text("title"),
+  description:      text("description"),
+  saleEndsAt:       timestamp("sale_ends_at", { withTimezone: true }),   // null = until departure
+  minPax:           integer("min_pax").notNull().default(1),
+  maxPax:           integer("max_pax"),                                   // null = up to the seats left
+  seatsTotal:       integer("seats_total"),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   routeIdx: index("manual_fares_route_idx").on(t.tenantId, t.origin, t.destination, t.travelDate),
+}));
+
+// Seats of a group fare taken by one booking (migration 0014). manual_fares.seats_available
+// already excludes HELD and SOLD seats. HELD → SOLD on payment, → RELEASED when the hold
+// expires unpaid or the booking is cancelled. OVERSOLD: paid after its hold was released and
+// the seats were gone by then (staff must resolve it).
+export const manualFareSeatHolds = pgTable("manual_fare_seat_holds", {
+  id:            text("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:      text("tenant_id").notNull(),
+  manualFareId:  text("manual_fare_id").notNull(),
+  bookingId:     text("booking_id").notNull().unique(),
+  seats:         integer("seats").notNull(),
+  status:        text("status").notNull().default("HELD"),
+  expiresAt:     timestamp("expires_at", { withTimezone: true }).notNull(),
+  soldAt:        timestamp("sold_at", { withTimezone: true }),
+  releasedAt:    timestamp("released_at", { withTimezone: true }),
+  releaseReason: text("release_reason"),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:     timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  fareIdx:   index("manual_fare_seat_holds_fare_idx").on(t.tenantId, t.manualFareId, t.status),
+  statusIdx: index("manual_fare_seat_holds_status_idx").on(t.status, t.expiresAt),
 }));

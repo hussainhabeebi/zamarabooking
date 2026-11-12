@@ -100,6 +100,8 @@ export default function BookingDetailPage() {
   const b = data.booking;
   const fd = (b.flightData ?? {}) as Record<string, unknown>;
   const offline = OFFLINE.includes(b.supplier);
+  // Group fare bookings (Admin → Manual fares → Group fare): seats are held at checkout, sold on payment.
+  const groupFare = ((fd.offline ?? {}) as Record<string, any>).groupFare as { title?: string | null; seats?: number; manualFareId?: string } | undefined;
 
   return (
     <div>
@@ -110,6 +112,12 @@ export default function BookingDetailPage() {
           <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
             {fmtDate(b.departureDate)} · PNR <strong style={{ color: "#e2e8f0" }}>{b.pnr ?? "—"}</strong> · {b.supplier} {b.supplierBookingRef ?? ""} · <span style={{ fontFamily: "monospace" }}>{b.id}</span>
           </div>
+          {groupFare && (
+            <div style={{ marginTop: 6, fontSize: 12, color: "#e9d5ff" }}>
+              <span style={{ fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "#3b0764" }}>Group fare</span>{" "}
+              {groupFare.title ?? ""} · {groupFare.seats ?? "?"} seat(s) from the group block · ticket on the group&apos;s airline / supplier, then enter the PNR below
+            </div>
+          )}
         </div>
         <span style={{ color: STATUS_COLOR[b.status] ?? "#94a3b8", fontWeight: 800, fontSize: 13, border: "1px solid #334155", borderRadius: 20, padding: "5px 12px" }}>{b.status}</span>
       </div>

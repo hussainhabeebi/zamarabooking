@@ -26,6 +26,7 @@ import { fallbackHoldDeadline, findHoldDeadline, holdLabel } from "../lib/fare-h
 import { parseBookingDetails } from "../lib/trips.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "../lib/customer-notify.js";
 import { forgetOfflineFares, isOfflineSupplier, lookupOfflineFare, quoteOfflineFare, type OfflineSupplier } from "../lib/flight-sources.js";
+import { releaseUnsavedHold, reserveGroupSeats } from "../lib/group-fares.js";
 import { baggageRequestSummary, buildBaggageRequest } from "../lib/baggage-request.js";
 import { logBookingEvent } from "../lib/booking-recovery.js";
 
@@ -763,6 +764,8 @@ async function bookOfflineFare(
     console.warn("[book-offline]", JSON.stringify({ requestId, supplier, tripType: body.tripType, legs: fareIds.length, errorCode, ...extra }));
     return c.json({ error, errorCode, requestId, ...extra }, status);
   };
+  const party = looked.find((r): r is { reason: "GROUP_FARE_PARTY"; message: string } => "reason" in r && r.reason === "GROUP_FARE_PARTY");
+  if (party) return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: party.message, requestId }, 400);
   const missing = looked.findIndex((r) => "reason" in r && r.reason === "NOT_FOUND");
   if (missing >= 0) return fail(409, "FARE_EXPIRED", `The fare for ${legName(missing)} is no longer available. Please search again.`, { leg: missing });
   const changed = looked.findIndex((r) => "reason" in r && r.reason === "PASSENGERS_CHANGED");
@@ -855,9 +858,27 @@ async function bookOfflineFare(
   const markupAmount = Math.max(0, Math.round((customerAmount - supplierAmount) * 100) / 100);
   const { raw, ...fareSnapshot } = fare;
 
+  // Group fare (Zamra's blocked seats): take the seats before saving the booking, in one
+  // conditional update, so two checkouts can't both get the last seats (lib/group-fares.ts).
+  const groupFare = supplier === "MANUAL" && (raw as Record<string, unknown> | undefined)?.groupFare === true;
+  const bookingId = crypto.randomUUID();
+  let groupHold: { holdId: string; expiresAt: string } | null = null;
+  if (groupFare) {
+    const seats = pax.adults + pax.children;
+    const held = await reserveGroupSeats(db, { tenantId, fareId: body.fareId, bookingId, seats });
+    if (!held.ok) {
+      const left = held.seatsLeft ?? 0;
+      return fail(409, "GROUP_FARE_SOLD_OUT", left > 0 && left < seats
+        ? `Only ${left} seat${left === 1 ? "" : "s"} left on this group fare. Please choose fewer travellers.`
+        : "This group fare is sold out or no longer on sale.", { seatsLeft: left });
+    }
+    groupHold = { holdId: held.holdId, expiresAt: held.expiresAt };
+  }
+
   let booking: typeof bookings.$inferSelect | undefined;
   try {
     [booking] = await db.insert(bookings).values({
+      id:            bookingId,
       tenantId,
       userId:        ctx.customerId,
       ...(agent ? { agentId: agent.agentId } : {}),
@@ -890,6 +911,7 @@ async function bookOfflineFare(
           // Each leg is ticketed by staff on Akbar with its own TUI / Index.
           ...(journey ? { legs: legs.map(({ raw: legRef, ...leg }) => ({ ...leg, sourceRef: legRef })) } : {}),
           ...(baggage.request ? { baggageRequest: baggage.request } : {}),
+          ...(groupHold ? { groupFare: { manualFareId: body.fareId, title: (raw as Record<string, unknown>).title ?? null, seats: pax.adults + pax.children, holdId: groupHold.holdId, holdExpiresAt: groupHold.expiresAt } } : {}),
           ...(body.gstInfo ? { gstInfo: body.gstInfo } : {}),
           ...(body.emergencyContact ? { emergencyContact: body.emergencyContact } : {}),
           pax: body.passengers.map((p) => ({
@@ -928,6 +950,8 @@ async function bookOfflineFare(
     })));
   } catch (err: unknown) {
     console.error("[book-save]", JSON.stringify({ requestId, supplier, error: err instanceof Error ? err.message : String(err) }));
+    // The booking wasn't saved: give its group fare seats back now (not only at expiry).
+    if (groupHold) await releaseUnsavedHold(db, tenantId, bookingId).catch((e) => console.error("[book-save] group seats not released", e));
     return c.json({ errorCode: "BOOKING_SAVE_FAILED", requestId }, 500);
   }
 
@@ -959,7 +983,7 @@ function findAirlineCode(value: unknown, depth = 0): string | undefined {
 
 // Applies the tenant's markup rules to the supplier amount. If rules can't be
 // loaded the supplier amount is used, matching search's fallback.
-async function customerPrice(
+export async function customerPrice(
   db: Variables["db"], tenantId: string, supplierAmount: number,
   fare: { origin: string; destination: string; supplier: string; airline: string },
   agentId: string | null = null,

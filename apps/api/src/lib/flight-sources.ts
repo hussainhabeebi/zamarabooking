@@ -6,12 +6,13 @@
 // "Offline" fares are paid on Zamra like any fare; the booking then waits in
 // Admin until staff issue the ticket and enter the PNR.
 
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, or, sql } from "drizzle-orm";
 import { manualFares, tenants } from "@zamrabooking/db/schema";
 import type { Db } from "@zamrabooking/db";
 import { AKBAR_TOKEN_TTL_SECONDS, AkbarClient, type AkbarToken, type NormalizedFare, type SearchParams } from "@zamrabooking/suppliers";
 import type { Env } from "../types.js";
 import { FOREIGN_CURRENCIES, getFx, type ForeignCurrency } from "./fx.js";
+import { groupFareOnSale, groupFarePaxProblem } from "./group-fares.js";
 
 // ── Settings (TENANT_CACHE_KV, like the other Admin integrations) ────────────
 
@@ -62,6 +63,7 @@ export interface ManualSettings {
   enabled:   boolean;   // manual fares appear in search
   sheetUrl:  string;    // Google Sheet link (shared "anyone with the link") or a published CSV URL
   autoSync:  boolean;   // hourly sync from the sheet
+  groupFares?: boolean; // published group fares are on the website and bookable (lib/group-fares.ts)
   lastSync?: SheetSyncResult;
 }
 
@@ -75,7 +77,7 @@ export const DEFAULT_AKBAR: AkbarSettings = {
 // The client for these settings, with the gateway key from the Worker's secrets.
 export const akbarClient = (env: Env, s: AkbarSettings) => new AkbarClient({ ...s, gatewayKey: env.AKBAR_GATEWAY_KEY });
 export const DEFAULT_POOMAS: PoomasSettings = { enabled: false, apiKey: "", baseUrl: "https://api.flypoomas.com" };
-export const DEFAULT_MANUAL: ManualSettings = { enabled: false, sheetUrl: "", autoSync: true };
+export const DEFAULT_MANUAL: ManualSettings = { enabled: false, sheetUrl: "", autoSync: true, groupFares: false };
 
 type SourceKey = "akbar" | "poomas" | "manual";
 const settingsKey = (tenantId: string, source: SourceKey) => `admin_settings:${tenantId}:integration:${source}`;
@@ -177,13 +179,14 @@ export async function forgetOfflineFares(env: Env, tenantId: string, fareIds: st
 export type OfflineFareLookup =
   | { fare: NormalizedFare }
   | { reason: "NOT_FOUND" }
+  | { reason: "GROUP_FARE_PARTY"; message: string }
   | { reason: "PASSENGERS_CHANGED"; searched: Pax };
 
 // The fare a customer is booking, priced on the server, or why it can't be used.
 export async function lookupOfflineFare(env: Env, db: Db, tenantId: string, supplier: OfflineSupplier, fareId: string, pax: Pax): Promise<OfflineFareLookup> {
   if (supplier === "MANUAL") {
     const fare = await quoteManualFare(env, db, tenantId, fareId, pax);
-    return fare ? { fare } : { reason: "NOT_FOUND" };
+    return !fare ? { reason: "NOT_FOUND" } : "problem" in fare ? { reason: "GROUP_FARE_PARTY", message: fare.problem } : { fare };
   }
   let stored: { fare: NormalizedFare; pax: Pax } | null = null;
   const tui = supplier === "AKBAR" ? akbarTui(fareId) : null;
@@ -223,7 +226,7 @@ const addDays = (date: string, days: number) => {
 // INR per 1 unit of the fare's currency (null when no rate is available).
 type ToInr = (amount: number, currency: string) => number | null;
 
-async function inrConverter(env: Env, tenantId: string): Promise<ToInr> {
+export async function inrConverter(env: Env, tenantId: string): Promise<ToInr> {
   const fx = await getFx(env, tenantId).catch(() => null);
   return (amount, currency) => {
     if (currency === "INR") return amount;
@@ -267,7 +270,7 @@ export function manualFareToNormalized(row: ManualFareRow, pax: Pax, toInr: ToIn
     baggage:       { cabin: row.cabinBaggage || "As per airline", checked: row.checkedBaggage || "As per airline" },
     fareClass:     "",
     seatsLeft:     row.seatsAvailable,
-    raw:           { manualFareId: row.id, source: row.source, notes: row.notes },
+    raw:           { manualFareId: row.id, source: row.source, notes: row.notes, ...(row.isGroupFare ? { groupFare: true, title: row.title } : {}) },
   };
 }
 
@@ -276,7 +279,12 @@ export type ManualSearch = Pick<SearchParams, "origin" | "destination" | "depart
 export async function searchManualFares(env: Env, db: Db, tenantId: string, params: ManualSearch): Promise<NormalizedFare[]> {
   if (params.tripType !== "ONEWAY") return [];
   const settings = await getManualSettings(env, tenantId);
-  if (!settings.enabled) return [];
+  if (!settings.enabled && !settings.groupFares) return [];
+  // Ordinary manual fares when manual fares are on; group fares only when published and on sale.
+  const groupOnSale = and(eq(manualFares.isGroupFare, true), eq(manualFares.isPublished, true),
+    or(isNull(manualFares.saleEndsAt), gt(manualFares.saleEndsAt, new Date())));
+  const kinds = settings.enabled && settings.groupFares ? or(eq(manualFares.isGroupFare, false), groupOnSale)
+    : settings.enabled ? eq(manualFares.isGroupFare, false) : groupOnSale;
   const rows = await db.select().from(manualFares).where(and(
     eq(manualFares.tenantId, tenantId),
     eq(manualFares.isActive, true),
@@ -285,18 +293,29 @@ export async function searchManualFares(env: Env, db: Db, tenantId: string, para
     eq(manualFares.travelDate, params.departureDate),
     eq(manualFares.cabinClass, params.cabinClass),
     gte(manualFares.seatsAvailable, params.adults + params.children),
+    kinds,
   ));
-  if (!rows.length) return [];
+  const usable = rows.filter((r) => !r.isGroupFare || (groupFareOnSale(r) && !groupFarePaxProblem(r, params)));
+  if (!usable.length) return [];
   const toInr = await inrConverter(env, tenantId);
-  return rows.map((r) => manualFareToNormalized(r, params, toInr)).filter((f): f is NormalizedFare => f !== null);
+  return usable.map((r) => manualFareToNormalized(r, params, toInr)).filter((f): f is NormalizedFare => f !== null);
 }
 
-async function quoteManualFare(env: Env, db: Db, tenantId: string, id: string, pax: Pax): Promise<NormalizedFare | null> {
+// null = not available. A group fare the party doesn't fit (too few / too many travellers)
+// says why. A group fare's seats are checked when they are reserved (book.ts → reserveGroupSeats).
+async function quoteManualFare(env: Env, db: Db, tenantId: string, id: string, pax: Pax): Promise<NormalizedFare | { problem: string } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const [row] = await db.select().from(manualFares)
     .where(and(eq(manualFares.id, id), eq(manualFares.tenantId, tenantId), eq(manualFares.isActive, true))).limit(1);
-  if (!row || row.seatsAvailable < pax.adults + pax.children) return null;
-  if (!(await getManualSettings(env, tenantId)).enabled) return null;
+  if (!row) return null;
+  const settings = await getManualSettings(env, tenantId);
+  if (row.isGroupFare) {
+    if (!settings.groupFares || !groupFareOnSale(row)) return null;
+    const problem = groupFarePaxProblem(row, pax, false);
+    if (problem) return { problem };
+  } else if (row.seatsAvailable < pax.adults + pax.children || !settings.enabled) {
+    return null;
+  }
   return manualFareToNormalized(row, pax, await inrConverter(env, tenantId));
 }
 

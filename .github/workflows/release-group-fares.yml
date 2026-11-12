@@ -1,0 +1,385 @@
+name: Release - Group fares (migration 0014 + API + Admin)
+
+# Manual, scoped release of the Group fares PR.
+#
+#   Database        = migration 0014_group_fares.sql ONLY (additive, idempotent), before the API
+#   API (zamra-api) = live API tree (api_base_sha) + the PR's API / DB-schema files only
+#   Admin           = live Admin tree (admin_base_sha + Akbar Admin files at admin_files_base_sha)
+#                     + the PR's two Admin files only
+#
+# The website (/group-fares) deploys through deploy-web.yml when the PR is merged; it shows
+# "no group fares" until this release is live, and group fares stay off for customers until
+# Admin → Manual fares → "Turn on on website". Never runs any other migration, never deploys the
+# portal, and fails if the PR diff touches a file outside the allowlists below.
+#
+# mode=deploy   : verify, migrate 0014, build, test, then deploy the selected components.
+# mode=rollback : `wrangler rollback` each selected component to the given version ID
+#                 (printed as "ROLLBACK TARGET" by the deploy run). The 0014 columns and table
+#                 stay (the previous code ignores them).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'deploy or rollback'
+        required: true
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      components:
+        description: 'Which Workers'
+        required: true
+        type: choice
+        options: [api-and-admin, api, admin]
+        default: api-and-admin
+      api_base_sha:
+        description: 'Commit the live zamra-api was built from (deployments list message)'
+        required: true
+        default: 'f06b54c30bb7991315e84608a865f54d7682cab8'
+      admin_base_sha:
+        description: 'Commit the live zamra-admin was built from (last full deploy)'
+        required: true
+        default: '1402e86570d1698b4e1f080dae4009da2405c364'
+      admin_files_base_sha:
+        description: 'Commit whose Akbar Admin files are live (deploy message "Akbar-API-booking-admin-<sha>-on-<admin_base_sha>")'
+        required: true
+        default: '5841f248b659c2ae90ed3bdbbde5f422da814f29'
+      pr_base_sha:
+        description: 'Group fares PR base commit'
+        required: true
+      pr_head_sha:
+        description: 'Group fares PR head commit (must be on main)'
+        required: true
+      api_rollback_version:
+        description: 'rollback only: zamra-api version ID to restore'
+        required: false
+        default: ''
+      admin_rollback_version:
+        description: 'rollback only: zamra-admin version ID to restore'
+        required: false
+        default: ''
+      authorization:
+        description: 'Type DEPLOY_GROUP_FARES_WITH_MIGRATION_0014 (deploy) or ROLLBACK_GROUP_FARES (rollback)'
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # Admin paths contain ( ) [ ]: no shell globbing, literal git pathspecs.
+    shell: bash --noprofile --norc -eo pipefail -f {0}
+
+concurrency:
+  group: zamra-production-api
+  cancel-in-progress: false
+
+env:
+  GIT_LITERAL_PATHSPECS: '1'
+  MIGRATION: packages/db/drizzle/migrations/0014_group_fares.sql
+  API_FILES: >-
+    packages/db/drizzle/migrations/0014_group_fares.sql
+    packages/db/src/schema/supplier.ts
+    apps/api/package.json
+    pnpm-lock.yaml
+    apps/api/src/index.ts
+    apps/api/src/lib/flight-sources.ts
+    apps/api/src/lib/group-fares.ts
+    apps/api/src/queue-consumer.ts
+    apps/api/src/routes/admin/flight-sources.ts
+    apps/api/src/routes/book.ts
+    apps/api/src/routes/group-fares.ts
+    apps/api/test/group-fares.test.ts
+  ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/manual-fares/page.tsx
+    apps/admin/app/(dashboard)/bookings/[id]/page.tsx
+  # Live Akbar Admin files (release-akbar-booking.yml), restored at admin_files_base_sha.
+  AKBAR_ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/bookings/[id]/AkbarApiBooking.tsx
+    apps/admin/app/(dashboard)/bookings/[id]/page.tsx
+    apps/admin/app/(dashboard)/integrations/AkbarIntegration.tsx
+    apps/admin/app/(dashboard)/supplier-logs/page.tsx
+    apps/admin/app/(dashboard)/supplier-logs/AkbarTrace.tsx
+  # Deployed by deploy-web.yml on merge, or never deployed.
+  NOT_DEPLOYED: >-
+    apps/web/app/group-fares/page.tsx
+    apps/web/app/group-fares/GroupFaresList.tsx
+    apps/web/app/group-fares/group-fares.ts
+    apps/web/app/group-fares/group-fares.module.css
+    apps/web/app/group-fares/[id]/page.tsx
+    apps/web/app/group-fares/[id]/GroupFareDetail.tsx
+    apps/web/app/components/SiteNav.tsx
+    apps/web/app/book/booking-error.ts
+    docs/group-fares.md
+    .github/workflows/release-group-fares.yml
+
+jobs:
+  verify:
+    name: Verify PR scope and inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authorization
+        env:
+          MODE: ${{ inputs.mode }}
+          AUTH: ${{ inputs.authorization }}
+          REF: ${{ github.ref }}
+        run: |
+          [ "$REF" = "refs/heads/main" ] || { echo "Run this workflow from main"; exit 1; }
+          if [ "$MODE" = deploy ]; then [ "$AUTH" = DEPLOY_GROUP_FARES_WITH_MIGRATION_0014 ] || { echo "Wrong authorization"; exit 1; }; fi
+          if [ "$MODE" = rollback ]; then [ "$AUTH" = ROLLBACK_GROUP_FARES ] || { echo "Wrong authorization"; exit 1; }; fi
+      - uses: actions/checkout@v4
+        if: inputs.mode == 'deploy'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: PR diff only touches allowlisted files
+        if: inputs.mode == 'deploy'
+        env:
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git merge-base --is-ancestor "$HEAD" origin/main || { echo "pr_head_sha is not on main"; exit 1; }
+          git merge-base --is-ancestor "$BASE" "$HEAD" || { echo "pr_base_sha is not an ancestor of pr_head_sha"; exit 1; }
+          git diff --name-only "$BASE" "$HEAD" | tee "$RUNNER_TEMP/changed.txt"
+          allowed=" $API_FILES $ADMIN_FILES $NOT_DEPLOYED "
+          bad=0
+          while IFS= read -r f; do
+            case "$allowed" in *" $f "*) ;; *) echo "::error::Not part of this release: $f"; bad=1;; esac
+          done < "$RUNNER_TEMP/changed.txt"
+          [ "$bad" = 0 ] || exit 1
+          # Belt and braces: no other migration, no payment / portal code.
+          if grep -E '^packages/db/drizzle/migrations/' "$RUNNER_TEMP/changed.txt" | grep -v -x "$MIGRATION"; then
+            echo "::error::Release contains another migration"; exit 1
+          fi
+          if grep -E '^apps/portal/|phonepe|nomod|payment-gateway|customer-wallet|checkout' "$RUNNER_TEMP/changed.txt"; then
+            echo "::error::Release touches payment / portal files"; exit 1
+          fi
+
+  test:
+    name: Build the API release tree and run the tests (no deploy)
+    needs: verify
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $API_FILES > "$RUNNER_TEMP/api.patch"
+          git checkout --detach "$LIVE"
+          git apply --index "$RUNNER_TEMP/api.patch"
+          git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
+          for f in $(cat "$RUNNER_TEMP/applied.txt"); do
+            case " $API_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
+          done
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/api typecheck
+      - name: Group fares (real Postgres engine, migrations 0001-0014) + booking / payment regression tests (mocked, no live calls)
+        run: >-
+          node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test
+          apps/api/test/group-fares.test.ts
+          apps/api/test/akbar-booking.test.ts apps/api/test/flight-sources.test.ts apps/api/test/akbar-journey-booking.test.ts
+          apps/api/test/certification-pack.test.ts apps/api/test/log-stop-labels.test.ts apps/api/test/baggage-request.test.ts
+          apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/tripjack-reviewed-total.test.ts
+          apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts apps/api/test/akbar-roundtrip.test.ts apps/api/test/akbar-trace.test.ts
+
+  migrate:
+    name: Apply migration 0014 only (group fares)
+    needs: test
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.pr_head_sha }}
+          persist-credentials: false
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply 0014_group_fares.sql (one transaction, stops on any error)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          [ -n "$DATABASE_URL" ] || { echo "::error::DATABASE_URL secret is not set"; exit 1; }
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f "$MIGRATION"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name = 'manual_fares' AND column_name IN ('is_group_fare','is_published','title','description','sale_ends_at','min_pax','max_pax','seats_total')" | grep -x 8
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT to_regclass('public.manual_fare_seat_holds') IS NOT NULL" | grep -x t
+          echo "Migration 0014 applied and verified."
+
+  deploy-api:
+    name: zamra-api - live tree + group fare API files
+    needs: [verify, test, migrate]
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $API_FILES > "$RUNNER_TEMP/api.patch"
+          git checkout --detach "$LIVE"
+          git apply --index "$RUNNER_TEMP/api.patch"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/api typecheck
+      - name: Live zamra-api must still be the expected baseline (rollback target below)
+        working-directory: apps/api
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
+          tail -25 "$RUNNER_TEMP/deployments.txt"
+          # The live code must be the expected release. Deployments made after it only by adding,
+          # updating or deleting a Worker secret in the dashboard (same code, e.g.
+          # AKBAR_API_BOOKING_PRODUCTION) are accepted; any other later deployment refuses.
+          python3 - "$RUNNER_TEMP/deployments.txt" "$LIVE" <<'PY'
+          import re, sys
+          text, live = open(sys.argv[1]).read(), sys.argv[2]
+          blocks = []
+          for line in text.splitlines():
+              if line.startswith("Created:"):
+                  blocks.append({"top": None, "versions": []})
+              elif blocks and line.startswith("Message:"):
+                  blocks[-1]["top"] = line[len("Message:"):].strip()
+              elif blocks and line.strip().startswith("Message:"):
+                  blocks[-1]["versions"].append(line.strip()[len("Message:"):].strip())
+          ours = [i for i, b in enumerate(blocks) if b["top"] and live in b["top"]]
+          if not ours:
+              sys.exit(f"::error::No deployment of the expected baseline {live} in the recent list. Re-check api_base_sha.")
+          later = blocks[ours[-1] + 1:]
+          secret = re.compile(r"^(Add|Added|Update|Updated|Delete|Deleted) secrets?: ")
+          for b in later:
+              if not b["versions"] or not all(secret.match(v) for v in b["versions"]):
+                  sys.exit(f"::error::Live zamra-api is not the expected baseline {live} — deployed since: {b['top']} / {b['versions']}. Re-check api_base_sha.")
+          print(f"Baseline {live} is live" + (f"; later secret-only changes: {[v for b in later for v in b['versions']]}" if later else ""))
+          PY
+          echo "ROLLBACK TARGET (zamra-api): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
+      - name: Deploy zamra-api
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MSG: Group fares ${{ inputs.pr_head_sha }} on ${{ inputs.api_base_sha }}
+        run: pnpm exec wrangler deploy --message "$MSG"
+
+  deploy-admin:
+    name: zamra-admin - live tree + group fare Admin files
+    needs: [verify, deploy-api]
+    # Admin uses the new API fields, so it goes out after the API (or alone when asked).
+    if: always() && inputs.mode == 'deploy' && inputs.components != 'api' && needs.verify.result == 'success' && (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.admin_base_sha }}
+          FILES_BASE: ${{ inputs.admin_files_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $ADMIN_FILES > "$RUNNER_TEMP/admin.patch"
+          git checkout --detach "$LIVE"
+          # The live Admin: admin_base_sha + the Akbar Admin files as they were at FILES_BASE.
+          git checkout "$FILES_BASE" -- $AKBAR_ADMIN_FILES
+          git -c user.name=release -c user.email=release@localhost commit -q --allow-empty -m "live admin"
+          git apply --index "$RUNNER_TEMP/admin.patch"
+          git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
+          while IFS= read -r f; do
+            case " $ADMIN_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
+          done < "$RUNNER_TEMP/applied.txt"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/admin typecheck
+      - name: Build Admin
+        working-directory: apps/admin
+        run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
+      - name: Live zamra-admin must still be the expected release (rollback target below)
+        working-directory: apps/admin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FILES_BASE: ${{ inputs.admin_files_base_sha }}
+          LIVE: ${{ inputs.admin_base_sha }}
+        run: |
+          pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
+          tail -25 "$RUNNER_TEMP/deployments.txt"
+          latest=$(grep '^Message:' "$RUNNER_TEMP/deployments.txt" | tail -1)
+          echo "Latest deployment: $latest"
+          case "$latest" in *"$FILES_BASE-on-$LIVE"*) ;; *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE — someone deployed since. Re-check the inputs."; exit 1;; esac
+          echo "ROLLBACK TARGET (zamra-admin): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
+      - name: Deploy zamra-admin
+        working-directory: apps/admin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # One shell-safe word (OpenNext re-runs wrangler through a shell without quoting).
+          MSG: Group-fares-admin-${{ inputs.pr_head_sha }}-on-${{ inputs.admin_files_base_sha }}-on-${{ inputs.admin_base_sha }}
+        run: |
+          [[ "$MSG" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::Deploy message must be a single shell-safe word: $MSG"; exit 1; }
+          pnpm exec wrangler deploy --message "$MSG"
+
+  rollback:
+    name: Roll back to the given versions
+    needs: verify
+    if: inputs.mode == 'rollback'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Roll back zamra-api
+        if: inputs.components != 'admin'
+        working-directory: apps/api
+        env:
+          VERSION: ${{ inputs.api_rollback_version }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-f-]{36}$ ]] || { echo "api_rollback_version must be a version ID"; exit 1; }
+          pnpm exec wrangler rollback "$VERSION" --message "Rollback of group fares release" --yes
+      - name: Roll back zamra-admin
+        if: inputs.components != 'api'
+        working-directory: apps/admin
+        env:
+          VERSION: ${{ inputs.admin_rollback_version }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-f-]{36}$ ]] || { echo "admin_rollback_version must be a version ID"; exit 1; }
+          pnpm exec wrangler rollback "$VERSION" --message "Rollback of group fares admin release" --yes

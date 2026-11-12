@@ -30,6 +30,7 @@ import { sendWhatsApp, buildBookingConfirmationMessage } from "./lib/notify.js";
 import { emailLayout, getEmailSettings, sendMail } from "./lib/email.js";
 import { emailShell, escapeHtml, money, notifyCustomer, WEB_URL } from "./lib/customer-notify.js";
 import { isOfflineSupplier, takeManualSeats } from "./lib/flight-sources.js";
+import { confirmGroupSeats } from "./lib/group-fares.js";
 import { bookOnAkbar } from "./lib/akbar-booking-runner.js";
 import { baggageRequestSummary } from "./lib/baggage-request.js";
 
@@ -515,7 +516,20 @@ async function recordOfflinePayment(
     { orderId: data.orderId, amount: data.amount, ...(offline.baggageRequest ? { baggageRequest: offline.baggageRequest } : {}) });
 
   // Never let follow-up steps fail (and re-run) a paid booking.
-  if (booking.supplier === "MANUAL" && typeof flightData.id === "string") {
+  if (booking.supplier === "MANUAL" && offline.groupFare) {
+    // Group fare: the seats were reserved at checkout; they are now sold (lib/group-fares.ts).
+    const outcome = await confirmGroupSeats(db, booking.tenantId, booking.id)
+      .catch((err) => { console.error(`[group-seats] booking ${booking.id}:`, err); return "ERROR" as const; });
+    if (outcome === "RETAKEN") {
+      await logBookingEvent(env, booking.id, "BOOK", "info", "Group fare: paid after the seat hold had expired; the seats were still free and are now sold", {}).catch(() => {});
+    } else if (outcome === "OVERSOLD" || outcome === "NO_HOLD" || outcome === "ERROR") {
+      await logBookingEvent(env, booking.id, "BOOK", "error",
+        outcome === "OVERSOLD"
+          ? "Group fare OVERSOLD: paid after the seat hold expired and the seats were sold to someone else. Confirm a seat with the group supplier or refund the customer."
+          : "Group fare: the seat hold for this booking could not be confirmed. Check the seats left on the fare in Admin → Manual fares before issuing the ticket.",
+        { outcome }).catch(() => {});
+    }
+  } else if (booking.supplier === "MANUAL" && typeof flightData.id === "string") {
     await takeManualSeats(db, booking.tenantId, flightData.id, booking.adultCount + booking.childCount)
       .catch((err) => console.error(`[manual-seats] booking ${booking.id}:`, err));
   }
