@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import SearchResultControls, { ChangeDatesAction } from "./SearchResultControls";
 import { FareTools } from "./FareTools";
 import FareOptionsList from "./FareOptionsList";
+import GroupFareResultCard from "./GroupFareResultCard";
+import { fetchGroupFares, sameFlight, type SearchGroupFare } from "./group-fare-results";
 import { altOptions, fareLabel, flightKey, groupFareOptions, optionPerks, optionPrice } from "../lib/fare-options";
 import { matchesStops, stopCount, stopsLabel, viaText } from "../lib/stops";
 import { convertInr, currencyMeta, fetchFxRates, formatIn, isShownCurrency, type FxRates } from "../lib/fx";
@@ -128,12 +130,25 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
   // The visitor's chosen currency stays fixed across searches, whatever the link says.
   if (prefCurrency) params.currency = prefCurrency as SearchParams["currency"];
 
-  const [result, aedRate] = await Promise.all([searchFlights(params, sessionId), fetchRates()]);
+  // Special Group Fares come from their own uncached endpoint, fetched alongside the live search.
+  const pax = {
+    adults: Math.min(9, Math.max(1, parseInt(params.adults ?? "1") || 1)),
+    children: parseInt(params.children ?? "0") || 0,
+    infants: parseInt(params.infants ?? "0") || 0,
+  };
+  const [result, aedRate, groupResult] = await Promise.all([
+    searchFlights(params, sessionId), fetchRates(),
+    fetchGroupFares({ origin: params.origin?.toUpperCase(), destination: params.destination?.toUpperCase(), departureDate: params.departureDate, ...pax }),
+  ]);
   const requestedCurrency = params.currency ?? null;
   const failingSuppliers = Object.keys(result.supplierErrors ?? {});
   const missingCredentialSuppliers = Object.entries(result.credentialAvailability ?? {})
     .filter(([, ok]) => !ok).map(([name]) => name);
-  const allFares = result.fares as any[];
+  // A cached live search from before group fares had their own cards may still contain them:
+  // they are shown only as Special Group Fare cards (when the group fare lookup answered).
+  const allFares = groupResult.ok
+    ? (result.fares as any[]).filter((f) => !(f?.supplier === "MANUAL" && f?.raw?.groupFare === true))
+    : result.fares as any[];
   const filteredFares = filterAndSortFares(allFares, params);
   const rank = (fare: any) => airportRank(fare, params);
   // One card per flight; the airline's fare options (Saver / Standard / Flexi…) inside it.
@@ -143,6 +158,16 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
   const displayFares = params.all === "1" || params.sort
     ? leadFares
     : recommendedFares(leadFares, params);
+  // Each group fare goes under the live result for the same flight (airline + flight number), or at the top.
+  const airlineChoice = (params.airlines ?? "").split(",").filter(Boolean);
+  const groupFares = groupResult.fares.filter((g) => !airlineChoice.length || airlineChoice.includes(g.airlineName));
+  const groupAfter = new Map<string, SearchGroupFare[]>();
+  const groupTop: SearchGroupFare[] = [];
+  for (const g of groupFares) {
+    const host = displayFares.find((f: any) => sameFlight(g, f));
+    if (host) groupAfter.set(String(host.id), [...(groupAfter.get(String(host.id)) ?? []), g]);
+    else groupTop.push(g);
+  }
   const allQuery = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null) as [string, string][]);
   allQuery.set("all", "1");
 
@@ -234,10 +259,16 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
               <span className="results-count-badge">{groups.length} flight{groups.length === 1 ? "" : "s"}</span>
           </div>
 
+          {groupTop.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+              {groupTop.map((g) => <GroupFareResultCard key={g.id} fare={g} payCurrency={requestedCurrency} />)}
+            </div>
+          )}
+
           {filteredFares.length === 0 ? (
             <div className="no-results">
               <img className="no-results-illustration" src="/search/empty-flight.svg" alt="" aria-hidden="true" width="420" height="150" />
-              <h2>No flights available right now</h2>
+              <h2>{groupTop.length ? "No other flights available right now" : "No flights available right now"}</h2>
               <p>{result.validationError ? `${result.validationError}. Please change the passengers and search again.` : result.apiError || failingSuppliers.length > 0 ? "We're having trouble searching flights for this route. Please try again or choose different dates." : "Try different dates or a nearby airport."}</p>
               <div className="no-results-trip-card" aria-label="Searched journey">
                 <div className="no-results-route">
@@ -276,6 +307,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
                   children={children}
                   infants={infants}
                 />
+                {(groupAfter.get(String(fare.id)) ?? []).map((g) => <GroupFareResultCard key={g.id} fare={g} sameFlightAsAbove payCurrency={requestedCurrency} />)}
                 </Fragment>
               ))}
               {params.all !== "1" && groups.length > displayFares.length && (

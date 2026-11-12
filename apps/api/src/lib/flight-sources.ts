@@ -6,7 +6,7 @@
 // "Offline" fares are paid on Zamra like any fare; the booking then waits in
 // Admin until staff issue the ticket and enter the PNR.
 
-import { and, eq, gt, gte, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { manualFares, tenants } from "@zamrabooking/db/schema";
 import type { Db } from "@zamrabooking/db";
 import { AKBAR_TOKEN_TTL_SECONDS, AkbarClient, type AkbarToken, type NormalizedFare, type SearchParams } from "@zamrabooking/suppliers";
@@ -279,26 +279,22 @@ export type ManualSearch = Pick<SearchParams, "origin" | "destination" | "depart
 export async function searchManualFares(env: Env, db: Db, tenantId: string, params: ManualSearch): Promise<NormalizedFare[]> {
   if (params.tripType !== "ONEWAY") return [];
   const settings = await getManualSettings(env, tenantId);
-  if (!settings.enabled && !settings.groupFares) return [];
-  // Ordinary manual fares when manual fares are on; group fares only when published and on sale.
-  const groupOnSale = and(eq(manualFares.isGroupFare, true), eq(manualFares.isPublished, true),
-    or(isNull(manualFares.saleEndsAt), gt(manualFares.saleEndsAt, new Date())));
-  const kinds = settings.enabled && settings.groupFares ? or(eq(manualFares.isGroupFare, false), groupOnSale)
-    : settings.enabled ? eq(manualFares.isGroupFare, false) : groupOnSale;
+  if (!settings.enabled) return [];
+  // Ordinary manual fares only. Group fares are matched separately, uncached
+  // (GET /api/group-fares/match) and shown as their own cards in the results.
   const rows = await db.select().from(manualFares).where(and(
     eq(manualFares.tenantId, tenantId),
     eq(manualFares.isActive, true),
+    eq(manualFares.isGroupFare, false),
     eq(manualFares.origin, params.origin.toUpperCase()),
     eq(manualFares.destination, params.destination.toUpperCase()),
     eq(manualFares.travelDate, params.departureDate),
     eq(manualFares.cabinClass, params.cabinClass),
     gte(manualFares.seatsAvailable, params.adults + params.children),
-    kinds,
   ));
-  const usable = rows.filter((r) => !r.isGroupFare || (groupFareOnSale(r) && !groupFarePaxProblem(r, params)));
-  if (!usable.length) return [];
+  if (!rows.length) return [];
   const toInr = await inrConverter(env, tenantId);
-  return usable.map((r) => manualFareToNormalized(r, params, toInr)).filter((f): f is NormalizedFare => f !== null);
+  return rows.map((r) => manualFareToNormalized(r, params, toInr)).filter((f): f is NormalizedFare => f !== null);
 }
 
 // null = not available. A group fare the party doesn't fit (too few / too many travellers)
