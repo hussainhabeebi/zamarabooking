@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { apiCall, readCustomerToken } from "../lib/customer-api";
 import { CURRENCY_EVENT, isPrefCurrency, readPrefCurrency, savePrefCurrency, syncAccountCurrency, type PrefCurrency } from "../lib/currency-pref";
-import { CURRENCY_LIST } from "../lib/fx";
+import { SHOWN_CURRENCIES } from "../lib/fx";
 import { HOTELS_ENABLED } from "../lib/features";
 
 function flightSearchUrl() { return "/#flight-search"; }
@@ -115,7 +115,7 @@ export default function SiteNav() {
       <label className="nav-currency" title="Prices are shown in this currency on every search">
         <span className="sr-only">Currency</span>
         <select value={currency} onChange={(e) => { if (isPrefCurrency(e.target.value)) changeCurrency(e.target.value); }} aria-label="Currency">
-          {CURRENCY_LIST.map((c) => <option key={c.code} value={c.code}>{c.code === "INR" ? "₹ INR" : c.code === "USD" ? "$ USD" : c.code}</option>)}
+          {SHOWN_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code === "INR" ? "₹ INR" : c.code === "USD" ? "$ USD" : c.code}</option>)}
         </select>
       </label>
       <a href="/account" aria-label={accountLabel} className="nav-link home-account-link"><span className="site-account-icon-wrap">{accountIcon}</span><span className="site-account-label" title={accountLabel}>{accountLabel}</span></a>

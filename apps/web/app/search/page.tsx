@@ -6,7 +6,7 @@ import { FareTools } from "./FareTools";
 import FareOptionsList from "./FareOptionsList";
 import { altOptions, fareLabel, flightKey, groupFareOptions, optionPerks, optionPrice } from "../lib/fare-options";
 import { matchesStops, stopCount, stopsLabel, viaText } from "../lib/stops";
-import { convertInr, currencyMeta, fetchFxRates, formatIn, isDisplayCurrency, type FxRates } from "../lib/fx";
+import { convertInr, currencyMeta, fetchFxRates, formatIn, isShownCurrency, type FxRates } from "../lib/fx";
 
 type SearchParams = {
   origin?: string; destination?: string; departureDate?: string;
@@ -123,7 +123,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
     const s = await cookies();
     sessionId = s.get("sid")?.value ?? null;
     const cur = s.get("fp_cur")?.value;
-    if (isDisplayCurrency(cur)) prefCurrency = cur;
+    if (isShownCurrency(cur)) prefCurrency = cur;
   } catch {}
   // The visitor's chosen currency stays fixed across searches, whatever the link says.
   if (prefCurrency) params.currency = prefCurrency as SearchParams["currency"];
