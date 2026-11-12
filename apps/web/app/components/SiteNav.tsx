@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { apiCall, readCustomerToken } from "../lib/customer-api";
+import { API, apiCall, readCustomerToken } from "../lib/customer-api";
 import { CURRENCY_EVENT, isPrefCurrency, readPrefCurrency, savePrefCurrency, syncAccountCurrency, type PrefCurrency } from "../lib/currency-pref";
 import { SHOWN_CURRENCIES } from "../lib/fx";
 import { HOTELS_ENABLED } from "../lib/features";
@@ -55,6 +55,24 @@ export default function SiteNav() {
     return () => { cancelled = true; window.removeEventListener("zamrabooking:profile-updated", loadAccountName); };
   }, [pathname]);
 
+  // "Group fares" in the menu only while Admin has group fares on the website and one is open.
+  const [groupFares, setGroupFares] = useState(false);
+  useEffect(() => {
+    const KEY = "zamra_group_fares";
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(KEY) ?? "null") as { on: boolean; at: number } | null;
+      if (saved && Date.now() - saved.at < 5 * 60_000) { setGroupFares(saved.on); return; }
+    } catch {}
+    fetch(`${API}/api/group-fares/status`, { headers: { "x-tenant-slug": "zamra" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { enabled?: boolean; count?: number } | null) => {
+        const on = !!d?.enabled && (d.count ?? 0) > 0;
+        setGroupFares(on);
+        try { sessionStorage.setItem(KEY, JSON.stringify({ on, at: Date.now() })); } catch {}
+      })
+      .catch(() => {});
+  }, []);
+
   // Keep existing fixed payment and journey actions unobstructed.
   const showMobileTabs = !["/book", "/checkout", "/search/journey", "/hotels/book", "/insurance/booking", "/pay"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const accountLabel = accountName || "Account";
@@ -93,6 +111,7 @@ export default function SiteNav() {
   function isActive(key: string) { return key === "home" ? pathname === "/" : active === key; }
   const secondaryItems = [
     ...shown.filter(({ key }) => key === "hotels"),
+    ...(groupFares || pathname.startsWith("/group-fares") ? [{ key: "group-fares", label: "Group fares", href: "/group-fares" }] : []),
     { key: "assistance", label: "Travel assistance", href: "/travel-check" },
     { key: "agents", label: "Agent Portal", href: `${portalUrl}/login` },
     { key: "register", label: "Register your agency", href: `${portalUrl}/register` },

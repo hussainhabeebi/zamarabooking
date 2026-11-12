@@ -11,6 +11,7 @@ import { hotelRoutes }         from "./routes/hotel.js";
 import { insuranceRoutes }     from "./routes/insurance.js";
 import { aiRoutes }            from "./routes/ai.js";
 import { fareRoutes }          from "./routes/fares.js";
+import { groupFareRoutes }     from "./routes/group-fares.js";
 import { agentPortalRoutes, agentPublicRoutes } from "./routes/agent-portal.js";
 import { sweepFareAlerts }     from "./lib/fare-alert-sweep.js";
 import { bookingRoutes }       from "./routes/booking.js";
@@ -37,6 +38,7 @@ import { customerWalletRoutes } from "./routes/customer-wallet.js";
 import { customerTripRoutes, guestTripRoutes } from "./routes/trips.js";
 import { customerAccountRoutes, customerSupportRoutes, createGuestSupportRequest } from "./routes/customer-account.js";
 import { syncAllManualFareSheets } from "./lib/flight-sources.js";
+import { releaseGroupSeats } from "./lib/group-fares.js";
 import { createDb } from "@zamrabooking/db";
 
 // wrangler.toml [triggers] crons.
@@ -61,6 +63,7 @@ app.route("/api/hotels",         hotelRoutes);
 app.route("/api/insurance",      insuranceRoutes);
 app.route("/api/ai",             aiRoutes);
 app.route("/api/fares",          fareRoutes);
+app.route("/api/group-fares",    groupFareRoutes);
 app.route("/api/agent-public",   agentPublicRoutes);
 app.route("/api/duffel-sandbox", duffelSandboxRoutes);
 app.route("/api/book",           bookDirectRoutes);
@@ -150,6 +153,10 @@ export default {
       ctx.waitUntil(syncAllManualFareSheets(env, createDb(env.DATABASE_URL))
         .then((r) => console.info("[manual-fares] sheet sync", JSON.stringify(Object.fromEntries(Object.entries(r).map(([t, s]) => [t, { ok: s.ok, imported: s.imported, skipped: s.skipped }])))))
         .catch((err) => console.error("[manual-fares] sheet sync", err)));
+      // Group fares: seats of unpaid checkouts past their hold, and of cancelled bookings, go back on sale.
+      ctx.waitUntil(releaseGroupSeats(createDb(env.DATABASE_URL))
+        .then((r) => console.info("[group-fares] seats released", JSON.stringify(r)))
+        .catch((err) => console.error("[group-fares] seat release", err)));
       return;
     }
     ctx.waitUntil(sweepFareAlerts(env).then((r) => console.info("[fare-alert-sweep]", r)).catch((err) => console.error("[fare-alert-sweep]", err)));

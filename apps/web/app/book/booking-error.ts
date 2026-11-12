@@ -12,7 +12,7 @@ export function bookingError(data: any, status: number): string {
     REVIEW_INVALID_RESPONSE: "The supplier did not return a booking session. Please contact support.",
   };
   // Specific fare checks (which flight, why) carry their own explanation.
-  const explained = ["PASSENGERS_CHANGED", "JOURNEY_MISMATCH", "JOURNEY_TIMES_CONFLICT"].includes(data?.errorCode) && typeof data?.error === "string" && data.error.trim();
+  const explained = ["PASSENGERS_CHANGED", "JOURNEY_MISMATCH", "JOURNEY_TIMES_CONFLICT", "GROUP_FARE_SOLD_OUT"].includes(data?.errorCode) && typeof data?.error === "string" && data.error.trim();
   const base = explained ? data.error.trim() : messages[data?.errorCode]
     ? diagnostics[data?.diagnosticCode] ?? messages[data.errorCode]
     : status === 400

@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { manualFares } from "@zamrabooking/db/schema";
 import { AkbarError, normalizeAkbarSearch, PoomasAdapter, searchTui } from "@zamrabooking/suppliers";
 import type { Env, Variables } from "../../types.js";
@@ -16,6 +16,8 @@ import {
   akbarClient, getAkbarSettings, getAkbarToken, getManualSettings, getPoomasSettings, saveAkbarSettings, saveManualSettings, savePoomasSettings,
   SHEET_COLUMNS, sheetCsvUrl, syncManualFaresSheet, validateManualFare,
 } from "../../lib/flight-sources.js";
+import { groupFareHasBookings, groupSeatStats, validateGroupFareFields } from "../../lib/group-fares.js";
+import { audit } from "../../lib/agent-program.js";
 
 export const flightSourcesAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -219,12 +221,17 @@ flightSourcesAdminRoutes.put("/manual", zValidator("json", z.object({
   enabled:  z.boolean(),
   sheetUrl: z.string().trim().max(1000),
   autoSync: z.boolean(),
+  groupFares: z.boolean().optional(),   // group fares on the website (Admin → Manual fares)
 })), async (c) => {
   fullAdminOnly(c.get("userRole"));
   const body = c.req.valid("json");
   if (body.sheetUrl && !sheetCsvUrl(body.sheetUrl)) return c.json({ error: "The sheet link must be an https:// Google Sheets link." }, 400);
   const saved = await getManualSettings(c.env, c.get("tenantId"));
   await saveManualSettings(c.env, c.get("tenantId"), { ...saved, ...body });
+  if (body.groupFares !== undefined && body.groupFares !== !!saved.groupFares) {
+    await audit(c.get("db"), { tenantId: c.get("tenantId"), userId: c.get("userId"), action: body.groupFares ? "GROUP_FARES_ENABLED" : "GROUP_FARES_DISABLED",
+      entity: "ManualFareSettings", entityId: c.get("tenantId"), before: { groupFares: !!saved.groupFares }, after: { groupFares: body.groupFares } });
+  }
   return c.json({ ok: true });
 });
 
@@ -244,10 +251,14 @@ flightSourcesAdminRoutes.get("/manual/fares", async (c) => {
   if (q("origin")) conditions.push(eq(manualFares.origin, q("origin")!.toUpperCase()));
   if (q("destination")) conditions.push(eq(manualFares.destination, q("destination")!.toUpperCase()));
   if (q("source") === "ADMIN" || q("source") === "SHEET") conditions.push(eq(manualFares.source, q("source")!));
+  if (q("group") === "1" || q("group") === "0") conditions.push(eq(manualFares.isGroupFare, q("group") === "1"));
   const rows = await c.get("db").select().from(manualFares).where(and(...conditions))
     .orderBy(asc(manualFares.travelDate), asc(manualFares.origin), asc(manualFares.destination), asc(manualFares.departureTime))
     .limit(500);
-  return c.json({ fares: rows });
+  // Group fares: seats held by unpaid checkouts, sold and oversold.
+  const groupIds = rows.filter((r) => r.isGroupFare).map((r) => r.id);
+  const stats = await groupSeatStats(c.get("db"), c.get("tenantId"), groupIds).catch((err) => { console.error("[manual-fares] seat stats", err); return {} as Record<string, never>; });
+  return c.json({ fares: rows.map((r) => (r.isGroupFare ? { ...r, seats: stats[r.id] ?? { held: 0, sold: 0, oversold: 0 } } : r)) });
 });
 
 // The Admin form sends the same fields as the sheet columns.
@@ -257,26 +268,63 @@ const fieldReader = (body: z.infer<typeof fareBody>) => (col: string) => {
   return v === null || v === undefined ? "" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
 };
 
+// Manual fare + group fare fields from the Admin form. Group fares are Admin-only (never the sheet).
+function readFare(body: z.infer<typeof fareBody>) {
+  const get = fieldReader(body);
+  const fare = validateManualFare(get as never);
+  if (typeof fare === "string") return fare;
+  const group = validateGroupFareFields(get);
+  if (typeof group === "string") return group;
+  return { ...fare, ...group };
+}
+
+const auditFare = (c: { get: (k: any) => any }, action: string, entityId: string, before: unknown, after: unknown) =>
+  audit(c.get("db"), { tenantId: c.get("tenantId"), userId: c.get("userId"), action, entity: "ManualFare", entityId, before, after });
+
 flightSourcesAdminRoutes.post("/manual/fares", zValidator("json", fareBody), async (c) => {
-  const fare = validateManualFare(fieldReader(c.req.valid("json")));
+  const fare = readFare(c.req.valid("json"));
   if (typeof fare === "string") return c.json({ error: fare }, 400);
   const [row] = await c.get("db").insert(manualFares).values({ ...fare, tenantId: c.get("tenantId") }).returning();
+  await auditFare(c, "MANUAL_FARE_CREATED", row.id, null, row);
   return c.json({ fare: row }, 201);
 });
 
 flightSourcesAdminRoutes.put("/manual/fares/:id", zValidator("json", fareBody), async (c) => {
-  const fare = validateManualFare(fieldReader(c.req.valid("json")));
+  const body = c.req.valid("json");
+  const fare = readFare(body);
   if (typeof fare === "string") return c.json({ error: fare }, 400);
-  const { source: _source, ...changes } = fare;
-  const [row] = await c.get("db").update(manualFares).set({ ...changes, updatedAt: new Date() })
-    .where(and(eq(manualFares.id, c.req.param("id")), eq(manualFares.tenantId, c.get("tenantId")))).returning();
+  const db = c.get("db"), tenantId = c.get("tenantId"), id = c.req.param("id");
+  const [before] = await db.select().from(manualFares).where(and(eq(manualFares.id, id), eq(manualFares.tenantId, tenantId))).limit(1);
+  if (!before) return c.json({ error: "Fare not found" }, 404);
+  if (fare.isGroupFare && before.source !== "ADMIN") return c.json({ error: "Fares from the Google Sheet can't be group fares (the sheet sync replaces them every hour). Add the group fare in Admin instead." }, 400);
+  if (before.isGroupFare && !fare.isGroupFare && await groupFareHasBookings(db, tenantId, id)) {
+    return c.json({ error: "This group fare has bookings, so it stays a group fare. Unpublish or deactivate it instead." }, 409);
+  }
+  const { source: _source, seatsAvailable, ...changes } = fare;
+  // Group fares: seats are changed by the difference from what the form showed (seats_seen), so a
+  // checkout that took seats meanwhile is never undone by this save.
+  const seen = Number(body.seats_seen);
+  const seats = before.isGroupFare && fare.isGroupFare && body.seats_seen != null && body.seats_seen !== "" && Number.isInteger(seen)
+    ? sql`GREATEST(${manualFares.seatsAvailable} + ${(seatsAvailable ?? 0) - seen}, 0)`
+    : seatsAvailable;
+  const [row] = await db.update(manualFares).set({ ...changes, seatsAvailable: seats as number, updatedAt: new Date() })
+    .where(and(eq(manualFares.id, id), eq(manualFares.tenantId, tenantId))).returning();
   if (!row) return c.json({ error: "Fare not found" }, 404);
+  await auditFare(c, "MANUAL_FARE_UPDATED", id, before, row);
   return c.json({ fare: row });
 });
 
 flightSourcesAdminRoutes.delete("/manual/fares/:id", async (c) => {
-  const [row] = await c.get("db").delete(manualFares)
-    .where(and(eq(manualFares.id, c.req.param("id")), eq(manualFares.tenantId, c.get("tenantId")))).returning({ id: manualFares.id });
+  const db = c.get("db"), tenantId = c.get("tenantId"), id = c.req.param("id");
+  const [before] = await db.select().from(manualFares).where(and(eq(manualFares.id, id), eq(manualFares.tenantId, tenantId))).limit(1);
+  if (!before) return c.json({ error: "Fare not found" }, 404);
+  // Keeps the booking records of a group fare complete.
+  if (before.isGroupFare && await groupFareHasBookings(db, tenantId, id)) {
+    return c.json({ error: "This group fare has bookings and can't be deleted. Deactivate it instead (it then disappears from the website)." }, 409);
+  }
+  const [row] = await db.delete(manualFares)
+    .where(and(eq(manualFares.id, id), eq(manualFares.tenantId, tenantId))).returning({ id: manualFares.id });
   if (!row) return c.json({ error: "Fare not found" }, 404);
+  await auditFare(c, "MANUAL_FARE_DELETED", id, before, null);
   return c.json({ ok: true });
 });
