@@ -646,3 +646,56 @@ test("the booking respects WebSettings for the fare's airline and sector; unavai
   assert.deepEqual(failed.steps, ["WebSettings", "SeatLayout", "ssr"]);
   assert.ok(failed.logs.some((m) => /WebSettings failed \(SSR \/ SeatLayout called as before\)/.test(m)));
 });
+
+// Production (12 Nov 2026, TransactionIDs 263528015 / 263528827): StartPay answered Code 2200
+// "Insufficient SubUserBalance" (agency deposit 0). Akbar: nothing charged — recharge and retry.
+const insufficient = () => json({ TUI: "pay-tui", Code: "2200", Msg: ["Insufficient SubUserBalance"], PaymentID: null, TransactionID: 230003316, CRSPNR: null });
+
+test("StartPay 2200 'Insufficient SubUserBalance': stops at once with the reason, itinerary kept unpaid", async () => {
+  const { calls, client } = mockAkbar({ startPay: insufficient });
+  const state = await runAkbarBooking(engine(client).deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  const l = state.legs[0];
+  assert.equal(l.state, "ITINERARY_CREATED");
+  assert.equal(l.errorCode, "INSUFFICIENT_BALANCE");
+  assert.equal(l.paymentSentAt, undefined);
+  assert.equal(l.transactionId, 230003316);
+  assert.match(l.message!, /Insufficient SubUserBalance.*nothing was charged.*Recharge/);
+  assert.ok(!paths(calls).includes("GetItineraryStatus"));   // no waiting on a status that can't change
+  assert.equal(akbarOutcome(state, 1), "FAILED_BEFORE_PAYMENT");
+});
+
+test("after recharging, Continue pays the same itinerary again — no new CreateItinerary, no re-pricing", async () => {
+  let n = 0;
+  const startPay = () => (n++ === 0 ? insufficient() : json({ Code: "6033", Msg: ["BOOKING  INPROGRESS !"], TransactionID: 230003316 }));
+  const { calls, client } = mockAkbar({ startPay });
+  const { deps } = engine(client);
+  const first = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  const again = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact, state: first });
+  assert.equal(paths(calls).filter((p) => p === "CreateItinerary").length, 1);
+  assert.equal(paths(calls).filter((p) => p === "SmartPricer").length, 1);
+  const pays = calls.filter((c) => c.path === "/Payment/StartPay");
+  assert.equal(pays.length, 2);
+  assert.equal(pays[1].body.TransactionID, 230003316);
+  assert.equal(again.legs[0].state, "SUCCESS");
+  assert.equal(again.legs[0].errorCode, undefined);
+  assert.equal(akbarOutcome(again, 1), "TICKETED");
+});
+
+test("a booking already stuck after a 2200 StartPay is released on Refresh, without calling Akbar", async () => {
+  const stuck = { leg: 0, state: "PAYMENT_SENT" as const, transactionId: 230003316, itineraryTui: "it-tui", itineraryNetAmount: 4890.5,
+    paymentSentAt: "2026-11-12T06:54:38Z", startPay: { code: "2200", message: "Insufficient SubUserBalance" } };
+  const { calls, client } = mockAkbar();
+  const next = await refreshAkbarBooking(engine(client).deps, { legs: [stuck], startedAt: "", runs: 1 }, 1);
+  assert.equal(calls.length, 0);
+  assert.equal(next.legs[0].state, "ITINERARY_CREATED");
+  assert.equal(next.legs[0].errorCode, "INSUFFICIENT_BALANCE");
+  assert.equal(next.outcome, "FAILED_BEFORE_PAYMENT");
+});
+
+test("any other StartPay answer is still never re-sent", async () => {
+  const { calls, client } = mockAkbar({ status: ["Failed"], startPay: () => json({ Code: "6033", Msg: ["BOOKING  INPROGRESS !"], TransactionID: 230003316 }) });
+  const { deps } = engine(client);
+  const first = await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact });
+  await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact, state: first });
+  assert.equal(paths(calls).filter((p) => p === "StartPay").length, 1);
+});
