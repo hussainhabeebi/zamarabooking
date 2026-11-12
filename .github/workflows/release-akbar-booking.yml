@@ -32,7 +32,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message "… <sha> on …")'
         required: true
-        default: 'be140d63c218ad113b85f84b1ba5f802012a41de'
+        # Group fares release (PR #65): live API = this commit's tree.
+        default: 'e675b92c912a5601236478a2984878a3df53b3a1'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true
@@ -108,6 +109,11 @@ env:
     apps/admin/app/(dashboard)/integrations/AkbarIntegration.tsx
     apps/admin/app/(dashboard)/supplier-logs/page.tsx
     apps/admin/app/(dashboard)/supplier-logs/AkbarTrace.tsx
+  # Live since the Group fares release (PR #65, release-group-fares.yml): kept at that commit in every
+  # Admin build here, so an Akbar release never takes group fares out of Admin.
+  GROUP_FARES_ADMIN_SHA: e675b92c912a5601236478a2984878a3df53b3a1
+  GROUP_FARES_ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/manual-fares/page.tsx
   # PR #45 files that are never deployed (docs, CI, the local UAT runner).
   NOT_DEPLOYED: >-
     apps/akbar-gateway/src/gateway.mjs
@@ -272,6 +278,9 @@ jobs:
           while IFS= read -r f; do
             case " $ADMIN_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
           done < "$RUNNER_TEMP/applied.txt"
+          # Group fares Admin page as it is live (not taken from this PR).
+          git checkout "$GROUP_FARES_ADMIN_SHA" -- $GROUP_FARES_ADMIN_FILES
+          echo "Group fares Admin files kept at $GROUP_FARES_ADMIN_SHA: $GROUP_FARES_ADMIN_FILES"
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
