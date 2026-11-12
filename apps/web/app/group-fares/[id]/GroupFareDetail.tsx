@@ -4,6 +4,7 @@
 // on the server at checkout and the seats are held there, so nothing here is trusted for price.
 import { useEffect, useState } from "react";
 import { CABIN, groupFaresUrl, HEADERS, inr, saleEnds, seatsText, travelDay, type GroupFare } from "../group-fares";
+import { RouteLine, seatsClass } from "../GroupFaresList";
 import styles from "../group-fares.module.css";
 
 interface Quote {
@@ -37,14 +38,17 @@ export default function GroupFareDetail({ id }: { id: string }) {
     return () => { cancelled = true; };
   }, [id, pax]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (state === "loading" && !fare) return <main className={`page-container ${styles.page}`}><p className={styles.muted}>Loading group fare…</p></main>;
+  if (state === "loading" && !fare) return <main className={styles.page}><p className={styles.muted}>Loading group fare…</p></main>;
   if (state === "gone") return (
-    <main className={`page-container ${styles.page}`}>
-      <h1 className={styles.title}>Group fare not available</h1>
-      <div className={styles.empty}><p>This group fare has ended, sold out or is no longer offered.</p><p><a href="/group-fares">See other group fares</a> or <a href="/#flight-search">search all flights</a>.</p></div>
+    <main className={styles.page}>
+      <a href="/group-fares" className={styles.back}>‹ All group fares</a>
+      <div className={styles.empty}>
+        <p><b>This group fare is no longer available.</b></p>
+        <p>It has ended, sold out or is no longer offered. <a href="/group-fares" className={styles.link}>See other group fares</a> or <a href="/#flight-search" className={styles.link}>search all flights</a>.</p>
+      </div>
     </main>
   );
-  if (!fare || !quote || !pax) return <main className={`page-container ${styles.page}`}><p className={styles.error}>We couldn&apos;t load this group fare. Please try again in a moment.</p></main>;
+  if (!fare || !quote || !pax) return <main className={styles.page}><p className={styles.error}>We couldn&apos;t load this group fare. Please try again in a moment.</p></main>;
 
   const maxSeats = Math.min(9, fare.maxPax ?? 9, Math.max(fare.seatsLeft, 1));
   const seats = pax.adults + pax.children;
@@ -67,57 +71,79 @@ export default function GroupFareDetail({ id }: { id: string }) {
   }
 
   return (
-    <main className={`page-container ${styles.page}`}>
-      <p style={{ margin: "0 0 10px" }}><a href="/group-fares" className={styles.back}>‹ All group fares</a></p>
-      <h1 className={styles.title}>{fare.title}</h1>
-      <p className={styles.lead}>{fare.origin} → {fare.destination} · {travelDay(fare.travelDate)}</p>
+    <main className={styles.page}>
+      <a href="/group-fares" className={styles.back}>‹ All group fares</a>
+      <section className={styles.hero}>
+        <p className={styles.eyebrow}>Group fare · {fare.airlineName} {fare.flightNumber}</p>
+        <h1 className={styles.title}>{fare.title}</h1>
+        <p className={styles.lead}>{fare.origin} → {fare.destination} · {travelDay(fare.travelDate)}</p>
+        <div className={styles.heroMeta}>
+          <span className={styles.heroChip}>{CABIN[fare.cabinClass] ?? fare.cabinClass}</span>
+          <span className={styles.heroChip}>Baggage {fare.baggage.checked}</span>
+          {fare.pricePerAdult != null && <span className={styles.heroChip}>From {inr(fare.pricePerAdult)} per adult</span>}
+          {fare.saleEndsAt && <span className={styles.heroChip}>Sale ends {saleEnds(fare.saleEndsAt)}</span>}
+        </div>
+      </section>
 
       <div className={styles.detail}>
-        <section className={styles.panel}>
-          <h2>Flight</h2>
-          <dl className={styles.facts}>
-            <div><dt>Airline</dt><dd>{fare.airlineName} {fare.flightNumber}</dd></div>
-            <div><dt>Departs</dt><dd>{fare.origin} {fare.departureTime}</dd></div>
-            <div><dt>Arrives</dt><dd>{fare.destination} {fare.arrivalTime}{fare.arrivalDayOffset ? ` (+${fare.arrivalDayOffset} day)` : ""}</dd></div>
-            <div><dt>Stops</dt><dd>{fare.stops ? `${fare.stops} stop${fare.stops > 1 ? "s" : ""}` : "Non-stop"}</dd></div>
-            <div><dt>Cabin</dt><dd>{CABIN[fare.cabinClass] ?? fare.cabinClass}</dd></div>
-            <div><dt>Checked baggage</dt><dd>{fare.baggage.checked}</dd></div>
-            <div><dt>Cabin baggage</dt><dd>{fare.baggage.cabin}</dd></div>
-            <div><dt>Cancellation</dt><dd>{fare.isRefundable ? "Refundable (airline rules apply)" : "Non-refundable"}</dd></div>
-            <div><dt>Seats</dt><dd className={soldOut ? styles.soldOut : styles.seats}>{seatsText(fare)}</dd></div>
-            {fare.saleEndsAt && <div><dt>Sale ends</dt><dd>{saleEnds(fare.saleEndsAt)}</dd></div>}
-          </dl>
-          {fare.description && <p className={styles.description}>{fare.description}</p>}
-        </section>
+        <div className={styles.stack}>
+          <section className={styles.panel}>
+            <h2>Flight</h2>
+            <div className={styles.bigRoute}><RouteLine f={fare} /></div>
+            <dl className={styles.facts}>
+              <div><dt>Airline</dt><dd>{fare.airlineName} {fare.flightNumber}</dd></div>
+              <div><dt>Date</dt><dd>{travelDay(fare.travelDate)}</dd></div>
+              <div><dt>Arrives</dt><dd>{fare.arrivalDayOffset ? `${fare.arrivalTime} (+${fare.arrivalDayOffset} day)` : fare.arrivalTime}</dd></div>
+              <div><dt>Cabin</dt><dd>{CABIN[fare.cabinClass] ?? fare.cabinClass}</dd></div>
+              <div><dt>Checked baggage</dt><dd>{fare.baggage.checked}</dd></div>
+              <div><dt>Cabin baggage</dt><dd>{fare.baggage.cabin}</dd></div>
+              <div><dt>Cancellation</dt><dd>{fare.isRefundable ? "Refundable (airline rules apply)" : "Non-refundable"}</dd></div>
+              <div><dt>Seats</dt><dd><span className={seatsClass(fare)}>{seatsText(fare)}</span></dd></div>
+            </dl>
+          </section>
 
-        <section className={styles.panel}>
+          {fare.description && (
+            <section className={styles.panel}>
+              <h2>About this fare</h2>
+              <p className={styles.description}>{fare.description}</p>
+            </section>
+          )}
+
+          <section className={styles.panel}>
+            <h2>How booking works</h2>
+            <ol className={styles.steps}>
+              <li><span><b>Choose your travellers</b> and press Book now. Your seats are held while you pay.</span></li>
+              <li><span><b>Enter traveller details and pay online</b> (UPI, card or net banking).</span></li>
+              <li><span><b>We issue your ticket</b> on the group booking and email it to you with the PNR.</span></li>
+            </ol>
+          </section>
+        </div>
+
+        <aside className={`${styles.panel} ${styles.pricePanel}`} aria-label="Travellers and price">
           <h2>Travellers and price</h2>
           <div className={styles.paxRow}>
-            <label>Adults (12+)
+            <label>Adults<small style={{ fontWeight: 500, color: "#6b7f94" }}>12+ years</small>
               <select value={pax.adults} onChange={(e) => change("adults", Number(e.target.value))}>{range(1, Math.min(9, maxSeats)).map((n) => <option key={n} value={n}>{n}</option>)}</select>
             </label>
-            <label>Children (2–11)
+            <label>Children<small style={{ fontWeight: 500, color: "#6b7f94" }}>2–11 years</small>
               <select value={pax.children} onChange={(e) => change("children", Number(e.target.value))}>{range(0, Math.max(0, Math.min(6, maxSeats - pax.adults))).map((n) => <option key={n} value={n}>{n}</option>)}</select>
             </label>
-            <label>Infants (under 2)
+            <label>Infants<small style={{ fontWeight: 500, color: "#6b7f94" }}>Under 2</small>
               <select value={pax.infants} onChange={(e) => change("infants", Number(e.target.value))}>{range(0, Math.min(pax.adults, 4)).map((n) => <option key={n} value={n}>{n}</option>)}</select>
             </label>
           </div>
           {fare.minPax > 1 && <p className={styles.note}>This fare is for at least {fare.minPax} travellers (adults and children){fare.maxPax ? `, up to ${fare.maxPax}` : ""}.</p>}
           <div className={styles.total}>
-            <span>{seats} seat{seats === 1 ? "" : "s"}{pax.infants ? ` + ${pax.infants} infant${pax.infants === 1 ? "" : "s"}` : ""}</span>
-            <span className="fare-card-price">{inr(quote.total)}</span>
+            <span className={styles.totalLabel}>Total · {seats} seat{seats === 1 ? "" : "s"}{pax.infants ? ` + ${pax.infants} infant${pax.infants === 1 ? "" : "s"}` : ""}</span>
+            <span className={styles.price}>{inr(quote.total)}</span>
           </div>
-          <p className={styles.note} style={{ marginTop: 2 }}>Total, taxes included{fare.pricePerAdult != null ? ` · ${inr(fare.pricePerAdult)} per adult` : ""}</p>
+          <p className={styles.note} style={{ marginTop: 4 }}>Taxes included{fare.pricePerAdult != null ? ` · ${inr(fare.pricePerAdult)} per adult` : ""}</p>
           {quote.problem && <p className={styles.problem}>{quote.problem}</p>}
-          <button type="button" className={`fare-card-book-btn ${styles.book}`} disabled={!!quote.problem || soldOut || state === "loading"} onClick={bookNow} style={{ marginTop: 14 }}>
+          <button type="button" className={`${styles.cta} ${styles.book}`} disabled={!!quote.problem || soldOut || state === "loading"} onClick={bookNow}>
             {soldOut ? "Sold out" : "Book now"}
           </button>
-          <p className={styles.note}>
-            Next you enter traveller details and pay online. Your seats are held while you pay. We issue the ticket on the group booking and email it to you.
-            Need more than 9 seats? <a href="/contact" className={styles.back}>Contact us</a>.
-          </p>
-        </section>
+          <p className={styles.note}>Need more than 9 seats? <a href="/contact" className={styles.link}>Contact us</a> for a group quote.</p>
+        </aside>
       </div>
     </main>
   );

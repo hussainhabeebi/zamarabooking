@@ -78,6 +78,8 @@ export default function SiteNav() {
   const accountLabel = accountName || "Account";
   const active = pathname === "/search" || pathname.startsWith("/search/") || pathname === "/book" || pathname.startsWith("/book/") || pathname === "/checkout" || pathname.startsWith("/checkout/")
     ? "flights"
+    : pathname === "/group-fares" || pathname.startsWith("/group-fares/")
+      ? "group-fares"
     : pathname === "/hotels" || pathname.startsWith("/hotels/")
       ? "hotels"
       : pathname === "/insurance" || pathname.startsWith("/insurance/")
@@ -107,11 +109,16 @@ export default function SiteNav() {
 
   const portalUrl = (process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://portal.zamrabooking.com").replace(/\/+$/, "");
   const shown = navItems.filter(({ key }) => key !== "hotels" || HOTELS_ENABLED);
-  const primaryItems = [{ key: "home", label: "Home", href: "/" }, ...shown.filter(({ key }) => ["flights", "hotels", "trips"].includes(key))];
+  // Group fares sits next to Flights while Admin has group fares on the website and one is open.
+  const showGroupFares = groupFares || pathname.startsWith("/group-fares");
+  const groupFaresItem = { key: "group-fares", label: "Group fares", href: "/group-fares" };
+  const primaryItems = [{ key: "home", label: "Home", href: "/" }, ...shown.filter(({ key }) => ["flights", "hotels", "trips"].includes(key))]
+    .flatMap((item) => (item.key === "flights" && showGroupFares ? [item, groupFaresItem] : [item]));
   function isActive(key: string) { return key === "home" ? pathname === "/" : active === key; }
   const secondaryItems = [
     ...shown.filter(({ key }) => key === "hotels"),
-    ...(groupFares || pathname.startsWith("/group-fares") ? [{ key: "group-fares", label: "Group fares", href: "/group-fares" }] : []),
+    // Phones have no header links: Group fares is in this menu there (site-shell.css).
+    ...(showGroupFares ? [groupFaresItem] : []),
     { key: "assistance", label: "Travel assistance", href: "/travel-check" },
     { key: "agents", label: "Agent Portal", href: `${portalUrl}/login` },
     { key: "register", label: "Register your agency", href: `${portalUrl}/register` },
