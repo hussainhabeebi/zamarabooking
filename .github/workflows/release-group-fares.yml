@@ -34,7 +34,7 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message)'
         required: true
-        default: 'f06b54c30bb7991315e84608a865f54d7682cab8'
+        default: '5becc6377beb1d1f7b9f8e40d2d43d401638e5e8'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true

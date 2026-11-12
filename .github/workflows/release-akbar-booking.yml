@@ -32,8 +32,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message "… <sha> on …")'
         required: true
-        # Group fares release (PR #65): live API = this commit's tree.
-        default: 'e675b92c912a5601236478a2984878a3df53b3a1'
+        # Live API = this commit's tree (group fares in search, PR #68, API version 5bc713e6).
+        default: '5becc6377beb1d1f7b9f8e40d2d43d401638e5e8'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true
