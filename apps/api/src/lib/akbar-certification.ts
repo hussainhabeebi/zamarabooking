@@ -78,9 +78,32 @@ async function exchangesFor(db: Db, b: Booking): Promise<Exchange[]> {
   return rows;
 }
 
-export async function akbarCertificationCoverage(db: Db, b: Booking) {
+// SeatLayout and SSR are read-only lookups made only on UAT, for Akbar's certification logs
+// (akbar-booking-runner: lookups = environment === "UAT"). A PRODUCTION booking never calls them.
+export const AKBAR_UAT_ONLY_STEPS = ["SeatLayout", "SSR"];
+
+// The Akbar environment a booking ran on, from its event log
+// ("Akbar API booking started (after payment, PRODUCTION, 1 leg)"). null = not recorded.
+export function akbarBookingEnvironment(events: { message?: string }[] | null | undefined): "UAT" | "PRODUCTION" | null {
+  for (const e of events ?? []) {
+    const m = /Akbar API booking started \([^)]*\b(UAT|PRODUCTION)\b/.exec(String(e?.message ?? ""));
+    if (m) return m[1] as "UAT" | "PRODUCTION";
+  }
+  return null;
+}
+
+// Which certification steps this booking's logs contain. On PRODUCTION, a UAT-only step that
+// wasn't called is "notUsed" (shown greyed out in Admin), not missing.
+export function akbarCoverageOf(have: Set<string>, environment: "UAT" | "PRODUCTION" | null) {
+  return AKBAR_REQUIRED_STEPS.map((service) => {
+    const logged = have.has(service);
+    return { service, logged, ...(!logged && environment === "PRODUCTION" && AKBAR_UAT_ONLY_STEPS.includes(service) ? { notUsed: true } : {}) };
+  });
+}
+
+export async function akbarCertificationCoverage(db: Db, b: Booking, environment: "UAT" | "PRODUCTION" | null = null) {
   const have = new Set((await exchangesFor(db, b)).filter((x) => x.requestKey && x.responseKey).map((x) => akbarStep(x.endpoint)));
-  return AKBAR_REQUIRED_STEPS.map((service) => ({ service, logged: have.has(service) }));
+  return akbarCoverageOf(have, environment);
 }
 
 // Search TUI of a leg, from the fare reference saved at checkout.

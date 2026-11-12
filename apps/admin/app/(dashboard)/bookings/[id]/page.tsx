@@ -269,10 +269,15 @@ export default function BookingDetailPage() {
           {Array.isArray(data.certification) && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12, fontSize: 13 }}>
               <span style={{ color: "#94a3b8" }}>{b.supplier === "AKBAR" ? "Akbar" : "TripJack"} certification set:</span>
-              {data.certification.map((s: { service: string; logged: boolean }) => (
-                <span key={s.service} title={s.logged ? `${s.service}Request.json + ${s.service}Response.json` : `${s.service} call not logged for this booking`}
-                  style={{ padding: "3px 10px", borderRadius: 999, fontWeight: 700, background: s.logged ? "#052e16" : "#450a0a", color: s.logged ? "#86efac" : "#fca5a5" }}>
-                  {s.logged ? "✓" : "✗"} {s.service}
+              {data.certification.map((s: { service: string; logged: boolean; notUsed?: boolean }) => (
+                <span key={s.service}
+                  title={s.logged ? `${s.service}Request.json + ${s.service}Response.json`
+                    : s.notUsed ? `${s.service} is only called on Akbar UAT (certification logs). Production bookings don't use it — not an error.`
+                    : `${s.service} call not logged for this booking`}
+                  style={{ padding: "3px 10px", borderRadius: 999, fontWeight: 700,
+                    background: s.logged ? "#052e16" : s.notUsed ? "#1e293b" : "#450a0a",
+                    color: s.logged ? "#86efac" : s.notUsed ? "#64748b" : "#fca5a5" }}>
+                  {s.logged ? "✓" : s.notUsed ? "–" : "✗"} {s.service}{s.notUsed ? " (not used in production)" : ""}
                 </span>
               ))}
             </div>
