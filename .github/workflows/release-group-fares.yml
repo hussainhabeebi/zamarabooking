@@ -109,6 +109,12 @@ env:
     apps/web/app/group-fares/[id]/GroupFareDetail.tsx
     apps/web/app/components/SiteNav.tsx
     apps/web/app/book/booking-error.ts
+    apps/web/app/group-fares/Icons.tsx
+    apps/web/app/site-shell.css
+    apps/web/app/search/page.tsx
+    apps/web/app/search/GroupFareResultCard.tsx
+    apps/web/app/search/group-fare-results.ts
+    apps/web/app/search/group-fare-card.module.css
     docs/group-fares.md
     .github/workflows/release-group-fares.yml
 

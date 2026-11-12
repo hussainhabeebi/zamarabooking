@@ -1,0 +1,44 @@
+/* Special Group Fare card in the flight results (matches the group fares pages). */
+.card { background: #fff; border: 1.5px solid #c9dcf3; border-radius: 16px; box-shadow: 0 4px 16px rgba(13,75,150,.08); overflow: hidden; }
+.attached { margin-top: -4px; border-top-style: dashed; }
+.head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 16px; background: linear-gradient(90deg, #0a3a75, #0d4b96 55%, #1565b8); color: #fff; }
+.badge { font-size: 12px; font-weight: 800; letter-spacing: .03em; }
+.note { font-size: 12px; color: #cfe6fb; }
+.seats { margin-left: auto; display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: #ecfdf5; color: #047857; font-size: 11px; font-weight: 800; }
+.seatsLow { background: #fff7ed; color: #c2410c; }
+.body { display: grid; grid-template-columns: 170px minmax(0, 1fr) 190px; gap: 16px; align-items: center; padding: 14px 16px 10px; }
+.airline { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.airline b { display: block; font-size: 14px; color: #0f2740; }
+.airline small { display: block; font-size: 12px; color: #6b7f94; margin-top: 1px; }
+.logo { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: #0d4b96; color: #fff; font-weight: 800; font-size: 13px; }
+.route { display: grid; grid-template-columns: auto minmax(50px, 1fr) auto; gap: 12px; align-items: center; }
+.route strong { display: block; font-size: 19px; font-weight: 800; color: #0f2740; line-height: 1.1; }
+.route span { display: block; font-size: 12px; font-weight: 700; color: #57748e; }
+.route sup { font-size: 10px; color: #c2410c; }
+.right { text-align: right; }
+.line { position: relative; text-align: center; }
+.line::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1.5px dashed #c7d8e8; }
+.line span { position: relative; display: inline; padding: 0 6px; background: #fff; font-size: 11px; font-weight: 600; color: #6b7f94; }
+.priceCol { text-align: right; }
+.price { font-size: 22px; font-weight: 800; color: #0d4b96; line-height: 1.1; }
+.priceNote { font-size: 11px; color: #6b7f94; margin-top: 2px; }
+.book { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 42px; margin-top: 8px; border-radius: 10px; background: #0d4b96; color: #fff; font-weight: 800; font-size: 14px; text-decoration: none; }
+.book:hover { background: #0a3a75; }
+.bookGhost { background: #fff; color: #0d4b96; border: 1.5px solid #c7d8e8; }
+.bookGhost:hover { background: #f1f7fe; }
+.foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 16px 12px; border-top: 1px solid #eef3f8; }
+.title { font-size: 13px; font-weight: 700; color: #0f2740; margin-right: 4px; }
+.chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 7px; background: #f4f8fb; color: #3b5470; font-size: 11px; font-weight: 600; }
+.details { margin-left: auto; font-size: 12px; font-weight: 700; color: #0d4b96; text-decoration: none; }
+.details:hover { text-decoration: underline; }
+.problem { margin: 0; padding: 8px 16px 12px; font-size: 12px; font-weight: 600; color: #b91c1c; }
+.book:focus-visible, .details:focus-visible { outline: 3px solid #64bae9; outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .body { grid-template-columns: 1fr; gap: 12px; }
+  .priceCol { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; text-align: left; }
+  .priceNote { grid-column: 1; }
+  .book { grid-column: 2; grid-row: 1 / span 2; width: auto; padding: 0 16px; margin-top: 0; }
+  .seats { margin-left: 0; }
+  .details { margin-left: 0; }
+}

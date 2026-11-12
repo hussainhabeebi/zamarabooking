@@ -2,6 +2,8 @@
 //
 //   GET /api/group-fares/status   { enabled, count }        — for the website menu
 //   GET /api/group-fares          { enabled, fares[] }      — published group fares on sale
+//   GET /api/group-fares/match?origin=&destination=&date=&adults=&children=&infants=[&airline=&flightNumber=]
+//                                 — group fares for a flight search (shown next to live fares)
 //   GET /api/group-fares/:id?adults=&children=&infants=     — one fare + the price for that party
 //
 // Prices are worked out on every request from the fare as it is now in Admin (no caching), with
@@ -9,7 +11,7 @@
 // "not available" here and are refused at checkout. Internal notes are never returned.
 
 import { Hono } from "hono";
-import { and, asc, eq, gt, gte, isNull, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, isNull, or, type SQL } from "drizzle-orm";
 import { manualFares } from "@zamrabooking/db/schema";
 import type { Env, Variables } from "../types.js";
 import { getManualSettings, manualFareToNormalized, inrConverter } from "../lib/flight-sources.js";
@@ -23,7 +25,7 @@ const NO_STORE = { "Cache-Control": "no-store" };
 
 const todayIst = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
 
-async function onSaleRows(c: { get: (k: "db") => Variables["db"] }, tenantId: string, id?: string): Promise<Row[]> {
+async function onSaleRows(c: { get: (k: "db") => Variables["db"] }, tenantId: string, id?: string, extra: SQL[] = []): Promise<Row[]> {
   const rows = await c.get("db").select().from(manualFares).where(and(
     eq(manualFares.tenantId, tenantId),
     ...(id ? [eq(manualFares.id, id)] : []),
@@ -32,6 +34,7 @@ async function onSaleRows(c: { get: (k: "db") => Variables["db"] }, tenantId: st
     eq(manualFares.isActive, true),
     gte(manualFares.travelDate, todayIst()),
     or(isNull(manualFares.saleEndsAt), gt(manualFares.saleEndsAt, new Date())),
+    ...extra,
   )).orderBy(asc(manualFares.travelDate), asc(manualFares.departureTime)).limit(id ? 1 : 200);
   return rows.filter((r) => groupFareOnSale(r));
 }
@@ -85,6 +88,50 @@ const count = (v: string | undefined, fallback: number, max: number) => {
   return v == null || v === "" || !Number.isInteger(n) || n < 0 ? fallback : Math.min(n, max);
 };
 
+// What the booking page needs for this fare and party (it re-prices on the server at checkout).
+function bookLink(row: Row, fare: NonNullable<Awaited<ReturnType<typeof priceFor>>>["fare"]) {
+  return {
+    fareId: row.id, supplier: "MANUAL", airline: fare.airlineName, fn: fare.flightNumber,
+    from: fare.origin, to: fare.destination, dep: fare.departureTime, arr: fare.arrivalTime,
+    dur: fare.duration, stops: fare.stops, bag: fare.baggage.checked, cab: fare.baggage.cabin,
+    ref: fare.isRefundable, cls: fare.cabinClass, fl: "Group fare",
+  };
+}
+
+const code = (v: string | undefined) => (v ?? "").trim().toUpperCase().replace(/\s+/g, "");
+
+// Flight search → matching group fares (origin, destination, travel date; airline and flight
+// number too when given). Only fares on sale with enough seats for the party; a party below the
+// fare's minimum is returned with the reason so the page can say so. Never cached.
+groupFareRoutes.get("/match", async (c) => {
+  const tenantId = c.get("tenantId");
+  const origin = code(c.req.query("origin")), destination = code(c.req.query("destination")), date = c.req.query("date") ?? "";
+  if (!/^[A-Z]{3}$/.test(origin) || !/^[A-Z]{3}$/.test(destination) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return c.json({ error: "origin, destination (airport codes) and date (YYYY-MM-DD) are required" }, 400, NO_STORE);
+  }
+  const settings = await getManualSettings(c.env, tenantId);
+  if (!settings.groupFares) return c.json({ enabled: false, fares: [] }, 200, NO_STORE);
+  const pax = { adults: Math.max(1, count(c.req.query("adults"), 1, 9)), children: count(c.req.query("children"), 0, 6), infants: count(c.req.query("infants"), 0, 4) };
+  const airline = code(c.req.query("airline")), flightNumber = code(c.req.query("flightNumber"));
+  const rows = (await onSaleRows(c, tenantId, undefined, [
+    eq(manualFares.origin, origin), eq(manualFares.destination, destination), eq(manualFares.travelDate, date),
+    ...(airline ? [eq(manualFares.airline, airline)] : []),
+  ])).filter((r) => !flightNumber || code(r.flightNumber) === flightNumber);
+  const seats = pax.adults + pax.children;
+  const fares = await Promise.all(rows.map(async (row) => {
+    // Sold out, or not enough seats for this party: hidden.
+    if (row.seatsAvailable < Math.max(1, row.minPax) || row.seatsAvailable < seats) return null;
+    const priced = await priceFor(c, tenantId, row, pax);
+    const perAdult = await priceFor(c, tenantId, row, { adults: 1, children: 0, infants: 0 });
+    if (!priced) return null;
+    return {
+      ...publicFare(row), pricePerAdult: perAdult?.total ?? null, currency: "INR",
+      quote: { pax, total: priced.total, currency: "INR", problem: groupFarePaxProblem(row, pax), book: bookLink(row, priced.fare) },
+    };
+  }));
+  return c.json({ enabled: true, fares: fares.filter((f) => f !== null) }, 200, NO_STORE);
+});
+
 groupFareRoutes.get("/:id", async (c) => {
   const tenantId = c.get("tenantId");
   const id = c.req.param("id");
@@ -103,13 +150,7 @@ groupFareRoutes.get("/:id", async (c) => {
     quote: {
       pax, total: priced.total, currency: priced.currency,
       problem: groupFarePaxProblem(row, pax),
-      // What the booking page needs (it re-prices on the server at checkout).
-      book: {
-        fareId: row.id, supplier: "MANUAL", airline: priced.fare.airlineName, fn: priced.fare.flightNumber,
-        from: priced.fare.origin, to: priced.fare.destination, dep: priced.fare.departureTime, arr: priced.fare.arrivalTime,
-        dur: priced.fare.duration, stops: priced.fare.stops, bag: priced.fare.baggage.checked, cab: priced.fare.baggage.cabin,
-        ref: priced.fare.isRefundable, cls: priced.fare.cabinClass, fl: "Group fare",
-      },
+      book: bookLink(row, priced.fare),
     },
   }, 200, NO_STORE);
 });

@@ -220,13 +220,12 @@ const search = (over: Record<string, unknown> = {}) => searchManualFares(env, db
   origin: "COK", destination: "DXB", departureDate: future(30), cabinClass: "ECONOMY", tripType: "ONEWAY", adults: 2, children: 0, infants: 0, ...over,
 } as never);
 
-test("search shows published group fares only, and only while the website switch is on", async () => {
-  const pub = await addFare();
-  await addFare({ isPublished: false, flightNumber: "6E9999" });
-  await addFare({ isActive: false, flightNumber: "6E9998" });
-  assert.deepEqual((await search()).map((f) => f.id), [pub.id]);
-  assert.equal((await search())[0].raw && (await search())[0].raw!.groupFare, true);
-  await settings({ groupFares: false, enabled: true });
+test("live flight search (/api/search) never includes group fares; they are matched separately", async () => {
+  await addFare();
+  const plain = await addFare({ isGroupFare: false, isPublished: false, title: null, flightNumber: "6E1000" });
+  await settings({ groupFares: true, enabled: true });
+  assert.deepEqual((await search()).map((f) => f.id), [plain.id]);
+  await settings({ groupFares: true, enabled: false });
   assert.deepEqual(await search(), []);
 });
 
@@ -287,6 +286,61 @@ test("website list shows published fares with Admin's latest price; hidden ones 
   assert.deepEqual(await (await call("/api/group-fares")).json(), { enabled: false, fares: [] });
   assert.equal((await call(`/api/group-fares/${pub.id}`)).status, 404);
   assert.deepEqual(await (await call("/api/group-fares/status")).json(), { enabled: false, count: 0 });
+});
+
+const match = (call: ReturnType<typeof publicApi>, q: Record<string, string | number>) =>
+  call(`/api/group-fares/match?${new URLSearchParams(Object.entries({ origin: "COK", destination: "DXB", date: future(30), adults: 2, ...q }).map(([k, v]) => [k, String(v)]))}`);
+
+test("search match: route + date (+ airline / flight number), only fares on sale with seats for the party", async () => {
+  const call = publicApi();
+  const a = await addFare({ seatsAvailable: 5 });
+  const b = await addFare({ airline: "AI", airlineName: "Air India", flightNumber: "AI 933", seatsAvailable: 9, cabinClass: "BUSINESS" });
+  await addFare({ isPublished: false, flightNumber: "6E9000" });                                  // unpublished
+  await addFare({ isActive: false, flightNumber: "6E9001" });                                     // disabled
+  await addFare({ saleEndsAt: new Date(Date.now() - 1000), flightNumber: "6E9002" });             // sale ended
+  await addFare({ seatsAvailable: 0, flightNumber: "6E9003" });                                   // sold out
+  await addFare({ seatsAvailable: 1, flightNumber: "6E9004" });                                   // fewer seats than the party
+  await addFare({ travelDate: future(31), flightNumber: "6E9005" });                              // other date
+  await addFare({ destination: "SHJ", flightNumber: "6E9006" });                                  // other route
+  await addFare({ isGroupFare: false, isPublished: false, title: null, flightNumber: "6E9007" });  // ordinary manual fare
+
+  const d = await (await match(call, {})).json() as any;
+  assert.equal(d.enabled, true);
+  assert.deepEqual(d.fares.map((f: any) => f.id).sort(), [a.id, b.id].sort());
+  const fa = d.fares.find((f: any) => f.id === a.id);
+  assert.equal(fa.quote.total, 30000);
+  assert.equal(fa.pricePerAdult, 15000);
+  assert.equal(fa.seatsLeft, 5);
+  assert.equal(fa.quote.book.supplier, "MANUAL");
+  assert.equal(fa.quote.problem, null);
+  assert.equal(fa.notes, undefined);
+
+  const byFlight = await (await match(call, { airline: "ai", flightNumber: "AI933" })).json() as any;
+  assert.deepEqual(byFlight.fares.map((f: any) => f.id), [b.id]);
+  assert.deepEqual(((await (await match(call, { airline: "6E", flightNumber: "6E1" })).json()) as any).fares, []);
+});
+
+test("search match: below the minimum party size the fare is shown with the reason; switch off → nothing", async () => {
+  const call = publicApi();
+  const fare = await addFare({ minPax: 3 });
+  const d = await (await match(call, { adults: 1 })).json() as any;
+  assert.equal(d.fares[0].id, fare.id);
+  assert.match(d.fares[0].quote.problem, /at least 3/);
+  assert.equal((await match(call, { origin: "XX" })).status, 400);
+  await settings({ groupFares: false, enabled: true });
+  assert.deepEqual(await (await match(call, {})).json(), { enabled: false, fares: [] });
+});
+
+test("search match reflects Admin changes at once (never cached)", async () => {
+  const call = publicApi();
+  const fare = await addFare();
+  assert.equal(((await (await match(call, {})).json()) as any).fares[0].pricePerAdult, 15000);
+  await pg.query(`UPDATE manual_fares SET adult_fare = 14000 WHERE id = $1`, [fare.id]);
+  const r = await match(call, {});
+  assert.equal(r.headers.get("cache-control"), "no-store");
+  assert.equal(((await r.json()) as any).fares[0].pricePerAdult, 14000);
+  await pg.query(`UPDATE manual_fares SET seats_available = 0 WHERE id = $1`, [fare.id]);
+  assert.deepEqual(((await (await match(call, {})).json()) as any).fares, []);
 });
 
 // ── Checkout (POST /api/book, MANUAL) ────────────────────────────────────────
