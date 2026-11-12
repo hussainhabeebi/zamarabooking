@@ -203,9 +203,30 @@ jobs:
         run: |
           pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
           tail -25 "$RUNNER_TEMP/deployments.txt"
-          latest=$(grep '^Message:' "$RUNNER_TEMP/deployments.txt" | tail -1)
-          echo "Latest deployment: $latest"
-          case "$latest" in *"$LIVE"*) ;; *) echo "::error::Live zamra-api is not the expected baseline $LIVE — someone deployed since. Re-check api_base_sha."; exit 1;; esac
+          # The live code must be the expected release. Deployments made after it only by adding,
+          # updating or deleting a Worker secret in the dashboard (same code, e.g.
+          # AKBAR_API_BOOKING_PRODUCTION) are accepted; any other later deployment refuses.
+          python3 - "$RUNNER_TEMP/deployments.txt" "$LIVE" <<'PY'
+          import re, sys
+          text, live = open(sys.argv[1]).read(), sys.argv[2]
+          blocks = []
+          for line in text.splitlines():
+              if line.startswith("Created:"):
+                  blocks.append({"top": None, "versions": []})
+              elif blocks and line.startswith("Message:"):
+                  blocks[-1]["top"] = line[len("Message:"):].strip()
+              elif blocks and line.strip().startswith("Message:"):
+                  blocks[-1]["versions"].append(line.strip()[len("Message:"):].strip())
+          ours = [i for i, b in enumerate(blocks) if b["top"] and live in b["top"]]
+          if not ours:
+              sys.exit(f"::error::No deployment of the expected baseline {live} in the recent list. Re-check api_base_sha.")
+          later = blocks[ours[-1] + 1:]
+          secret = re.compile(r"^(Add|Added|Update|Updated|Delete|Deleted) secrets?: ")
+          for b in later:
+              if not b["versions"] or not all(secret.match(v) for v in b["versions"]):
+                  sys.exit(f"::error::Live zamra-api is not the expected baseline {live} — deployed since: {b['top']} / {b['versions']}. Re-check api_base_sha.")
+          print(f"Baseline {live} is live" + (f"; later secret-only changes: {[v for b in later for v in b['versions']]}" if later else ""))
+          PY
           echo "ROLLBACK TARGET (zamra-api): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
       - name: Deploy zamra-api (no database migrations)
         working-directory: apps/api
