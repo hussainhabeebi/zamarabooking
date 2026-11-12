@@ -699,3 +699,26 @@ test("any other StartPay answer is still never re-sent", async () => {
   await runAkbarBooking(deps, { legs: [leg], pax, departureDates: ["2026-12-01"], contact, state: first });
   assert.equal(paths(calls).filter((p) => p === "StartPay").length, 1);
 });
+
+// ── Certification checklist: SeatLayout / SSR are UAT-only ─────────────────────
+test("Admin certification set: SeatLayout and SSR are 'not used' on production bookings, missing on UAT", async () => {
+  const { akbarBookingEnvironment, akbarCoverageOf } = await import("../src/lib/akbar-certification.js");
+  assert.equal(akbarBookingEnvironment([{ message: "Payment received" }, { message: "Akbar API booking started (after payment, PRODUCTION, 1 leg)" }]), "PRODUCTION");
+  assert.equal(akbarBookingEnvironment([{ message: "Akbar API booking started (by staff, UAT, 2 legs)" }]), "UAT");
+  assert.equal(akbarBookingEnvironment([{ message: "something else" }]), null);
+  assert.equal(akbarBookingEnvironment(null), null);
+
+  const have = new Set(["Signature", "ExpressSearch", "GetExpSearch", "WebSettings", "SmartPricer", "GetSPricer", "GetTravelCheckList", "CreateItinerary", "StartPay", "GetItineraryStatus", "RetrieveBooking"]);
+  const prod = akbarCoverageOf(have, "PRODUCTION");
+  assert.deepEqual(prod.filter((s) => !s.logged).map((s) => [s.service, !!(s as any).notUsed]), [["SeatLayout", true], ["SSR", true]]);
+  assert.ok(prod.filter((s) => s.logged).every((s) => !(s as any).notUsed));
+  // UAT (certification) and unknown: still shown as missing.
+  for (const env of ["UAT", null] as const) {
+    assert.deepEqual(akbarCoverageOf(have, env).filter((s) => !s.logged).map((s) => [s.service, !!(s as any).notUsed]), [["SeatLayout", false], ["SSR", false]]);
+  }
+  // A missing required step is never hidden on production.
+  const gap = new Set([...have].filter((s) => s !== "StartPay"));
+  assert.deepEqual(akbarCoverageOf(gap, "PRODUCTION").find((s) => s.service === "StartPay"), { service: "StartPay", logged: false });
+  // Logged on production (e.g. called by staff) stays a tick.
+  assert.deepEqual(akbarCoverageOf(new Set([...have, "SSR"]), "PRODUCTION").find((s) => s.service === "SSR"), { service: "SSR", logged: true });
+});

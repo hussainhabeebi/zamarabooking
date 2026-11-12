@@ -19,7 +19,7 @@ import {
   readBookingError, readBookingEvents, readQueueReceipt,
 } from "../../lib/booking-recovery.js";
 import { processPaidBooking } from "../../queue-consumer.js";
-import { akbarCertificationCoverage, akbarCertificationPack, akbarCertificationRequest, akbarStep } from "../../lib/akbar-certification.js";
+import { akbarBookingEnvironment, akbarCertificationCoverage, akbarCertificationPack, akbarCertificationRequest, akbarStep } from "../../lib/akbar-certification.js";
 import { getAkbarSettings } from "../../lib/flight-sources.js";
 import { bookOnAkbar, refreshAkbar } from "../../lib/akbar-booking-runner.js";
 import { acquireBookingLock, releaseBookingLock } from "../../lib/booking-recovery.js";
@@ -129,12 +129,16 @@ bookingsAdminRoutes.get("/:id", async (c) => {
   const paidOrder = paymentRows.find((p) => p.status === "SUCCESS")?.gatewayOrderId;
   const queueReceipt = waiting && paidOrder ? await readQueueReceipt(c.env, paidOrder) : null;
   const paymentConfirmed = Boolean(paidOrder);
+  const events = await readBookingEvents(c.env, b.id);
+  // The environment the Akbar booking ran on (its log), else the current Akbar setting.
+  const akbarEnvironment = b.supplier !== "AKBAR" ? null
+    : akbarBookingEnvironment(events) ?? await getAkbarSettings(c.env, b.tenantId).then((s) => s.environment as "UAT" | "PRODUCTION").catch(() => null);
   return c.json({
-    booking: b, queueError, queueReceipt, paymentConfirmed, events: await readBookingEvents(c.env, b.id), customer: customer[0] ?? null, passengers, payments: paymentRows, cancellations: amendments,
+    booking: b, queueError, queueReceipt, paymentConfirmed, events, customer: customer[0] ?? null, passengers, payments: paymentRows, cancellations: amendments,
     supportRequests: support, walletTransactions: walletTx,
     exchanges: exchanges.map((x) => ({ ...x, requestKey: undefined, responseKey: undefined, hasResponse: Boolean(x.responseKey) })),
     ...(b.supplier === "TRIPJACK" ? { certification: await certificationCoverage(c.env, db, b, exchanges).catch(() => null) } : {}),
-    ...(b.supplier === "AKBAR" ? { certification: await akbarCertificationCoverage(db, b).catch(() => null) } : {}),
+    ...(b.supplier === "AKBAR" ? { certification: await akbarCertificationCoverage(db, b, akbarEnvironment).catch(() => null), akbarEnvironment } : {}),
   });
 });
 
