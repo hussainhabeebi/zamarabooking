@@ -5,6 +5,7 @@
 //
 // Callers hold the booking lock (queue: handlePaymentCaptured; Admin: acquireBookingLock).
 
+import { supplierActionBlocked } from "./akbar-failed-booking.js";
 import { bookings, bookingPassengers } from "@zamrabooking/db/schema";
 import { eq } from "drizzle-orm";
 import type { AkbarToken } from "@zamrabooking/suppliers";
@@ -63,6 +64,8 @@ export async function bookOnAkbar(env: Env, db: Db, bookingId: string, opts: { t
   if (b.status !== "CONFIRMED") return { ok: false, error: b.status === "TICKETED" ? "This booking is already ticketed." : `The booking is ${b.status}; only paid (CONFIRMED) bookings are booked on Akbar.` };
   let fd = (b.flightData ?? {}) as Record<string, any>;
   if (fd.offline?.ticketing === "ISSUED") return { ok: false, error: "A ticket was already issued for this booking." };
+  const blocked = supplierActionBlocked(fd, "akbar-api");
+  if (blocked) return { ok: false, error: blocked };
 
   const collector = collectExchanges();
   const save = async (state: AkbarBookingState) => {

@@ -23,6 +23,11 @@ import { akbarBookingEnvironment, akbarCertificationCoverage, akbarCertification
 import { getAkbarSettings } from "../../lib/flight-sources.js";
 import { bookOnAkbar, refreshAkbar } from "../../lib/akbar-booking-runner.js";
 import { acquireBookingLock, releaseBookingLock } from "../../lib/booking-recovery.js";
+import { AKBAR_FAILED_AMENDMENT, canRecordRebooking, canRefundFailedAkbar, resolutionOf, supplierActionBlocked, type FailedBookingResolution } from "../../lib/akbar-failed-booking.js";
+import { settleRefund } from "../../lib/trips.js";
+import { emailCancellation } from "../../lib/transactional-emails.js";
+import { auditLogs } from "@zamrabooking/db/schema";
+import { sql } from "drizzle-orm";
 
 export const bookingsAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -299,8 +304,105 @@ bookingsAdminRoutes.post("/:id/issue-ticket", zValidator("json", z.object({
   if (b.status !== "CONFIRMED" && b.status !== "TICKETED") {
     throw new HTTPException(400, { message: b.status === "PAYMENT_PENDING" ? "The customer hasn't paid for this booking yet." : `This booking is ${b.status}.` });
   }
+  const blocked = supplierActionBlocked(b.flightData as Record<string, any> | null, "issue-ticket");
+  if (blocked) throw new HTTPException(409, { message: blocked });
   const { pnr, supplierRef } = c.req.valid("json");
   const ticketNumbers = c.req.valid("json").ticketNumbers.filter(Boolean);
   const { firstIssue } = await issueOfflineTicket(c.env, c.get("db"), b, { pnr, ticketNumbers, supplierRef, issuedBy: c.get("userId") ?? null, source: "staff" });
   return c.json({ ok: true, pnr, ticketNumbers, emailed: firstIssue });
+});
+
+// ── Paid – Booking failed (Akbar) ─────────────────────────────────────────────
+// Paid Akbar bookings whose Akbar run stopped before Akbar was paid (lib/akbar-failed-booking.ts).
+// Staff choose once: refund (existing refund engine, original payment method) or a customer-approved
+// rebooking arranged on Akbar's portal. Admins only; the booking lock and an atomic claim on the
+// booking row prevent a second refund, a refund racing an Akbar run, or a refund + rebooking.
+const refundAdminOnly = (role: string | undefined) => {
+  if (role !== "SUPER_ADMIN" && role !== "TENANT_ADMIN") throw new HTTPException(403, { message: "Only admins can refund or rebook a paid booking." });
+};
+
+// Claims offline.resolution on the booking row in one statement: only one caller can win.
+async function claimResolution(db: any, bookingId: string, resolution: FailedBookingResolution, allowOver: "REBOOK" | null) {
+  const value = JSON.stringify(resolution);
+  const [row] = await db.update(bookings).set({
+    flightData: sql`jsonb_set(coalesce(${bookings.flightData}, '{}'::jsonb), '{offline}', coalesce(${bookings.flightData}->'offline', '{}'::jsonb) || jsonb_build_object('resolution', ${value}::jsonb))`,
+    updatedAt: new Date(),
+  }).where(and(eq(bookings.id, bookingId), eq(bookings.status, "CONFIRMED"),
+    allowOver
+      ? sql`(${bookings.flightData}->'offline'->'resolution' IS NULL OR ${bookings.flightData}->'offline'->'resolution'->>'type' = ${allowOver})`
+      : sql`${bookings.flightData}->'offline'->'resolution' IS NULL`)).returning({ id: bookings.id });
+  return Boolean(row);
+}
+
+async function audit(db: any, tenantId: string, userId: string | null, action: string, bookingId: string, before: unknown, after: unknown, metadata: Record<string, unknown>) {
+  await db.insert(auditLogs).values({ tenantId, userId, action, entity: "Booking", entityId: bookingId, before, after, metadata }).catch((err: unknown) => console.error("[audit]", err));
+}
+
+bookingsAdminRoutes.post("/:id/akbar/refund", zValidator("json", z.object({
+  reason: z.string().trim().min(5).max(500),
+  amount: z.number().positive().optional(),   // default: the full amount paid
+})), async (c) => {
+  refundAdminOnly(c.get("userRole"));
+  const db = c.get("db");
+  const b = await loadBooking(c, c.req.param("id"));
+  const { reason } = c.req.valid("json");
+  const amount = Math.round((c.req.valid("json").amount ?? Number(b.totalAmount)) * 100) / 100;
+  const userId = c.get("userId") ?? null;
+  if (!(await acquireBookingLock(c.env, b.id))) return c.json({ ok: false, error: "Another action is already running on this booking." }, 409);
+  try {
+    const amendments = await db.select().from(bookingAmendments).where(eq(bookingAmendments.bookingId, b.id));
+    const check = canRefundFailedAkbar(b as any, amendments, amount);
+    if (!check.ok) return c.json({ ok: false, error: check.reason }, 409);
+    const resolution: FailedBookingResolution = { type: "REFUND", by: userId, at: new Date().toISOString(), reason, amount };
+    if (!(await claimResolution(db, b.id, resolution, "REBOOK"))) return c.json({ ok: false, error: "This booking was resolved by someone else just now — reload." }, 409);
+    const [amendment] = await db.insert(bookingAmendments).values({
+      tenantId: b.tenantId, bookingId: b.id, userId: b.userId, type: AKBAR_FAILED_AMENDMENT, status: "SUCCESS", supplier: "AKBAR",
+      supplierStatus: "AKBAR_BOOKING_FAILED", amountPaid: String(b.totalAmount), refundAmount: amount.toFixed(2), currency: b.currency,
+      refundStatus: "PENDING", adminNote: `${resolution.at.slice(0, 16)} REFUND by ${userId ?? "admin"}: ${reason}`,
+    }).returning();
+    await db.update(bookings).set({
+      flightData: sql`jsonb_set(${bookings.flightData}, '{offline,resolution,amendmentId}', to_jsonb(${amendment.id}::text))`, updatedAt: new Date(),
+    }).where(eq(bookings.id, b.id));
+    await logBookingEvent(c.env, b.id, "REFUND", "info", `Refund of ${amount.toFixed(2)} ${b.currency} started by staff (Akbar booking failed): ${reason}`, { amendmentId: amendment.id, userId });
+
+    // The refund itself: original payment method, once (settleRefund claims PENDING → PROCESSING).
+    const settled = await settleRefund(db, c.env, amendment) ?? amendment;
+    if (settled.refundStatus === "DONE" && ["WALLET", "AGENT_WALLET"].includes(settled.refundMethod)) {
+      c.executionCtx.waitUntil(emailCancellation(c.env, db, settled, "REFUNDED"));   // card refunds: settleRefund emails
+    }
+    await logBookingEvent(c.env, b.id, "REFUND", settled.refundStatus === "DONE" ? "info" : "warn",
+      settled.refundStatus === "DONE" ? `Refund paid via ${settled.refundMethod} (${settled.refundReference ?? ""}); booking REFUNDED`
+        : `Refund ${settled.refundStatus}${settled.refundError ? `: ${settled.refundError}` : ""} — finish it in Admin → Cancellations; the booking stays paid until then`,
+      { amendmentId: settled.id, refundMethod: settled.refundMethod });
+    await audit(db, b.tenantId, userId, "AKBAR_FAILED_BOOKING_REFUND", b.id,
+      { status: b.status, resolution: resolutionOf(b.flightData as any) },
+      { amendmentId: settled.id, refundStatus: settled.refundStatus, refundMethod: settled.refundMethod, refundReference: settled.refundReference, refundAmount: settled.refundAmount },
+      { reason, amount, currency: b.currency });
+    return c.json({ ok: true, refund: { id: settled.id, status: settled.refundStatus, method: settled.refundMethod, reference: settled.refundReference, error: settled.refundError, amount: settled.refundAmount } });
+  } finally {
+    await releaseBookingLock(c.env, b.id);
+  }
+});
+
+bookingsAdminRoutes.post("/:id/akbar/rebook", zValidator("json", z.object({
+  note: z.string().trim().min(5).max(500),   // what the customer approved (flight / class / price difference)
+})), async (c) => {
+  refundAdminOnly(c.get("userRole"));
+  const db = c.get("db");
+  const b = await loadBooking(c, c.req.param("id"));
+  const { note } = c.req.valid("json");
+  const userId = c.get("userId") ?? null;
+  if (!(await acquireBookingLock(c.env, b.id))) return c.json({ ok: false, error: "Another action is already running on this booking." }, 409);
+  try {
+    const amendments = await db.select().from(bookingAmendments).where(eq(bookingAmendments.bookingId, b.id));
+    const check = canRecordRebooking(b as any, amendments);
+    if (!check.ok) return c.json({ ok: false, error: check.reason }, 409);
+    const resolution: FailedBookingResolution = { type: "REBOOK", by: userId, at: new Date().toISOString(), reason: note };
+    if (!(await claimResolution(db, b.id, resolution, null))) return c.json({ ok: false, error: "This booking was resolved by someone else just now — reload." }, 409);
+    await logBookingEvent(c.env, b.id, "BOOK", "info", `Customer-approved rebooking recorded by staff: ${note} — book it on Akbar's portal, then "Issue ticket"`, { userId });
+    await audit(db, b.tenantId, userId, "AKBAR_FAILED_BOOKING_REBOOK", b.id, { status: b.status, resolution: null }, { resolution }, { note });
+    return c.json({ ok: true, resolution });
+  } finally {
+    await releaseBookingLock(c.env, b.id);
+  }
 });

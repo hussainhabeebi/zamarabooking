@@ -160,7 +160,7 @@ export default function BookingDetailPage() {
         <div style={errBox}><b>Airline booking failed:</b> {data.queueError.message}</div>
       )}
       {notice && <div style={okBox}>{notice}</div>}
-      {b.supplier === "AKBAR" && <AkbarApiBooking booking={b} onDone={(m) => { setNotice(m); load(); }} />}
+      {b.supplier === "AKBAR" && <AkbarApiBooking booking={b} refunds={data.cancellations ?? []} onDone={(m) => { setNotice(m); load(); }} />}
       {offline && <IssueTicket key={`${b.status}-${b.pnr ?? ""}`} booking={b} passengers={data.passengers} onDone={(m) => { setNotice(m); load(); }} />}
 
       {tab === "overview" && (
