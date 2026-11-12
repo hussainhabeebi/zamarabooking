@@ -189,6 +189,7 @@ export interface AkbarLegState {
   paymentSentAt?: string;
   status?: "Success" | "Failed" | "";
   startPay?: { code: string; message: string };   // StartPay's own Code / Msg (6033 "BOOKING INPROGRESS !" is normal)
+  startPayRefusedAt?: string;                      // StartPay refused for the deposit balance (nothing charged)
   failureReason?: string;                          // RetrieveBooking BookingFailureReason / Reason, as Akbar wrote it
   paymentStatus?: string;                          // GetItineraryStatus PaymentStatus, as Akbar wrote it
   bookingStatus?: string;                          // RetrieveBooking Status code (e.g. "BO1"), as Akbar wrote it
@@ -349,9 +350,26 @@ export async function akbarPrepaymentCheck(deps: AkbarEngineDeps, input: Pick<Ak
 // then RetrieveBooking for the PNR / tickets. Read-only; safe to repeat.
 const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).trim() : "");
 
+// StartPay refused because the agency's Akbar deposit can't cover it — production answers
+// Code 2200 "Insufficient SubUserBalance", and Akbar confirms nothing is charged. The itinerary stays
+// created but unpaid; after the deposit is recharged, "Continue Akbar booking" sends StartPay again
+// for the same TransactionID (Akbar: "recharge your account, and retry the bookings").
+export const startPayRefusedForBalance = (sp?: { code: string; message: string } | null) =>
+  !!sp && (sp.code === "2200" || /insufficient\s*(sub\s*user\s*)?balance/i.test(sp.message));
+
+function balanceRefused(l: AkbarLegState, at: string): AkbarLegState {
+  const { paymentSentAt: _sent, ...rest } = l;
+  return {
+    ...rest, state: "ITINERARY_CREATED", startPayRefusedAt: l.startPayRefusedAt ?? at, errorCode: "INSUFFICIENT_BALANCE",
+    message: `Akbar refused StartPay: "${l.startPay?.message || "insufficient balance"}" (Code ${l.startPay?.code ?? "?"}) — nothing was charged. Recharge the Akbar deposit, then "Continue Akbar booking" pays this itinerary again.`,
+  };
+}
+
 export async function checkAkbarLeg(deps: AkbarEngineDeps, call: ReturnType<typeof authed>, l: AkbarLegState, deadlineMs = 60_000): Promise<AkbarLegState> {
   const now = () => (deps.now ?? (() => new Date()))().toISOString();
   if (!l.transactionId) return l;
+  // A leg that was stuck before this check existed: StartPay had been refused for the balance.
+  if (startPayRefusedForBalance(l.startPay) && !l.pnrs?.length) return balanceRefused(l, now());
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const started = Date.now();
   let status: "Success" | "Failed" | "" = "";
@@ -482,12 +500,18 @@ export async function runAkbarBooking(deps: AkbarEngineDeps, input: AkbarEngineI
     }
 
     // 4. StartPay — saved as sent BEFORE the call, so no later run can send it again.
-    l = { ...l, state: "PAYMENT_SENT", paymentSentAt: now() };
+    l = { ...l, state: "PAYMENT_SENT", paymentSentAt: now(), errorCode: undefined, message: undefined };
     await put(l);   // throws if the state can't be saved → StartPay is not sent
     await deps.log("info", `Akbar leg ${i + 1}: StartPay for transaction ${l.transactionId} (₹${l.itineraryNetAmount})`);
     try {
       const pay = await call((t) => deps.client.startPay({ transactionId: l.transactionId!, netAmount: l.itineraryNetAmount!, tui: l.itineraryTui! }, t));
       l = { ...l, startPay: { code: String((pay as any)?.Code ?? ""), message: akbarMessages(pay) } };
+      if (startPayRefusedForBalance(l.startPay)) {
+        l = balanceRefused(l, now());
+        await put(l);
+        await deps.log("error", `Akbar leg ${i + 1}: ${l.message}`, { transactionId: l.transactionId, startPay: l.startPay });
+        break;
+      }
       if (!akbarOk(pay)) await deps.log("warn", `StartPay answered Code ${l.startPay!.code}: ${l.startPay!.message} — checking the itinerary status`);
     } catch (err) {
       await deps.log("warn", `StartPay outcome unknown (${msgOf(err)}) — checking the itinerary status; StartPay will not be resent`);
