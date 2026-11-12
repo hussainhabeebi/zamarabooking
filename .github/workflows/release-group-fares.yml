@@ -34,7 +34,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message)'
         required: true
-        default: '5becc6377beb1d1f7b9f8e40d2d43d401638e5e8'
+        # PR #58 release (API version 88a19295). Update after every API release.
+        default: '8528395e815e50845278f5647eeb7f50b41990f6'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true
@@ -42,7 +43,8 @@ on:
       admin_files_base_sha:
         description: 'Commit whose Akbar Admin files are live (deploy message "Akbar-API-booking-admin-<sha>-on-<admin_base_sha>")'
         required: true
-        default: '5841f248b659c2ae90ed3bdbbde5f422da814f29'
+        # PR #58 release (Admin version 6d5c46b9). Update after every Admin release.
+        default: '8528395e815e50845278f5647eeb7f50b41990f6'
       pr_base_sha:
         description: 'Group fares PR base commit'
         required: true
@@ -93,6 +95,8 @@ env:
     apps/admin/app/(dashboard)/manual-fares/page.tsx
     apps/admin/app/(dashboard)/bookings/[id]/page.tsx
   # Live Akbar Admin files (release-akbar-booking.yml), restored at admin_files_base_sha.
+  # Group fares Admin page as it is live (Group-fares-admin-<this>-on-… or kept by the Akbar release).
+  GROUP_FARES_ADMIN_SHA: e675b92c912a5601236478a2984878a3df53b3a1
   AKBAR_ADMIN_FILES: >-
     apps/admin/app/(dashboard)/bookings/[id]/AkbarApiBooking.tsx
     apps/admin/app/(dashboard)/bookings/[id]/page.tsx
@@ -270,9 +274,13 @@ jobs:
                   blocks[-1]["top"] = line[len("Message:"):].strip()
               elif blocks and line.strip().startswith("Message:"):
                   blocks[-1]["versions"].append(line.strip()[len("Message:"):].strip())
-          ours = [i for i, b in enumerate(blocks) if b["top"] and live in b["top"]]
+          # The live code must have been built FROM api_base_sha ("… <api_base_sha> on <older base>"), not
+          # merely mention it as the older base — else a release from a stale default would silently undo
+          # whatever was deployed on top of it.
+          built_from = re.compile(r"(?:^|\s)" + re.escape(live) + r" on [0-9a-f]{7,40}$")
+          ours = [i for i, b in enumerate(blocks) if b["top"] and built_from.search(b["top"])]
           if not ours:
-              sys.exit(f"::error::No deployment of the expected baseline {live} in the recent list. Re-check api_base_sha.")
+              sys.exit(f"::error::The live zamra-api was not built from api_base_sha {live} (latest: {blocks[-1]['top'] if blocks else '?'}). Use the commit in the latest deploy message (\"… <commit> on …\").")
           later = blocks[ours[-1] + 1:]
           secret = re.compile(r"^(Add|Added|Update|Updated|Delete|Deleted) secrets?: ")
           for b in later:
@@ -311,6 +319,8 @@ jobs:
           git checkout --detach "$LIVE"
           # The live Admin: admin_base_sha + the Akbar Admin files as they were at FILES_BASE.
           git checkout "$FILES_BASE" -- $AKBAR_ADMIN_FILES
+          # …and the Group fares Admin page as it is live, so this PR's patch applies to the live version.
+          git checkout "$GROUP_FARES_ADMIN_SHA" -- "apps/admin/app/(dashboard)/manual-fares/page.tsx"
           git -c user.name=release -c user.email=release@localhost commit -q --allow-empty -m "live admin"
           git apply --index "$RUNNER_TEMP/admin.patch"
           git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
@@ -341,7 +351,11 @@ jobs:
           tail -25 "$RUNNER_TEMP/deployments.txt"
           latest=$(grep '^Message:' "$RUNNER_TEMP/deployments.txt" | tail -1)
           echo "Latest deployment: $latest"
-          case "$latest" in *"$FILES_BASE-on-$LIVE"*) ;; *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE — someone deployed since. Re-check the inputs."; exit 1;; esac
+          case "$latest" in
+            *" Akbar-API-booking-admin-$FILES_BASE-on-$LIVE") ;;
+            *" Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-$FILES_BASE-on-$LIVE") ;;
+            *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE (or Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-…) — someone deployed since. Re-check the inputs."; exit 1;;
+          esac
           echo "ROLLBACK TARGET (zamra-admin): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
       - name: Deploy zamra-admin
         working-directory: apps/admin

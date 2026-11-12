@@ -32,8 +32,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message "… <sha> on …")'
         required: true
-        # Live API = this commit's tree (group fares in search, PR #68, API version 5bc713e6).
-        default: '5becc6377beb1d1f7b9f8e40d2d43d401638e5e8'
+        # Live API = this commit's tree (PR #58 release, API version 88a19295). Update after every release.
+        default: '8528395e815e50845278f5647eeb7f50b41990f6'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true
@@ -48,7 +48,8 @@ on:
       admin_files_base_sha:
         description: 'Admin only: commit whose Akbar Admin files are live (deploy message "Akbar-API-booking-admin-<sha>-on-…"); blank = pr_base_sha'
         required: false
-        default: ''
+        # PR #58 release (Admin version 6d5c46b9). Update after every Admin release.
+        default: '8528395e815e50845278f5647eeb7f50b41990f6'
       api_rollback_version:
         description: 'rollback only: zamra-api version ID to restore'
         required: false
@@ -225,9 +226,13 @@ jobs:
                   blocks[-1]["top"] = line[len("Message:"):].strip()
               elif blocks and line.strip().startswith("Message:"):
                   blocks[-1]["versions"].append(line.strip()[len("Message:"):].strip())
-          ours = [i for i, b in enumerate(blocks) if b["top"] and live in b["top"]]
+          # The live code must have been built FROM api_base_sha ("… <api_base_sha> on <older base>"), not
+          # merely mention it as the older base — else a release from a stale default would silently undo
+          # whatever was deployed on top of it.
+          built_from = re.compile(r"(?:^|\s)" + re.escape(live) + r" on [0-9a-f]{7,40}$")
+          ours = [i for i, b in enumerate(blocks) if b["top"] and built_from.search(b["top"])]
           if not ours:
-              sys.exit(f"::error::No deployment of the expected baseline {live} in the recent list. Re-check api_base_sha.")
+              sys.exit(f"::error::The live zamra-api was not built from api_base_sha {live} (latest: {blocks[-1]['top'] if blocks else '?'}). Use the commit in the latest deploy message (\"… <commit> on …\").")
           later = blocks[ours[-1] + 1:]
           secret = re.compile(r"^(Add|Added|Update|Updated|Delete|Deleted) secrets?: ")
           for b in later:
@@ -309,7 +314,13 @@ jobs:
           if [ -n "$FILES_BASE" ]; then
             latest=$(grep '^Message:' "$RUNNER_TEMP/deployments.txt" | tail -1)
             echo "Latest deployment: $latest"
-            case "$latest" in *"$FILES_BASE-on-$LIVE"*) ;; *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE — someone deployed since. Re-check the inputs."; exit 1;; esac
+            # Exactly the expected release: the Akbar Admin files at FILES_BASE (and, if Group fares Admin was
+            # released last, its files at GROUP_FARES_ADMIN_SHA, which this build restores). Anything else refuses.
+            case "$latest" in
+              *" Akbar-API-booking-admin-$FILES_BASE-on-$LIVE") ;;
+              *" Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-$FILES_BASE-on-$LIVE") ;;
+              *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE (or Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-…) — someone deployed since. Re-check the inputs."; exit 1;;
+            esac
           fi
           echo "ROLLBACK TARGET (zamra-admin): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
       - name: Deploy zamra-admin
