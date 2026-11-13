@@ -401,7 +401,8 @@ export default function BookPage() {
       setReviewLoading(true);
       fetch(`${apiUrl}/api/book/review`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
-        body: JSON.stringify({ priceIds, ...(q.get("sid") ? { searchId: q.get("sid") } : {}) }),
+        // Travellers, so the reviewed price includes the per-passenger markup for all of them.
+        body: JSON.stringify({ priceIds, adults, children, infants, ...(q.get("sid") ? { searchId: q.get("sid") } : {}) }),
       })
         .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(d.error ?? "We couldn't confirm availability."), { code: d.errorCode }); return d as Review; })
         .then((d) => { setReview(d); setFare((f) => f && fillFromReview(f, d)); if (d.conditions.gstMandatory) setUseGst(true); })
