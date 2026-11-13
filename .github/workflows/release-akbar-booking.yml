@@ -137,6 +137,7 @@ env:
     scripts/akbar-uat-check.ts
     .github/workflows/log-export-checks.yml
     .github/workflows/release-akbar-booking.yml
+    .github/workflows/release-group-fares.yml
 
 jobs:
   verify:
