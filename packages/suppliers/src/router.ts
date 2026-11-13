@@ -45,6 +45,9 @@ export interface SupplierDiagnostic {
   errorCode?:       string;
   errorMessage?:    string;
   responseSnippet?: string;
+  // The supplier answered but hadn't finished (e.g. Akbar not "Completed" by the deadline): the
+  // fares are real but possibly not all of them — such a search is not cached.
+  incomplete?:      boolean;
 }
 
 function diagnosticFromError(err: unknown, durationMs: number): SupplierDiagnostic {
@@ -198,7 +201,8 @@ export async function searchFares(
       try {
         const adapter = buildAdapter(config, platform);
         const fares   = await searchWithTimeout(adapter, params, config.timeoutMs, config.maxRetries);
-        diagnostics[config.name] = { ok: true, fareCount: fares.length, durationMs: Date.now() - startedAt };
+        const incomplete = (adapter as { incomplete?: boolean }).incomplete === true;
+        diagnostics[config.name] = { ok: true, fareCount: fares.length, durationMs: Date.now() - startedAt, ...(incomplete ? { incomplete } : {}) };
         return { supplier: config.name, fares };
       } catch (err) {
         diagnostics[config.name] = diagnosticFromError(err, Date.now() - startedAt);

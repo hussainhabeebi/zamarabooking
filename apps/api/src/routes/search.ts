@@ -536,7 +536,10 @@ async function runSearch(
   // Cache is an optimization only. Never fail the customer request because KV failed.
   c.executionCtx.waitUntil((async () => {
     try {
-      if (pricedFares.length > 0 && !hasErrors) {
+      // A supplier that hadn't finished (Akbar not "Completed"): don't repeat a partial list to the next
+      // customers for 5 minutes — their search asks again.
+      const incomplete = Object.values(result.diagnostics ?? {}).some((d) => d.incomplete);
+      if (pricedFares.length > 0 && !hasErrors && !incomplete) {
         await c.env.FARE_CACHE_KV.put(cacheKey, JSON.stringify(response), { expirationTtl: 300 });
       } else {
         await c.env.FARE_CACHE_KV.delete(cacheKey);

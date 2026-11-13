@@ -163,6 +163,9 @@ export class AkbarAdapter implements SupplierAdapter {
   private getToken: (fresh?: boolean) => Promise<AkbarToken>;
   private mode: "SY" | "AS" = "SY";
   private roundTrip = false;
+  // Set when an Akbar search ended before Akbar reported it Completed (deadline / failed poll): the
+  // fares returned are real but may not be all of them, so the search must not be cached.
+  incomplete = false;
 
   constructor(credentials: SupplierCredentials) {
     this.client = new AkbarClient(credentials as unknown as AkbarCredentials);
@@ -212,6 +215,7 @@ export class AkbarAdapter implements SupplierAdapter {
     const results = [{ r: rt, fareType: "RT" as const }, ...(rs ? [{ r: rs, fareType: "RS" as const }] : [])];
     const out: NormalizedFare[] = [];
     for (const { r, fareType } of results) {
+      if (!r.finished) this.incomplete = true;
       const fares = normalizeAkbarRoundTrip(r.data, params.cabinClass, fareType);
       const tui = r.tui || searchTui(r.data);
       const budget = Math.min(8_000, 26_000 - (Date.now() - started));
@@ -234,6 +238,7 @@ export class AkbarAdapter implements SupplierAdapter {
       token = await this.getToken(true);
       return this.client.search(params, token, opts);
     });
+    if (!result.finished) this.incomplete = true;
     const fares = normalizeAkbarSearch(result.data, params.cabinClass);
     // API booking on (certification): WebSettings for this search's TUI, right after the search.
     // Its Settings (Key → Value, as Akbar sent them) ride on each fare (raw.webSettings) to the

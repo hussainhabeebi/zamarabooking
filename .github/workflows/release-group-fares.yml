@@ -34,8 +34,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message)'
         required: true
-        # PR #72 release (API version cd7499cf). Update after every API release.
-        default: 'b7451d5b25dcb49ba6a7fc1ee0aae82a1a0d09e9'
+        # PR #73 release (API version f28d0124). Update after every API release.
+        default: 'f88d6bdc5b58d9ebceb4351fc30579ffd1084c86'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true
@@ -43,8 +43,8 @@ on:
       admin_files_base_sha:
         description: 'Commit whose Akbar Admin files are live (deploy message "Akbar-API-booking-admin-<sha>-on-<admin_base_sha>")'
         required: true
-        # PR #58 release (Admin version 6d5c46b9). Update after every Admin release.
-        default: '8528395e815e50845278f5647eeb7f50b41990f6'
+        # PR #73 release (Admin version c509f556). Update after every Admin release.
+        default: 'f88d6bdc5b58d9ebceb4351fc30579ffd1084c86'
       pr_base_sha:
         description: 'Group fares PR base commit'
         required: true
