@@ -45,7 +45,8 @@ export async function sweepFareAlerts(env: Env) {
         cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: currency as "INR" | "AED" | "USD",
       };
       const result = await searchFares(params, setup.supplierConfigs, { platformCredentials: setup.platformCredentials });
-      const priced = result.fares.map((f) => ({ ...f, displayPrice: applyMarkup(f, setup.rules) }));
+      // Alerts are per adult: priced for 1 passenger, one way.
+      const priced = result.fares.map((f) => ({ ...f, displayPrice: applyMarkup(f, setup.rules, { pax: { adults: 1 } }) }));
       checked++;
       const due = await recordFareObservation(kv, tenantId, { ...params, fareType: "REGULAR" }, priced);
       if (due.length) await sendFareAlerts(env, db, due);

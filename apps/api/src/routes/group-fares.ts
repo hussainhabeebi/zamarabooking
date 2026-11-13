@@ -58,7 +58,7 @@ function publicFare(row: Row) {
 async function priceFor(c: { get: (k: "db") => Variables["db"]; env: Env }, tenantId: string, row: Row, pax: { adults: number; children: number; infants: number }) {
   const fare = manualFareToNormalized(row, pax, await inrConverter(c.env, tenantId));
   if (!fare) return null;
-  const total = await customerPrice(c.get("db"), tenantId, fare.totalFare, { origin: fare.origin, destination: fare.destination, supplier: "MANUAL", airline: fare.airline });
+  const total = await customerPrice(c.get("db"), tenantId, fare.totalFare, { origin: fare.origin, destination: fare.destination, supplier: "MANUAL", airline: fare.airline, cabinClass: fare.cabinClass }, null, { pax });
   return { total, currency: "INR" as const, fare };
 }
 

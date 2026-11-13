@@ -22,7 +22,7 @@ const optionalCode = z.string().trim().toUpperCase().transform((v) => v || null)
 const ruleSchema = z.object({
   name:        z.string().trim().min(1).max(120),
   agentId:     z.string().nullable().optional(),
-  markupType:  z.enum(["FLAT", "PERCENTAGE"]),
+  markupType:  z.enum(["FLAT", "FLAT_PER_PAX", "PERCENTAGE"]),   // FLAT_PER_PAX: per passenger, once per journey
   markupValue: z.number().min(0).max(1_000_000),
   airline:     optionalCode,
   origin:      optionalCode,

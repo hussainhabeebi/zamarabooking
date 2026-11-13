@@ -13,7 +13,7 @@ interface Rule {
   id:          string;
   name:        string;
   agentId:     string | null;
-  markupType:  "FLAT" | "PERCENTAGE";
+  markupType:  "FLAT" | "FLAT_PER_PAX" | "PERCENTAGE";
   markupValue: string;
   airline:     string | null;
   origin:      string | null;
@@ -27,7 +27,7 @@ interface Rule {
 }
 
 const EMPTY_FORM = {
-  name: "", agentId: "", markupType: "FLAT" as "FLAT" | "PERCENTAGE", markupValue: "",
+  name: "", agentId: "", markupType: "FLAT_PER_PAX" as "FLAT" | "FLAT_PER_PAX" | "PERCENTAGE", markupValue: "",
   airline: "", origin: "", destination: "", cabinClass: "", supplier: "",
   validFrom: "", validTo: "", isActive: true, priority: "0",
 };
@@ -193,11 +193,12 @@ export default function MarkupPage() {
             </Field>
             <Field label="Markup type">
               <select value={form.markupType} onChange={(e) => set("markupType", e.target.value as Form["markupType"])} style={inputStyle}>
-                <option value="FLAT">Flat amount</option>
+                <option value="FLAT_PER_PAX">Flat amount per passenger</option>
+                <option value="FLAT">Flat amount per booking</option>
                 <option value="PERCENTAGE">Percentage of fare</option>
               </select>
             </Field>
-            <Field label={form.markupType === "FLAT" ? "Amount (per booking)" : "Percentage (%)"}>
+            <Field label={form.markupType === "FLAT_PER_PAX" ? "Amount per passenger (adult, child or infant), once per journey" : form.markupType === "FLAT" ? "Amount (per booking)" : "Percentage (%)"}>
               <input required type="number" min="0" step="0.01" max={form.markupType === "PERCENTAGE" ? 100 : undefined}
                 value={form.markupValue} onChange={(e) => set("markupValue", e.target.value)} style={inputStyle} />
             </Field>
@@ -293,7 +294,7 @@ export default function MarkupPage() {
                     <td style={{ ...td, color: "#f1f5f9", fontWeight: 600 }}>{r.name}</td>
                     <td style={{ ...td, color: scope.color }}>{scope.text}</td>
                     <td style={{ ...td, color: "#f1f5f9", fontWeight: 700 }}>
-                      {r.markupType === "FLAT" ? `+ ${Number(r.markupValue).toLocaleString("en-IN")}` : `+ ${Number(r.markupValue)}%`}
+                      {r.markupType === "FLAT_PER_PAX" ? `+ ${Number(r.markupValue).toLocaleString("en-IN")} / passenger` : r.markupType === "FLAT" ? `+ ${Number(r.markupValue).toLocaleString("en-IN")} / booking` : `+ ${Number(r.markupValue)}%`}
                     </td>
                     <td style={{ ...td, color: "#94a3b8" }}>{conditions}</td>
                     <td style={{ ...td, color: "#94a3b8" }}>{r.priority}</td>

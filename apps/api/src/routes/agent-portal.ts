@@ -279,17 +279,22 @@ agentPublicRoutes.post("/site/:slug/prices", zValidator("json", z.object({
   fares: z.array(z.object({
     id: z.string(), totalFare: z.number().positive(), displayPrice: z.number().positive().optional(),
     airline: z.string().optional(), origin: z.string().optional(), destination: z.string().optional(), supplier: z.string().optional(),
+    cabinClass: z.string().optional(), tripKey: z.string().optional(),
   })).max(200),
+  // Travellers the fares were searched for (per-passenger markup); default 1 adult.
+  adults: z.number().int().min(1).max(9).optional(), children: z.number().int().min(0).max(9).optional(), infants: z.number().int().min(0).max(4).optional(),
 })), async (c) => {
   const db = c.get("db");
   const tenantId = c.get("tenantId");
   const a = await siteAgent(db, tenantId, c.req.param("slug"));
   if (!a) return c.json({ error: "Agency page not found" }, 404);
-  const { applyMarkup } = await import("../lib/markup.js");
+  const { applyMarkup, isJourneyContinuation } = await import("../lib/markup.js");
   const rules = await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId));
   const pricing = await agentPricing(c.env, db, tenantId, a.id);
-  const prices = c.req.valid("json").fares.map((f) => {
-    const company = applyMarkup({ ...f, cabinClass: "ECONOMY" } as never, rulesFor(rules, a.id));
+  const body = c.req.valid("json");
+  const pax = { adults: body.adults ?? 1, children: body.children ?? 0, infants: body.infants ?? 0 };
+  const prices = body.fares.map((f) => {
+    const company = applyMarkup({ ...f, cabinClass: f.cabinClass ?? "ECONOMY" } as never, rulesFor(rules, a.id), { pax, continuation: isJourneyContinuation(f.tripKey) });
     return { id: f.id, price: pricing.price(company).selling };
   });
   return c.json({ prices });

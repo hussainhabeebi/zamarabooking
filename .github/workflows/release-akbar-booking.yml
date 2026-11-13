@@ -32,8 +32,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message "… <sha> on …")'
         required: true
-        # Live API = this commit's tree (PR #58 release, API version 88a19295). Update after every release.
-        default: '8528395e815e50845278f5647eeb7f50b41990f6'
+        # Live API = this commit's tree (PR #72 release, API version cd7499cf). Update after every release.
+        default: 'b7451d5b25dcb49ba6a7fc1ee0aae82a1a0d09e9'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true
@@ -94,6 +94,12 @@ env:
     apps/api/src/lib/akbar-trace.ts
     apps/api/src/lib/akbar-failed-booking.ts
     apps/api/src/lib/akbar-auto-check.ts
+    apps/api/src/lib/markup.ts
+    apps/api/src/lib/fare-alert-sweep.ts
+    apps/api/src/routes/group-fares.ts
+    apps/api/src/routes/partner.ts
+    apps/api/src/routes/agent-portal.ts
+    apps/api/src/routes/admin/markup.ts
     apps/api/src/index.ts
     apps/api/src/routes/admin/supplier-logs.ts
     apps/api/test/akbar-booking.test.ts
@@ -103,6 +109,7 @@ env:
     apps/api/test/akbar-trace.test.ts
     apps/api/test/akbar-failed-booking.test.ts
     apps/api/test/akbar-auto-check.test.ts
+    apps/api/test/markup-per-pax.test.ts
     apps/api/test/fixtures/akbar-roundtrip-samples.json
     packages/suppliers/src/akbar/client.ts
     packages/suppliers/src/akbar/adapter.ts
@@ -115,6 +122,7 @@ env:
     apps/admin/app/(dashboard)/integrations/AkbarIntegration.tsx
     apps/admin/app/(dashboard)/supplier-logs/page.tsx
     apps/admin/app/(dashboard)/supplier-logs/AkbarTrace.tsx
+    apps/admin/app/(dashboard)/markup/page.tsx
   # Live since the Group fares release (PR #65, release-group-fares.yml): kept at that commit in every
   # Admin build here, so an Akbar release never takes group fares out of Admin.
   GROUP_FARES_ADMIN_SHA: e675b92c912a5601236478a2984878a3df53b3a1
@@ -129,6 +137,7 @@ env:
     scripts/akbar-uat-check.ts
     .github/workflows/log-export-checks.yml
     .github/workflows/release-akbar-booking.yml
+    .github/workflows/release-group-fares.yml
 
 jobs:
   verify:
@@ -206,6 +215,7 @@ jobs:
           apps/api/test/certification-pack.test.ts apps/api/test/log-stop-labels.test.ts apps/api/test/baggage-request.test.ts
           apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/tripjack-reviewed-total.test.ts
           apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts apps/api/test/akbar-roundtrip.test.ts apps/api/test/akbar-trace.test.ts apps/api/test/akbar-failed-booking.test.ts apps/api/test/akbar-auto-check.test.ts
+          apps/api/test/markup-per-pax.test.ts apps/api/test/group-fares.test.ts
       - name: Live zamra-api must still be the expected baseline (rollback target below)
         working-directory: apps/api
         env:
