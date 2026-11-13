@@ -429,16 +429,84 @@ test("Akbar client calls the global fetch unbound (Workers reject this-bound fet
   } finally { globalThis.fetch = realFetch; }
 });
 
-test("Akbar search stops when ExpressSearch already holds flights", async () => {
+const BOM_DEL = { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY" as const, tripType: "ONEWAY" as const, currency: "INR" as const };
+const lcc = { ...akbarJourney, Index: "6E|9", FlightNo: "6E 9", NetFare: 3990 };              // low-cost carrier, second batch
+const gds = { ...akbarJourney, Index: "WY|1", Provider: "WY", VAC: "WY", FlightNo: "WY 1" };   // first batch
+
+test("Akbar search (Mode SY) waits for Completed: the low-cost batch after the first one is included", async () => {
   const urls: string[] = [];
-  const fetchImpl = (async (url: string) => { urls.push(url); return json({ TUI: "t", Completed: false, Trips: [{ Journey: [akbarJourney] }] }); }) as unknown as typeof fetch;
-  const r = await new AkbarClient(akbarCreds, fetchImpl).search(
-    { origin: "BOM", destination: "DEL", departureDate: "2026-12-01", adults: 1, children: 0, infants: 0, cabinClass: "ECONOMY", tripType: "ONEWAY", currency: "INR" },
-    { token: "jwt", clientId: "cid" }, { sleep: async () => {} },
-  );
+  const replies = [
+    { TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] },                 // ExpressSearch: first batch only
+    { TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] },                 // still collecting
+    { TUI: "t", Completed: true, Trips: [{ Journey: [gds, lcc] }] },             // every airline answered
+  ];
+  const fetchImpl = (async (url: string) => { urls.push(url); return json(replies.shift()); }) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { sleep: async () => {} });
+  assert.equal(r.finished, true);
+  assert.equal(r.polls, 2);
+  assert.deepEqual(urls, ["https://flights.test/flights/ExpressSearch", "https://flights.test/flights/GetExpSearch", "https://flights.test/flights/GetExpSearch"]);
+  assert.deepEqual(normalizeAkbarSearch(r.data, "ECONOMY").map((f) => f.flightNumber), ["1", "9"]);
+});
+
+test("Akbar search (Mode SY): a complete first answer needs no more calls", async () => {
+  const urls: string[] = [];
+  const fetchImpl = (async (url: string) => { urls.push(url); return json({ TUI: "t", Completed: true, Trips: [{ Journey: [akbarJourney] }] }); }) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { sleep: async () => {} });
   assert.equal(r.polls, 0);
   assert.equal(r.completed, true);
+  assert.equal(r.finished, true);
   assert.deepEqual(urls, ["https://flights.test/flights/ExpressSearch"]);
+});
+
+test("Akbar search (Mode SY): a failing poll after the first batch keeps the flights, marked unfinished", async () => {
+  const fetchImpl = (async (url: string) => url.endsWith("/ExpressSearch")
+    ? json({ TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] })
+    : new Response("Gateway timeout", { status: 504 })) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { sleep: async () => {} });
+  assert.equal(r.finished, false);
+  assert.equal(r.completed, true);
+  assert.deepEqual(normalizeAkbarSearch(r.data, "ECONOMY").map((f) => f.flightNumber), ["1"]);
+});
+
+test("Akbar search (Mode SY): never past the deadline; what arrived is kept, marked unfinished", async () => {
+  const fetchImpl = (async () => json({ TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] })) as unknown as typeof fetch;
+  const started = Date.now();
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { deadlineMs: 1_400, pollIntervalMs: 50 });
+  assert.ok(Date.now() - started < 1_400, "returned before the deadline");
+  assert.ok(r.polls >= 1);
+  assert.equal(r.finished, false);
+  assert.equal(normalizeAkbarSearch(r.data, "ECONOMY").length, 1);
+});
+
+test("AkbarAdapter flags an unfinished search (not cached by /api/search) and a finished one not", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    for (const [completed, incomplete] of [[true, false], [false, true]] as const) {
+      globalThis.fetch = (async (url: string) => url.endsWith("/ExpressSearch")
+        ? json({ TUI: "t", Completed: completed, Trips: [{ Journey: [gds] }] })
+        : new Response("Gateway timeout", { status: 504 })) as unknown as typeof fetch;
+      const adapter = new AkbarAdapter({ ...akbarCreds, getToken: async () => ({ token: "jwt", clientId: "cid" }) });
+      assert.equal((await adapter.search(BOM_DEL)).length, 1);
+      assert.equal(adapter.incomplete, incomplete, `Completed ${completed}`);
+    }
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("search router: an unfinished Akbar search is flagged in the diagnostics (/api/search won't cache it)", async () => {
+  const { searchFares } = await import("@zamrabooking/suppliers");
+  const realFetch = globalThis.fetch;
+  try {
+    for (const completed of [true, false]) {
+      globalThis.fetch = (async (url: string) => url.endsWith("/ExpressSearch")
+        ? json({ TUI: "t", Completed: completed, Trips: [{ Journey: [gds] }] })
+        : new Response("Gateway timeout", { status: 504 })) as unknown as typeof fetch;
+      const r = await searchFares(BOM_DEL, [{ name: "AKBAR", isEnabled: true, priority: 1, timeoutMs: 20_000, maxRetries: 0,
+        credentials: { ...akbarCreds, getToken: async () => ({ token: "jwt", clientId: "cid" }) } as never }]);
+      assert.equal(r.fares.length, 1);
+      assert.equal(r.diagnostics?.AKBAR?.ok, true);
+      assert.equal(r.diagnostics?.AKBAR?.incomplete, completed ? undefined : true, `Completed ${completed}`);
+    }
+  } finally { globalThis.fetch = realFetch; }
 });
 
 test("a failed GetExpSearch reports what ExpressSearch answered", async () => {

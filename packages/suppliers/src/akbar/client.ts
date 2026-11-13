@@ -392,6 +392,9 @@ function pickString(data: unknown, keys: string[]): string {
   return "";
 }
 
+// Mode SY: once some flights are in hand, each further GetExpSearch poll may take at most this long.
+const SY_POLL_TIMEOUT_MS = 8_000;
+
 // Search results are complete once "Completed" is true (the docs also call it "Complete").
 export function isSearchComplete(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
@@ -593,7 +596,9 @@ export class AkbarClient {
   // answer holds no flights yet and isn't marked complete. A failed or slow follow-up keeps
   // the flights already received. `completed` is false when Akbar was still collecting fares.
   // tui: the ExpressSearch response's TUI (the one WebSettings and GetExpSearch are called with).
-  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number; tui: string }> {
+  // finished: Akbar reported the search Completed (all airlines answered). false = only the batches
+  // received before the deadline, or before a GetExpSearch failed (results kept; not to be cached).
+  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number; tui: string; finished: boolean }> {
     const { pollIntervalMs = 2000, deadlineMs = 45_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
     const mode = opts.fareType ? "AS" : opts.mode ?? "SY";
     const started = Date.now();
@@ -628,19 +633,27 @@ export class AkbarClient {
         if (hasJourneys(data)) best = data;
       }
       const result = hasJourneys(data) ? data : best ?? data;
-      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui };
+      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data) };
     }
 
-    while (!isSearchComplete(data) && !hasJourneys(data) && tui && left() > pollIntervalMs + 1000) {
+    // Mode SY: ExpressSearch can answer with Akbar's first batch only (full-service carriers usually
+    // first, low-cost carriers later) and Completed false. Keep asking GetExpSearch until Akbar says
+    // Completed or the deadline, keeping the latest response with flights. Once flights are in hand a
+    // slow / failed GetExpSearch never loses them: each further poll gets at most SY_POLL_TIMEOUT_MS.
+    let best: unknown = hasJourneys(first) ? first : null;
+    while (!isSearchComplete(data) && tui && left() > pollIntervalMs + 1000) {
       await sleep(pollIntervalMs);
       try {
-        data = await this.getExpSearch(tui, auth, left());
+        data = await this.getExpSearch(tui, auth, best ? Math.min(left(), SY_POLL_TIMEOUT_MS) : left());
       } catch (err) {
         if (!(err instanceof AkbarError)) throw err;
+        if (best) break;              // keep the flights already received
         throw failed(err);
       }
       polls++;
+      if (hasJourneys(data)) best = data;
     }
-    return { data, completed: isSearchComplete(data) || hasJourneys(data), polls, tui };
+    const result = hasJourneys(data) ? data : best ?? data;
+    return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data) };
   }
 }
