@@ -154,8 +154,12 @@ bookDirectRoutes.use("/", async (c, next) => {
 bookDirectRoutes.post("/review", zValidator("json", z.object({
   priceIds: z.array(z.string().min(1)).min(1).max(6),
   searchId: z.string().uuid().optional(),
+  // Travellers the fare is for (per-passenger markup of displayTotal); default 1 adult.
+  adults:   z.number().int().min(1).max(9).optional(),
+  children: z.number().int().min(0).max(9).optional(),
+  infants:  z.number().int().min(0).max(4).optional(),
 })), async (c) => {
-  const { priceIds, searchId } = c.req.valid("json");
+  const { priceIds, searchId, adults, children, infants } = c.req.valid("json");
   const db = c.get("db");
   const tenantId = c.get("tenantId");
   const requestId = crypto.randomUUID();
@@ -182,7 +186,8 @@ bookDirectRoutes.post("/review", zValidator("json", z.object({
     // the link (e.g. WhatsApp / Leadvyne hand-offs).
     const first = summary.segments[0], last = summary.segments[summary.segments.length - 1];
     const displayTotal = summary.totalFare
-      ? await customerPrice(db, tenantId, summary.totalFare, { origin: first?.origin ?? "", destination: last?.destination ?? "", supplier: "TRIPJACK", airline: summary.airline ?? first?.airline ?? "" })
+      ? await customerPrice(db, tenantId, summary.totalFare, { origin: first?.origin ?? "", destination: last?.destination ?? "", supplier: "TRIPJACK", airline: summary.airline ?? first?.airline ?? "" },
+          null, { pax: { adults: adults ?? 1, children: children ?? 0, infants: infants ?? 0 } })
       : undefined;
     return c.json({ ...summary, displayTotal, expiresAt: new Date(Date.now() + ttl * 1000).toISOString(), requestId });
   } catch (err: any) {
@@ -413,10 +418,11 @@ bookDirectRoutes.post("/", zValidator("json", directBookSchema, (result, c) => {
     // TripJack is paid TF + chosen SSR (paymentInfos.amount); markup applies to the fare only.
     const fareAmount = reviewPaymentAmount;
     const supplierAmount = Math.round((fareAmount + ssrAmount) * 100) / 100;
+    // The reviewed amount covers the whole journey: markup once, for every passenger.
     const companyFareAmount = await customerPrice(db, tenantId, fareAmount, {
       origin: body.origin.toUpperCase(), destination: body.destination.toUpperCase(),
       supplier: body.supplier, airline: reviewAirline ?? "",
-    }, agent?.agentId ?? null);
+    }, agent?.agentId ?? null, { pax: paxOf(body.passengers) });
     // Agencies pay their NET price: company price + each parent agency's markup.
     const agentQuote = agent ? (await agentPricing(c.env, db, tenantId, agent.agentId)).price(companyFareAmount) : null;
     const fareCustomerAmount = agentQuote?.net ?? companyFareAmount;
@@ -848,10 +854,11 @@ async function bookOfflineFare(
   if ("problem" in baggage) return c.json({ errorCode: "BOOKING_DETAILS_INVALID", error: baggage.problem, requestId }, 400);
 
   const supplierAmount = Math.round(legs.reduce((n, f) => n + f.totalFare, 0) * 100) / 100;
-  // Markup per leg, the same way search priced each leg the customer picked.
-  const legPrices = await Promise.all(legs.map((leg) => customerPrice(db, tenantId, leg.totalFare, {
-    origin: leg.origin, destination: leg.destination, supplier, airline: leg.airline,
-  }, agent?.agentId ?? null)));
+  // Priced leg by leg exactly as search priced the legs the customer picked: the fixed markup
+  // (per passenger) once, on the first leg; later legs of a journey only a percentage rule.
+  const legPrices = await Promise.all(legs.map((leg, i) => customerPrice(db, tenantId, leg.totalFare, {
+    origin: leg.origin, destination: leg.destination, supplier, airline: leg.airline, cabinClass: leg.cabinClass,
+  }, agent?.agentId ?? null, { pax, continuation: i > 0 })));
   const companyFareAmount = Math.round(legPrices.reduce((n, v) => n + v, 0) * 100) / 100;
   const agentQuote = agent ? (await agentPricing(c.env, db, tenantId, agent.agentId)).price(companyFareAmount) : null;
   const customerAmount = agentQuote?.net ?? companyFareAmount;
@@ -969,6 +976,12 @@ async function bookOfflineFare(
   }, 201);
 }
 
+// Passengers by type, for per-passenger markup.
+function paxOf(passengers: { type: string }[]) {
+  const n = (t: string) => passengers.filter((p) => p.type === t).length;
+  return { adults: n("ADULT"), children: n("CHILD"), infants: n("INFANT") };
+}
+
 // First airline code in a TripJack review response (tripInfos[].sI[].fD.aI.code).
 function findAirlineCode(value: unknown, depth = 0): string | undefined {
   if (!value || typeof value !== "object" || depth > 8) return undefined;
@@ -981,12 +994,14 @@ function findAirlineCode(value: unknown, depth = 0): string | undefined {
   return undefined;
 }
 
-// Applies the tenant's markup rules to the supplier amount. If rules can't be
+// Applies the tenant's markup rules to the supplier amount (lib/markup.ts): per passenger, once per
+// journey — the same calculation search used for the price the customer saw. If rules can't be
 // loaded the supplier amount is used, matching search's fallback.
 export async function customerPrice(
   db: Variables["db"], tenantId: string, supplierAmount: number,
-  fare: { origin: string; destination: string; supplier: string; airline: string },
+  fare: { origin: string; destination: string; supplier: string; airline: string; cabinClass?: string },
   agentId: string | null = null,
+  opts: { pax?: { adults: number; children?: number; infants?: number } | null; continuation?: boolean } = {},
 ): Promise<number> {
   try {
     const { applyMarkup } = await import("../lib/markup.js");
@@ -994,7 +1009,7 @@ export async function customerPrice(
     const { rulesFor } = await import("../lib/agent-program.js");
     // Company-wide rules, plus this agency's own rules when an agency books.
     const rules = rulesFor(await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId)), agentId);
-    const priced = applyMarkup({ ...fare, cabinClass: "ECONOMY", totalFare: supplierAmount } as any, rules);
+    const priced = applyMarkup({ ...fare, cabinClass: fare.cabinClass ?? "ECONOMY", totalFare: supplierAmount } as any, rules, opts);
     return Math.round(Math.max(priced, supplierAmount) * 100) / 100;
   } catch (err) {
     console.error("[book] markup unavailable; charging supplier amount", err);

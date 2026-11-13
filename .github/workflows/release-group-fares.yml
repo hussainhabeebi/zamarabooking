@@ -34,8 +34,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message)'
         required: true
-        # PR #58 release (API version 88a19295). Update after every API release.
-        default: '8528395e815e50845278f5647eeb7f50b41990f6'
+        # PR #72 release (API version cd7499cf). Update after every API release.
+        default: 'b7451d5b25dcb49ba6a7fc1ee0aae82a1a0d09e9'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true

@@ -454,7 +454,11 @@ async function runSearch(
   // Agency callers get their own net / selling prices — added per request, never cached.
   const agentId = await optionalAgentId(c);
 
-  const cacheKey = `fares:${tenantId}:${JSON.stringify({ ...params, currency })}`;
+  // Partner API offers are booked one by one, so each carries its journey's full markup
+  // (lib/markup.ts priceSearchFares standalone): cached separately from the website's results.
+  const standalone = Boolean((c as any).get("partnerApiKeyId"));
+  const pax = { adults: params.adults, children: params.children, infants: params.infants };
+  const cacheKey = `fares:${tenantId}:${JSON.stringify({ ...params, currency, ...(standalone ? { standalone } : {}) })}`;
   try {
     const cached = await c.env.FARE_CACHE_KV.get(cacheKey, "json") as {
       fares?: unknown[];
@@ -464,7 +468,7 @@ async function runSearch(
       // Keep the original live search's id so a booking links to its TripJack logs.
       return c.json({
         ...cached, fromCache: true, searchId: (cached as { searchId?: string }).searchId ?? searchId,
-        ...(agentId ? { fares: await agentFares(c, tenantId, agentId, cached.fares as AgentFare[]) } : {}),
+        ...(agentId ? { fares: await agentFares(c, tenantId, agentId, cached.fares as AgentFare[], pax) } : {}),
       });
     }
   } catch (err) {
@@ -501,16 +505,14 @@ async function runSearch(
   // supplier fare unchanged rather than converting a healthy flight search into HTTP 500.
   let pricedFares = result.fares.map((fare) => ({ ...fare, displayPrice: fare.totalFare, markup: undefined }));
   try {
-    const { applyMarkup } = await import("../lib/markup.js");
+    const { priceSearchFares } = await import("../lib/markup.js");
     const { markupRules } = await import("@zamrabooking/db/schema");
     const { eq } = await import("drizzle-orm");
     const rules = await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId));
-    pricedFares = result.fares.map((fare) => ({
-      ...fare,
-      // Company-wide rules only: agency rules apply to that agency's own searches.
-      displayPrice: applyMarkup(fare, rulesFor(rules, null)),
-      markup: undefined,
-    }));
+    // Company-wide rules only: agency rules apply to that agency's own searches. Per passenger,
+    // once per journey (lib/markup.ts).
+    pricedFares = priceSearchFares(result.fares, rulesFor(rules, null), { pax, standalone })
+      .map((fare) => ({ ...fare, markup: undefined }));
   } catch (err) {
     console.error("[search] markup unavailable; returning raw supplier prices", err);
   }
@@ -559,24 +561,24 @@ async function runSearch(
     })());
   }
 
-  return c.json(agentId ? { ...response, fares: await agentFares(c, tenantId, agentId, response.fares as AgentFare[]) } : response);
+  return c.json(agentId ? { ...response, fares: await agentFares(c, tenantId, agentId, response.fares as AgentFare[], pax) } : response);
 }
 
-type AgentFare = { totalFare: number; displayPrice?: number; airline?: string; origin?: string; destination?: string; cabinClass?: string; supplier?: string };
+type AgentFare = { totalFare: number; displayPrice?: number; airline?: string; origin?: string; destination?: string; cabinClass?: string; supplier?: string; tripKey?: string };
 
 // Agency view of a result set: company price (including rules for this agency),
 // plus parents' markups = NET (what the agency pays); plus its own markup = SELLING.
-async function agentFares(c: Context<{ Bindings: Env; Variables: Variables }>, tenantId: string, agentId: string, fares: AgentFare[]) {
+async function agentFares(c: Context<{ Bindings: Env; Variables: Variables }>, tenantId: string, agentId: string, fares: AgentFare[], pax: { adults: number; children?: number; infants?: number }) {
   try {
     const db = c.get("db");
-    const { applyMarkup } = await import("../lib/markup.js");
+    const { applyMarkup, isJourneyContinuation } = await import("../lib/markup.js");
     const { markupRules } = await import("@zamrabooking/db/schema");
     const { eq } = await import("drizzle-orm");
     const rules = await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId));
     const ownRules = rules.some((r) => r.agentId === agentId);
     const pricing = await agentPricing(c.env, db, tenantId, agentId);
     return fares.map((f) => {
-      const company = ownRules ? applyMarkup(f as never, rulesFor(rules, agentId)) : (f.displayPrice ?? f.totalFare);
+      const company = ownRules ? applyMarkup(f as never, rulesFor(rules, agentId), { pax, continuation: isJourneyContinuation(f.tripKey) }) : (f.displayPrice ?? f.totalFare);
       const p = pricing.price(company);
       return { ...f, displayPrice: p.net, netPrice: p.net, sellingPrice: p.selling, agentMarkup: Math.round((p.net - company) * 100) / 100 };
     });

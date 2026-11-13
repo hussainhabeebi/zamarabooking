@@ -84,6 +84,16 @@ function referenceKey(tenantId: string, apiKeyId: string, reference: string): st
   return `partner_booking_ref:${tenantId}:${apiKeyId}:${reference}`;
 }
 
+// What a partner (CRM) sees of a fare: the final customer price only. Supplier cost and supplier
+// details (totalFare before markup, base / taxes, per-adult supplier fare, the supplier's own ids and
+// payload) stay internal — kept in the stored offer and the booking for Zamra's accounting.
+const SUPPLIER_ONLY_FIELDS = ["raw", "id", "supplier", "baseFare", "taxes", "perAdultFare", "netFare", "markup", "agentMarkup", "netPrice", "sellingPrice"];
+export function partnerPublicFare(fare: Record<string, unknown>): Record<string, unknown> {
+  const customer = asNumber(fare.displayPrice ?? fare.totalFare);
+  const out = Object.fromEntries(Object.entries(fare).filter(([k]) => !SUPPLIER_ONLY_FIELDS.includes(k)));
+  return { ...out, totalFare: customer, displayPrice: customer };
+}
+
 function asNumber(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -180,7 +190,10 @@ async function createReservation(
     infantCount: asNumber(stored.searchParams.infants),
     baseFare: String(asNumber(fare.baseFare)),
     taxes: String(asNumber(fare.taxes)),
+    // Customer price (search displayPrice, markup included); supplier fare kept in baseFare / taxes
+    // and flightData, our margin in markup.
     totalAmount: String(asNumber(fare.displayPrice ?? fare.totalFare)),
+    markup: String(Math.max(0, Math.round((asNumber(fare.displayPrice ?? fare.totalFare) - asNumber(fare.totalFare)) * 100) / 100)),
     currency: currency as "INR" | "AED" | "USD",
     supplier: supplier as "RIYA" | "TRIPJACK" | "DUFFEL",
     supplierSessionId: String(fare.id ?? ""),
@@ -308,8 +321,7 @@ const shapePartnerSearchResponse: MiddlewareHandler<{
       { expirationTtl: OFFER_TTL_SECONDS },
     );
 
-    const { raw: _supplierPayload, id: _supplierOfferId, ...publicOffer } = fare;
-    return { offerId: opaqueOfferId, ...publicOffer };
+    return { offerId: opaqueOfferId, ...partnerPublicFare(fare) };
   }));
 
   const response = {
@@ -465,7 +477,7 @@ partnerRoutes.get("/bookings/:reference", async (c) => {
       destination: bookings.destination,
       departureDate: bookings.departureDate,
       returnDate: bookings.returnDate,
-      supplier: bookings.supplier,
+      // Customer price only; the supplier and its cost stay internal.
       totalAmount: bookings.totalAmount,
       currency: bookings.currency,
       heldUntil: bookings.heldUntil,
