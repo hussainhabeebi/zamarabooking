@@ -125,7 +125,7 @@ export async function resendStalledBooking(
 // where and why the PNR / ticket was not issued.
 
 export type BookingStep =
-  | "QUEUE" | "SUPPLIER_CONFIG" | "REVIEW" | "BOOK" | "BOOKING_DETAILS" | "PNR" | "TICKET" | "REFUND" | "NOTIFY";
+  | "QUEUE" | "SUPPLIER_CONFIG" | "REVIEW" | "BOOK" | "BOOKING_DETAILS" | "PNR" | "TICKET" | "REFUND" | "CANCEL" | "NOTIFY";
 
 export interface BookingEvent {
   at:      string;

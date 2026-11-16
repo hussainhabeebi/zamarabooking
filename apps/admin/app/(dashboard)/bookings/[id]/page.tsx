@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { API, apiHeaders } from "../../../../lib/api";
 import { IssueTicket } from "./IssueTicket";
 import { AkbarApiBooking } from "./AkbarApiBooking";
+import { AkbarCancellation } from "./AkbarCancellation";
 
 // Poomas / Akbar / manual fares: paid on Zamra, ticketed by staff (no airline API call).
 const OFFLINE = ["POOMAS", "AKBAR", "MANUAL"];
@@ -161,6 +162,7 @@ export default function BookingDetailPage() {
       )}
       {notice && <div style={okBox}>{notice}</div>}
       {b.supplier === "AKBAR" && <AkbarApiBooking booking={b} refunds={data.cancellations ?? []} onDone={(m) => { setNotice(m); load(); }} />}
+      {b.supplier === "AKBAR" && <AkbarCancellation key={`${b.status}-${data.cancellations?.length ?? 0}`} bookingId={b.id} onDone={(m) => { setNotice(m); load(); }} />}
       {offline && <IssueTicket key={`${b.status}-${b.pnr ?? ""}`} booking={b} passengers={data.passengers} onDone={(m) => { setNotice(m); load(); }} />}
 
       {tab === "overview" && (

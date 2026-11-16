@@ -16,6 +16,10 @@ export const ROUTES = {
     "/flights/SeatLayout",
     "/flights/CreateItinerary",
     "/flights/cancel",
+    // Cancellation (Akbar's Cancel / GetRefund documents; which spelling Akbar serves is not confirmed).
+    "/Flights/Cancel",
+    "/Flights//Flights/Cancel",
+    "/Flights/GetRefund",
     "/Payment/StartPay",
     "/Payment/GetItineraryStatus",
     "/Utils/RetrieveBooking",

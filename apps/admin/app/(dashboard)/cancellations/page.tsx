@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { API, apiHeaders } from "../../../lib/api";
 
 interface Row {
-  id: string; status: string; supplierStatus: string | null; supplierAmendmentId: string | null;
+  id: string; type?: string; status: string; supplierStatus: string | null; supplierAmendmentId: string | null;
   amountPaid: string; supplierCharges: string | null; refundAmount: string | null; currency: string;
   refundMethod: string; refundStatus: string; refundReference: string | null; refundError: string | null;
   refundedAt: string | null; adminNote: string | null; createdAt: string; lastCheckedAt: string | null;
@@ -11,7 +11,12 @@ interface Row {
   contactEmail: string | null; customerName: string | null;
 }
 
-const STATUS_COLOR: Record<string, string> = { SUBMITTED: "#fbbf24", PROCESSING: "#fbbf24", SUCCESS: "#4ade80", REJECTED: "#f87171", FAILED: "#f87171" };
+const STATUS_COLOR: Record<string, string> = {
+  SUBMITTED: "#fbbf24", PROCESSING: "#fbbf24", SUCCESS: "#4ade80", REJECTED: "#f87171", FAILED: "#f87171",
+  // Akbar cancellations (managed on the booking page)
+  CANCELLATION_REQUESTED: "#fbbf24", CANCELLATION_PROCESSING: "#fbbf24", CANCELLED: "#4ade80", CANCELLATION_PENDING: "#fbbf24",
+  CANCELLATION_FAILED: "#f87171", MANUAL_VERIFICATION_REQUIRED: "#f87171",
+};
 const REFUND_STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Refund pending", color: "#94a3b8" }, PROCESSING: { label: "Refund in progress", color: "#fbbf24" },
   DONE: { label: "Refunded", color: "#4ade80" }, FAILED: { label: "Refund failed — retry or refund manually", color: "#f87171" },
@@ -70,10 +75,10 @@ export default function CancellationsPage() {
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>Cancellations</h1>
       <p style={{ color: "#64748b", fontSize: 14, marginBottom: 16 }}>
-        Customer cancellations submitted to TripJack. Status is re-checked when the customer opens the booking or when you press Refresh. Successful cancellations are refunded automatically to the original payment method: wallet payments to the wallet, card payments through Nomod.
+        Customer cancellations submitted to TripJack, and Akbar cancellations made by admins (managed on each booking's page). Status is re-checked when the customer opens the booking or when you press Refresh. Successful cancellations are refunded automatically to the original payment method: wallet payments to the wallet, card payments through Nomod.
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        {["", "SUBMITTED", "PROCESSING", "SUCCESS", "REJECTED", "FAILED"].map((s) => (
+        {["", "SUBMITTED", "PROCESSING", "SUCCESS", "REJECTED", "FAILED", "MANUAL_VERIFICATION_REQUIRED", "CANCELLED"].map((s) => (
           <button key={s} onClick={() => setStatus(s)} style={{ ...chip, background: status === s ? "#0D4B96" : "#1e293b" }}>{s || "All"}</button>
         ))}
       </div>
@@ -88,7 +93,7 @@ export default function CancellationsPage() {
                   <span style={{ color: "#94a3b8", fontSize: 13 }}> · {r.departureDate ? new Date(r.departureDate).toLocaleDateString("en-IN") : "—"} · PNR {r.pnr ?? "—"}</span>
                   <div style={{ color: "#94a3b8", fontSize: 12 }}>{r.customerName ?? "Guest"} · {r.contactEmail} · requested {new Date(r.createdAt).toLocaleString("en-IN")}</div>
                 </div>
-                <span style={{ color: STATUS_COLOR[r.status] ?? "#94a3b8", fontWeight: 800, fontSize: 13 }}>{r.status}{r.supplierStatus ? ` · TJ ${r.supplierStatus}` : ""}</span>
+                <span style={{ color: STATUS_COLOR[r.status] ?? "#94a3b8", fontWeight: 800, fontSize: 13 }}>{r.type === "AKBAR_CANCELLATION" ? "AKBAR · " : ""}{r.status}{r.supplierStatus ? ` · ${r.type === "AKBAR_CANCELLATION" ? "Akbar code" : "TJ"} ${r.supplierStatus}` : ""}</span>
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "10px 0", fontSize: 13, color: "#cbd5e1" }}>
                 <span>Paid {money(r.amountPaid, r.currency)}</span>
@@ -105,6 +110,12 @@ export default function CancellationsPage() {
               {r.refundError && <div style={{ fontSize: 12, color: "#fca5a5", marginBottom: 6 }}>{r.refundError}</div>}
               {r.refundReference && <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6, fontFamily: "monospace" }}>Refund ref {r.refundReference}</div>}
               {r.adminNote && <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 8 }}>{r.adminNote}</div>}
+              {r.type === "AKBAR_CANCELLATION" ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "#fbbf24" }}>Akbar cancellation — status checks, verification, Akbar deposit refund and customer refund are on the booking page.</span>
+                  <a href={`/bookings/${r.bookingId}`} style={{ ...btn, textDecoration: "none" }}>Open booking</a>
+                </div>
+              ) : (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {["SUBMITTED", "PROCESSING"].includes(r.status) && (
                   <button disabled={busyId === r.id} onClick={() => act(r.id, "refresh")} style={btn}>Refresh from TripJack</button>
@@ -121,6 +132,7 @@ export default function CancellationsPage() {
                 )}
                 <span style={{ color: "#64748b", fontSize: 11, alignSelf: "center", fontFamily: "monospace" }}>Booking {r.bookingId.slice(0, 8)}</span>
               </div>
+              )}
             </div>
           ))}
         </div>

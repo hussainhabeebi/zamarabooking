@@ -71,6 +71,10 @@ export function canRecordRebooking(b: BookingLike, amendments: AmendmentLike[]):
 // Akbar API runs and "Issue ticket" are refused once a refund was started (and API runs once a
 // customer-approved rebooking is being arranged by staff on Akbar's portal).
 export function supplierActionBlocked(fd: Record<string, any> | null | undefined, action: "akbar-api" | "issue-ticket"): string | null {
+  // An Akbar cancellation was requested (lib/akbar-cancellation.ts): no new Akbar run or ticket.
+  if (fd?.akbarCancellation && typeof fd.akbarCancellation === "object" && Object.keys(fd.akbarCancellation).length) {
+    return "An Akbar cancellation exists for this booking — use the Akbar cancellation panel (Check latest status) instead.";
+  }
   const r = resolutionOf(fd);
   if (!r) return null;
   if (r.type === "REFUND") return "A refund was started for this booking, so it can't be booked or ticketed any more.";

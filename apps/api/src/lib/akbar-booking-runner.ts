@@ -111,6 +111,8 @@ export async function refreshAkbar(env: Env, db: Db, bookingId: string, userId: 
   const b = await loadBooking(db, bookingId);
   if (!b || b.supplier !== "AKBAR") return { ok: false, error: "Not an Akbar booking." };
   let fd = (b.flightData ?? {}) as Record<string, any>;
+  const blocked = supplierActionBlocked(fd, "akbar-api");
+  if (blocked && fd.akbarCancellation) return { ok: false, error: blocked };
   const current = fd.akbarBooking as AkbarBookingState | undefined;
   if (!current?.legs?.some((l) => l.transactionId && l.paymentSentAt)) return { ok: false, error: "Nothing was paid on Akbar for this booking yet." };
   const collector = collectExchanges();

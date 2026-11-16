@@ -21,6 +21,7 @@ import { cancellationsAdminRoutes, supportAdminRoutes } from "./post-booking.js"
 import { agentProgramAdminRoutes } from "./agent-program.js";
 import { leadvyneAgentsAdminRoutes } from "./leadvyne-agents.js";
 import { flightSourcesAdminRoutes } from "./flight-sources.js";
+import { akbarCancellationAdminRoutes } from "./akbar-cancellation.js";
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -66,6 +67,7 @@ adminRoutes.route("/markup",         markupAdminRoutes);
 adminRoutes.route("/supplier-logs",  supplierLogsAdminRoutes);
 adminRoutes.route("/customer-wallets", customerWalletsAdminRoutes);
 adminRoutes.route("/cancellations", cancellationsAdminRoutes);
+adminRoutes.route("/akbar-cancellation", akbarCancellationAdminRoutes);   // full admins only (not a STAFF section)
 adminRoutes.route("/support-requests", supportAdminRoutes);
 
 // Platform-level dashboard stats (SUPER_ADMIN only)
