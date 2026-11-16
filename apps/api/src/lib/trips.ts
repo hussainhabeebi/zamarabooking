@@ -319,7 +319,10 @@ export async function settleRefund(
   opts: { retryFailed?: boolean } = {},
 ): Promise<Amendment | null> {
   const allowed = opts.retryFailed ? ["PENDING", "FAILED"] : ["PENDING"];
-  if (amendment.status !== "SUCCESS" || !allowed.includes(amendment.refundStatus)) return null;
+  // An Akbar cancellation (lib/akbar-cancellation.ts) is refundable once CANCELLED, and only after staff
+  // started the customer refund (refundStatus NOT_STARTED → PENDING); every other amendment once SUCCESS.
+  const settledStatus = amendment.type === "AKBAR_CANCELLATION" ? "CANCELLED" : "SUCCESS";
+  if (amendment.status !== settledStatus || !allowed.includes(amendment.refundStatus)) return null;
 
   const [booking] = await db.select({ userId: bookings.userId, agentId: bookings.agentId }).from(bookings).where(eq(bookings.id, amendment.bookingId)).limit(1);
   const [paid] = await db.select({ gateway: payments.gateway, gatewayOrderId: payments.gatewayOrderId, gatewayPaymentId: payments.gatewayPaymentId, amount: payments.amount, currency: payments.currency })
@@ -328,7 +331,7 @@ export async function settleRefund(
 
   const [claimed] = await db.update(bookingAmendments)
     .set({ refundStatus: "PROCESSING", refundMethod: method, refundError: null, updatedAt: new Date() })
-    .where(and(eq(bookingAmendments.id, amendment.id), eq(bookingAmendments.status, "SUCCESS"), inArray(bookingAmendments.refundStatus, allowed)))
+    .where(and(eq(bookingAmendments.id, amendment.id), eq(bookingAmendments.status, settledStatus), inArray(bookingAmendments.refundStatus, allowed)))
     .returning();
   if (!claimed) return null;
 

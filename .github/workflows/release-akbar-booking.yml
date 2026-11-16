@@ -32,8 +32,8 @@ on:
       api_base_sha:
         description: 'Commit the live zamra-api was built from (deployments list message "… <sha> on …")'
         required: true
-        # Live API = this commit's tree (PR #73 release, API version f28d0124). Update after every release.
-        default: 'f88d6bdc5b58d9ebceb4351fc30579ffd1084c86'
+        # Live API = this commit's tree (PR #75 release, API version e2ac87b4). Update after every release.
+        default: '2d6a01c852619fd8fb7fc010c7e36c1ac441e220'
       admin_base_sha:
         description: 'Commit the live zamra-admin was built from (last full deploy)'
         required: true
@@ -111,6 +111,14 @@ env:
     apps/api/test/akbar-auto-check.test.ts
     apps/api/test/markup-per-pax.test.ts
     apps/api/test/fixtures/akbar-roundtrip-samples.json
+    apps/api/src/lib/akbar-cancellation.ts
+    apps/api/src/routes/admin/akbar-cancellation.ts
+    apps/api/src/routes/admin/index.ts
+    apps/api/src/routes/admin/post-booking.ts
+    apps/api/src/lib/trips.ts
+    apps/api/src/lib/booking-recovery.ts
+    apps/api/test/akbar-cancellation.test.ts
+    packages/suppliers/src/akbar/cancellation.ts
     packages/suppliers/src/akbar/client.ts
     packages/suppliers/src/akbar/adapter.ts
     packages/suppliers/src/akbar/websettings.ts
@@ -124,6 +132,8 @@ env:
     apps/admin/app/(dashboard)/supplier-logs/page.tsx
     apps/admin/app/(dashboard)/supplier-logs/AkbarTrace.tsx
     apps/admin/app/(dashboard)/markup/page.tsx
+    apps/admin/app/(dashboard)/bookings/[id]/AkbarCancellation.tsx
+    apps/admin/app/(dashboard)/cancellations/page.tsx
   # Live since the Group fares release (PR #65, release-group-fares.yml): kept at that commit in every
   # Admin build here, so an Akbar release never takes group fares out of Admin.
   GROUP_FARES_ADMIN_SHA: e675b92c912a5601236478a2984878a3df53b3a1
@@ -135,6 +145,7 @@ env:
     apps/akbar-gateway/test/gateway.test.mjs
     .gitignore
     docs/akbar-api-booking.md
+    docs/akbar-cancellation.md
     scripts/akbar-uat-check.ts
     .github/workflows/log-export-checks.yml
     .github/workflows/release-akbar-booking.yml

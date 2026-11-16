@@ -21,7 +21,7 @@ export const cancellationsAdminRoutes = new Hono<{ Bindings: Env; Variables: Var
 cancellationsAdminRoutes.get("/", async (c) => {
   const status = c.req.query("status");
   const rows = await c.get("db").select({
-    id: bookingAmendments.id, status: bookingAmendments.status, supplierStatus: bookingAmendments.supplierStatus,
+    id: bookingAmendments.id, type: bookingAmendments.type, status: bookingAmendments.status, supplierStatus: bookingAmendments.supplierStatus,
     supplierAmendmentId: bookingAmendments.supplierAmendmentId, amountPaid: bookingAmendments.amountPaid,
     supplierCharges: bookingAmendments.supplierCharges, refundAmount: bookingAmendments.refundAmount,
     currency: bookingAmendments.currency, refundMethod: bookingAmendments.refundMethod, refundedAt: bookingAmendments.refundedAt,
@@ -43,6 +43,8 @@ async function loadAmendment(c: any, id: string) {
   const [a] = await c.get("db").select().from(bookingAmendments)
     .where(and(eq(bookingAmendments.id, id), eq(bookingAmendments.tenantId, c.get("tenantId")))).limit(1);
   if (!a) throw new HTTPException(404, { message: "Cancellation not found" });
+  // Akbar cancellations have their own workflow (Admin → booking → Akbar cancellation).
+  if (a.type === "AKBAR_CANCELLATION") throw new HTTPException(409, { message: "This is an Akbar cancellation — manage it from the booking page (Akbar cancellation panel)." });
   return a as typeof bookingAmendments.$inferSelect;
 }
 

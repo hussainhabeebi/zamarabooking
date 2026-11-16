@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, cancelBody,
+  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, akbarCancelBody, akbarGetRefundBody,
 } from "@zamrabooking/suppliers";
 import {
   DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
@@ -227,12 +227,16 @@ test("Akbar StartPay body", () => {
   assert.ok(Object.values(body.Card).every((v) => v === "" || v === false || v === "0"));
 });
 
-test("Akbar RetrieveBooking and Cancel bodies", () => {
+test("Akbar RetrieveBooking, Cancel and GetRefund bodies (Akbar's documented samples)", () => {
   assert.deepEqual(retrieveBookingBody(200001224, "cid"), { TUI: "", ClientID: "cid", ReferenceNumber: "200001224", ReferenceType: "T", ServiceType: "FLT" });
-  assert.deepEqual(cancelBody({ transactionId: 123412, remarks: "Test", trips: [{ crsPnr: "T9DGF24", pax: [{ id: 5024, ticket: "734553687" }] }] }, "cid"), {
-    ClientID: "cid", ClientIP: "", Remarks: "Test", TUI: "", TransactionID: 123412,
-    Trips: [{ CRSPNR: "T9DGF24", Pax: [{ ID: 5024, Ticket: "734553687" }] }],
+  // Akbar's Cancel document, field for field.
+  assert.deepEqual(akbarCancelBody({ transactionId: 240036938, tui: "bdfcbf47|89641032|20241119184642", segments: [{ trip: 0, journey: 0, crsPnr: "WP6SJY", pax: [{ id: 27693, ticket: "" }] }] }, "cid"), {
+    ClientID: "cid", ClientIP: "", Remarks: "", TUI: "bdfcbf47|89641032|20241119184642", TransactionID: 240036938,
+    Trips: [{ Journey: [{ Segments: [{ CRSPNR: "WP6SJY", Pax: [{ ID: 27693, Ticket: "" }] }] }] }],
+    Isfullrefund: false, CancelType: "R",
   });
+  // Akbar's GetRefund document ("TransactionId", lower-case d).
+  assert.deepEqual(akbarGetRefundBody({ tui: "5b3f6178|b3b86120|20250522121237", transactionId: 250702203 }), { TUI: "5b3f6178|b3b86120|20250522121237", TransactionId: 250702203, CancelType: "R" });
 });
 
 test("Akbar waits for the itinerary status after StartPay", async () => {

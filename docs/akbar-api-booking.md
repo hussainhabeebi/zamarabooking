@@ -19,7 +19,7 @@ Reference: Akbar's *B2B Revamp Flight API – Test* Postman collection and *B2B 
 | StartPay | `{flights}/Payment/StartPay` | client sent 10 of the sample's 24 fields | **all sample fields** (deposit payment, no card data) |
 | GetItineraryStatus | `{flights}/Payment/GetItineraryStatus` | client only | polled after StartPay |
 | RetrieveBooking | `{flights}/Utils/RetrieveBooking` | client only | called after the status; PNR / tickets read from it |
-| Cancel | `{flights}/flights/cancel` | client only | unchanged (not part of this booking flow) |
+| Cancel / GetRefund | `{flights}/Flights/Cancel`, `{flights}/Flights/GetRefund` | Admin (cancellation) | see docs/akbar-cancellation.md — admins only, off by default; GetRefund UAT only |
 
 Other problems fixed:
 

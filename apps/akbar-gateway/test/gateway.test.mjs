@@ -26,6 +26,17 @@ test("routes only Akbar's documented calls", () => {
   assert.equal(resolveRoute("/other"), null);
 });
 
+test("routes the documented cancellation calls, exactly as spelled", () => {
+  const config = loadConfig({ ZAMRA_GATEWAY_KEY: "internal" });
+  assert.equal(upstreamUrl(config, resolveRoute("/flights/Flights/Cancel")), "https://b2bapiflights.benzyinfotech.com/Flights/Cancel");
+  assert.equal(upstreamUrl(config, resolveRoute("/flights/Flights//Flights/Cancel")), "https://b2bapiflights.benzyinfotech.com/Flights//Flights/Cancel");
+  assert.equal(upstreamUrl(config, resolveRoute("/flights/flights/cancel")), "https://b2bapiflights.benzyinfotech.com/flights/cancel");
+  assert.equal(upstreamUrl(config, resolveRoute("/flights/Flights/GetRefund")), "https://b2bapiflights.benzyinfotech.com/Flights/GetRefund");
+  assert.equal(resolveRoute("/flights/flights/GetRefund"), null);
+  assert.equal(resolveRoute("/flights/Flights/Refund"), null);
+  assert.equal(resolveRoute("/utils/Flights/Cancel"), null);
+});
+
 test("compares gateway secrets safely", () => {
   assert.equal(secretsEqual("same", "same"), true);
   assert.equal(secretsEqual("nope", "same"), false);
