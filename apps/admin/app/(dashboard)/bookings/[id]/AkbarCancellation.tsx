@@ -4,6 +4,8 @@ import { API, apiHeaders } from "../../../../lib/api";
 
 // Akbar API booking cancellation (API: routes/admin/akbar-cancellation.ts, rules: lib/akbar-cancellation.ts).
 // Admins only. Review (RetrieveBooking, read-only) → explicit confirmation → one Cancel request.
+// "Live cancellation" is ONE company-wide setting (Admin → Integrations → Akbar cancellation), not per booking:
+// this panel only shows whether it is on and, if it is, a Cancel Booking action on eligible bookings.
 // Cancellation, the Akbar deposit refund and the customer refund are tracked separately; nothing is
 // refunded automatically.
 
@@ -29,13 +31,15 @@ type Settings = { liveCancellationEnabled: boolean; cancelPath: string; tuiSourc
 type Panel = { bookingStatus: string; environment: string; settings: Settings; getRefund: { ok: boolean; reason?: string }; targets: Target[]; cancellations: Cancellation[]; note: string | null };
 type Preview = { transactionId: number; pnrs: string[]; route: string; akbarStatus: string; passengers: Pax[]; segments: Seg[]; tui: string; tuiSource: string; planHash: string; partialAllowed: boolean; problems: string[]; requestPreview: unknown; liveCancellationEnabled: boolean };
 
+// What admins see. Akbar has documented one success code only, so an unclear answer and "Akbar is still
+// processing it" both show as Pending verification (with the detail underneath).
 const STATUS: Record<string, { label: string; color: string; help: string }> = {
   CANCELLATION_REQUESTED: { label: "Cancellation requested", color: "#fbbf24", help: "Recorded, not sent to Akbar yet." },
-  CANCELLATION_PROCESSING: { label: "Sending to Akbar", color: "#fbbf24", help: "Being sent now. If this stays, use Check latest status." },
-  CANCELLED: { label: "Cancellation confirmed", color: "#4ade80", help: "Confirmed by Akbar (or verified on Akbar's portal). Refunds are separate below." },
-  CANCELLATION_PENDING: { label: "Pending at Akbar", color: "#fbbf24", help: "Staff verified Akbar is still processing it." },
-  CANCELLATION_FAILED: { label: "Not cancelled", color: "#f87171", help: "Certainly not cancelled. A new cancellation can be requested." },
-  MANUAL_VERIFICATION_REQUIRED: { label: "Check Akbar's portal", color: "#f87171", help: "Akbar's answer was missing or not documented. The tickets may or may not be cancelled: check the transaction on Akbar's portal and record what you find. Do not cancel again." },
+  CANCELLATION_PROCESSING: { label: "Processing", color: "#fbbf24", help: "Being sent to Akbar now. If this doesn't change, use Check latest status." },
+  CANCELLED: { label: "Cancelled", color: "#4ade80", help: "Akbar confirmed the cancellation (or staff verified it on Akbar's portal). Refunds are separate steps below." },
+  CANCELLATION_PENDING: { label: "Pending verification", color: "#fbbf24", help: "Akbar's portal shows the cancellation still in progress. Check again later." },
+  MANUAL_VERIFICATION_REQUIRED: { label: "Pending verification", color: "#f87171", help: "Akbar's answer was missing or unclear, so the tickets may or may not be cancelled. Check the transaction on Akbar's portal and record what you find. Do not cancel again." },
+  CANCELLATION_FAILED: { label: "Failed", color: "#f87171", help: "Not cancelled — nothing changed on Akbar. A new cancellation can be requested." },
 };
 const DEPOSIT: Record<string, { label: string; color: string }> = {
   NOT_APPLICABLE: { label: "—", color: "#64748b" }, REFUND_PENDING: { label: "Refund pending (not verified)", color: "#fbbf24" },
@@ -43,7 +47,10 @@ const DEPOSIT: Record<string, { label: string; color: string }> = {
 };
 const fmt = (s?: string | null) => (s ? new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
 
-export function AkbarCancellation({ bookingId, onDone }: { bookingId: string; onDone: (message: string) => void }) {
+type BookingInfo = { totalAmount?: string | number; currency?: string; origin?: string; destination?: string; flightData?: Record<string, any> | null };
+const money = (v: string | number | null | undefined, cur = "INR") => v === null || v === undefined || v === "" ? "—" : `${cur} ${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export function AkbarCancellation({ bookingId, booking, onDone }: { bookingId: string; booking?: BookingInfo; onDone: (message: string) => void }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState("");
@@ -55,8 +62,6 @@ export function AkbarCancellation({ bookingId, onDone }: { bookingId: string; on
   const [typedPnr, setTypedPnr] = useState("");
   const [ack, setAck] = useState(false);
   const [requestId, setRequestId] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState<(Settings & { canEdit?: boolean; cancelPaths?: string[] }) | null>(null);
 
   const base = `${API}/api/admin/akbar-cancellation`;
   const call = useCallback(async (path: string, init?: RequestInit) => {
@@ -84,7 +89,9 @@ export function AkbarCancellation({ bookingId, onDone }: { bookingId: string; on
     finally { setBusy(""); }
   }
 
+  const live = panel.settings.liveCancellationEnabled;
   const review = (transactionId: number) => run(`preview-${transactionId}`, async () => {
+    if (!live) return;
     const p = await call(`/bookings/${bookingId}/preview`, { method: "POST", body: JSON.stringify({ transactionId }) }) as Preview;
     setPreview(p); setSelected(p.passengers.map((x) => x.id)); setReason(""); setTypedPnr(""); setAck(false);
     setRequestId(crypto.randomUUID());
@@ -108,7 +115,6 @@ export function AkbarCancellation({ bookingId, onDone }: { bookingId: string; on
   const ask = (q: string, min = 3) => { const v = prompt(q); return v && v.trim().length >= min ? v.trim() : null; };
   const askAmount = (q: string, def = "") => { const v = prompt(q, def); if (v === null) return null; const n = Number(v); if (!(n >= 0)) { alert("Enter a valid amount"); return null; } return n; };
 
-  const s = panel.settings;
   const partialAllowed = preview?.partialAllowed ?? false;
   const pnrs = preview ? [...preview.pnrs] : [];
   const canSubmit = !!preview && preview.liveCancellationEnabled && !preview.problems.length && selected.length > 0
@@ -121,28 +127,32 @@ export function AkbarCancellation({ bookingId, onDone }: { bookingId: string; on
         <div style={title}>Akbar cancellation</div>
         <div style={{ fontSize: 12, color: "#94a3b8", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <span>Akbar {panel.environment}</span>
-          <span style={{ color: s.liveCancellationEnabled ? "#4ade80" : "#f87171", fontWeight: 700 }}>Live cancellation {s.liveCancellationEnabled ? "ON" : "OFF"}</span>
-          <button style={ghost} onClick={async () => { setSettingsOpen(!settingsOpen); if (!settings) { try { const d = await call("/settings"); setSettings({ ...d.settings, canEdit: d.canEdit, cancelPaths: d.cancelPaths }); } catch (e: any) { setError(e.message); } } }}>Settings</button>
+          <span style={{ color: live ? "#4ade80" : "#f87171", fontWeight: 700 }}>Live cancellation {live ? "ON" : "OFF"} (all Akbar bookings)</span>
         </div>
       </div>
-
-      {settingsOpen && settings && <SettingsForm value={settings} onSave={(v) => run("settings", async () => {
-        const d = await call("/settings", { method: "PUT", body: JSON.stringify(v) }); setSettings({ ...settings, ...d.settings }); return "Akbar cancellation settings saved.";
-      })} />}
+      {!live && panel.targets.some((t) => t.eligible) && (
+        <div style={offBox}>
+          Cancel Booking is disabled because Live cancellation is <b>OFF</b> for all Akbar bookings. A super admin can turn it on once in{" "}
+          <a href="/integrations#akbar-cancellation" style={{ color: "#93c5fd" }}>Integrations → Akbar cancellation</a>. It is not set per booking.
+        </div>
+      )}
 
       <table style={tbl}>
         <thead><tr style={th}><th>Transaction</th><th>PNR</th><th>Tickets</th><th></th></tr></thead>
         <tbody>{panel.targets.map((t) => (
           <tr key={t.transactionId}><td style={mono}>{t.transactionId}</td><td>{t.pnrs.join(", ") || "—"}</td><td>{t.tickets.join(", ") || "—"}</td>
-            <td style={{ textAlign: "right" }}>{t.eligible
-              ? <button disabled={!!busy} style={danger} onClick={() => review(t.transactionId)}>{busy === `preview-${t.transactionId}` ? "Reading Akbar booking…" : "Cancel booking…"}</button>
-              : <span style={{ ...muted, fontSize: 12 }}>{t.reason}</span>}</td></tr>
+            <td style={{ textAlign: "right" }}>{!t.eligible
+              ? <span style={{ ...muted, fontSize: 12 }}>{t.reason}</span>
+              : <button disabled={!!busy || !live} title={live ? "Review the cancellation before anything is sent" : "Live cancellation is OFF for all Akbar bookings (Integrations → Akbar cancellation)"}
+                  style={{ ...danger, ...(live ? {} : { opacity: 0.45, cursor: "not-allowed" }) }} onClick={() => review(t.transactionId)}>
+                  {busy === `preview-${t.transactionId}` ? "Fetching latest booking from Akbar…" : "Cancel Booking"}</button>}</td></tr>
         ))}</tbody>
       </table>
 
       {preview && (
         <div style={confirmBox}>
-          <div style={{ fontWeight: 800, color: "#fca5a5", marginBottom: 6 }}>Confirm Akbar cancellation — transaction {preview.transactionId}</div>
+          <div style={{ fontWeight: 800, color: "#fca5a5", marginBottom: 6 }}>Review cancellation — transaction {preview.transactionId}</div>
+          <div style={{ ...muted, fontSize: 12, marginBottom: 6 }}>Fetched from Akbar just now (RetrieveBooking — read only, nothing cancelled yet). Akbar is asked again when you confirm, and nothing is sent if the booking changed.</div>
           <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 8 }}>
             Route <b>{preview.route}</b> · PNR <b>{preview.pnrs.join(", ")}</b> · Akbar status <span style={mono}>{preview.akbarStatus || "—"}</span> · TUI from {preview.tuiSource === "ITINERARY" ? "the original booking" : "RetrieveBooking"}
           </div>
@@ -165,8 +175,9 @@ export function AkbarCancellation({ bookingId, onDone }: { bookingId: string; on
                 <td style={mono}>{g.pax.map((p) => `${p.id} / ${p.ticket || "—"} / ${p.ticketStatus || "—"}${selected.includes(p.id) ? "" : " (kept)"}`).join(" · ")}</td></tr>
             ))}</tbody>
           </table>
+          <RefundInfo booking={booking} transactionId={preview.transactionId} />
           {preview.problems.length > 0 && <div style={errBox}>Can&apos;t be sent: {preview.problems.join(" ")}</div>}
-          {!preview.liveCancellationEnabled && <div style={errBox}>Live Akbar cancellation is switched off in Settings — nothing can be sent.</div>}
+          {!preview.liveCancellationEnabled && <div style={errBox}>Live cancellation is OFF for all Akbar bookings (Integrations → Akbar cancellation) — nothing can be sent.</div>}
           <details style={{ margin: "6px 0", fontSize: 12, color: "#94a3b8" }}><summary>Request that will be sent</summary><pre style={pre}>{JSON.stringify(preview.requestPreview, null, 2)}</pre></details>
           <div style={{ display: "grid", gap: 6, maxWidth: 560 }}>
             <label style={lbl}>Reason (saved in the audit log)<textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} style={inp} /></label>
@@ -174,7 +185,7 @@ export function AkbarCancellation({ bookingId, onDone }: { bookingId: string; on
             <label style={{ ...lbl, display: "flex", gap: 6, alignItems: "flex-start" }}><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
               I have checked with the customer. This asks Akbar to cancel the selected tickets now and can&apos;t be undone. It does not refund anyone: the Akbar deposit refund and the customer refund are separate steps.</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <button disabled={!canSubmit} onClick={submit} style={{ ...danger, opacity: canSubmit ? 1 : 0.5 }}>{busy === "submit" ? "Sending to Akbar…" : `Cancel ${selected.length} passenger(s) on Akbar`}</button>
+              <button disabled={!canSubmit} onClick={submit} style={{ ...danger, opacity: canSubmit ? 1 : 0.5 }}>{busy === "submit" ? "Sending to Akbar…" : `Confirm — cancel ${selected.length} passenger(s) on Akbar`}</button>
               <button disabled={busy === "submit"} onClick={() => setPreview(null)} style={ghost}>Close</button>
             </div>
           </div>
@@ -286,27 +297,25 @@ function CancellationCard({ c, busy, panel, onCheck, onGetRefund, onAction, ask,
   );
 }
 
-function SettingsForm({ value, onSave }: { value: Settings & { canEdit?: boolean; cancelPaths?: string[] }; onSave: (v: Settings) => void }) {
-  const [v, setV] = useState<Settings>(value);
-  const edit = !!value.canEdit;
-  const flag = (k: keyof Settings, label: string) => (
-    <label style={{ ...lbl, display: "flex", gap: 6 }}><input type="checkbox" disabled={!edit} checked={Boolean(v[k])} onChange={(e) => setV({ ...v, [k]: e.target.checked })} />{label}</label>
-  );
+// What is known about money before cancelling. Akbar's refund / charges come only from GetRefund, which is not
+// called on live bookings until Akbar confirms it doesn't change the booking — so nothing is estimated here.
+function RefundInfo({ booking, transactionId }: { booking?: BookingInfo; transactionId: number }) {
+  const legs = (booking?.flightData?.akbarBooking?.legs ?? []) as { transactionId?: number; itineraryNetAmount?: number; pricedNetAmount?: number }[];
+  const leg = legs.find((l) => l.transactionId === transactionId);
+  const net = leg?.itineraryNetAmount ?? leg?.pricedNetAmount;
   return (
-    <div style={{ ...sub, margin: "8px 0" }}>
-      <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 6 }}>Points Akbar has not confirmed yet. Change only after Akbar answers. {edit ? "" : "(Super admin only.)"}</div>
-      {flag("liveCancellationEnabled", "Live cancellation ON (admins can send Cancel to Akbar)")}
-      {flag("partialPassengerCancellation", "Allow cancelling some passengers only (Akbar has not confirmed this)")}
-      {flag("getRefundUatEnabled", "Allow GetRefund on the UAT account (never on production)")}
-      <label style={lbl}>Cancel path<select disabled={!edit} value={v.cancelPath} onChange={(e) => setV({ ...v, cancelPath: e.target.value })} style={inp}>{(value.cancelPaths ?? [v.cancelPath]).map((p) => <option key={p}>{p}</option>)}</select></label>
-      <label style={lbl}>TUI sent<select disabled={!edit} value={v.tuiSource} onChange={(e) => setV({ ...v, tuiSource: e.target.value })} style={inp}><option value="ITINERARY">Original booking TUI (CreateItinerary)</option><option value="RETRIEVE_BOOKING">RetrieveBooking TUI</option></select></label>
-      <label style={lbl}>Pax.Ticket<select disabled={!edit} value={v.ticketField} onChange={(e) => setV({ ...v, ticketField: e.target.value })} style={inp}><option value="EMPTY">Empty, as in Akbar&apos;s sample</option><option value="TICKET_NUMBER">Ticket number</option></select></label>
-      <div style={{ fontSize: 11, color: "#94a3b8" }}>CancelType &quot;R&quot; and Isfullrefund false are fixed (the only values in Akbar&apos;s document).</div>
-      {edit && <button style={{ ...btn, marginTop: 6 }} onClick={() => { if (!v.liveCancellationEnabled || confirm("Turn live Akbar cancellation ON? Admins will be able to cancel real tickets.")) onSave(v); }}>Save settings</button>}
+    <div style={{ ...sub, margin: "6px 0" }}>
+      <div style={{ fontWeight: 700, color: "#e2e8f0" }}>Refund information</div>
+      <div style={{ fontSize: 12 }}>Customer paid: <b>{money(booking?.totalAmount, booking?.currency)}</b>{net != null && <> · Paid to Akbar for this transaction: <b>{money(net, "INR")}</b></>}</div>
+      <div style={{ fontSize: 12, color: "#94a3b8" }}>
+        Akbar&apos;s cancellation charges and refund amount are not available before cancelling: Akbar hasn&apos;t confirmed that GetRefund is safe to call on a live booking.
+        After Akbar confirms the cancellation, record the refund amount from Akbar&apos;s portal; the deposit refund and the customer refund are separate steps and are never marked done automatically.
+      </div>
     </div>
   );
 }
 
+const offBox: React.CSSProperties = { border: "1px solid #7f1d1d", background: "rgba(239,68,68,.08)", color: "#fecaca", borderRadius: 8, padding: "8px 10px", fontSize: 12, margin: "8px 0" };
 const box: React.CSSProperties = { border: "1px solid #7f1d1d", borderRadius: 10, padding: 14, margin: "10px 0", background: "rgba(239,68,68,.04)" };
 const confirmBox: React.CSSProperties = { border: "1px solid #b91c1c", borderRadius: 8, padding: 12, margin: "10px 0", background: "rgba(239,68,68,.08)" };
 const card: React.CSSProperties = { border: "1px solid #334155", borderRadius: 8, padding: 10, marginTop: 10, color: "#cbd5e1" };

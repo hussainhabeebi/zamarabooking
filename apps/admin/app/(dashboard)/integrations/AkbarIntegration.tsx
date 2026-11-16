@@ -3,6 +3,7 @@
 // /api/admin/flight-sources/akbar; live status of every source is on Admin → Suppliers.
 import { useEffect, useState } from "react";
 import { API, apiHeaders } from "@/lib/api";
+import { AkbarCancellationSettings } from "./AkbarCancellationSettings";
 
 type Akbar = {
   enabled: boolean; environment: "UAT" | "PRODUCTION"; utilsUrl: string; flightsUrl: string;
@@ -46,6 +47,7 @@ export function AkbarIntegration() {
   const set = (_k: "akbar", patch: Partial<Akbar>) => setAkbar({ ...akbar, ...patch });
 
   return (
+    <>
       <Section id="akbar" color="#f59e0b" title="Akbar Travels API" badge={akbar.enabled ? "live in search" : "off"}>
       <p style={hint}>
         Akbar's B2B API (by Benzy Infotech). Enter the Signature credentials Akbar sent you; the token they return lasts 48 hours and is reused
@@ -151,6 +153,9 @@ export function AkbarIntegration() {
         {akbarRaw && <pre style={{ ...code, display: "block", marginTop: 10, maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{akbarRaw}</pre>}
       </div>
     </Section>
+    {/* One company-wide setting for cancelling Akbar API bookings (not per booking). */}
+    <AkbarCancellationSettings />
+    </>
   );
 }
 

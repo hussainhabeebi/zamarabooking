@@ -96,6 +96,13 @@ This uses the existing refund engine (`settleRefund`), back to the original paym
 
 The booking becomes **CANCELLED** only when every Akbar transaction on it is fully cancelled. Partial cancellations leave it TICKETED. The PNR, tickets, payment rows and Akbar booking state are never changed.
 
+## Where the setting lives
+
+"Live cancellation" is **one company-wide setting** for every Akbar API booking. It is stored once per tenant in KV, under `admin_settings:<tenant>:integration:akbar-cancellation`.
+
+- **Where to change it:** Admin → Integrations → **Akbar cancellation**. Super admin only, and every change is audit-logged.
+- **On each booking page:** the panel only shows whether it is ON or OFF. When it is ON, eligible bookings show **Cancel Booking**. When it is OFF, the button is disabled and the panel explains why, with a link to the setting.
+
 ## Safeguards
 
 - **Off by default.** "Live cancellation" is a super-admin setting. While it is off, nothing is sent and nothing is recorded.

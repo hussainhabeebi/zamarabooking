@@ -17,6 +17,11 @@ const STATUS_COLOR: Record<string, string> = {
   CANCELLATION_REQUESTED: "#fbbf24", CANCELLATION_PROCESSING: "#fbbf24", CANCELLED: "#4ade80", CANCELLATION_PENDING: "#fbbf24",
   CANCELLATION_FAILED: "#f87171", MANUAL_VERIFICATION_REQUIRED: "#f87171",
 };
+// Akbar cancellations: the labels shown on the booking page.
+const AKBAR_LABEL: Record<string, string> = {
+  CANCELLATION_REQUESTED: "Cancellation requested", CANCELLATION_PROCESSING: "Processing", CANCELLED: "Cancelled",
+  CANCELLATION_PENDING: "Pending verification", MANUAL_VERIFICATION_REQUIRED: "Pending verification", CANCELLATION_FAILED: "Failed",
+};
 const REFUND_STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Refund pending", color: "#94a3b8" }, PROCESSING: { label: "Refund in progress", color: "#fbbf24" },
   DONE: { label: "Refunded", color: "#4ade80" }, FAILED: { label: "Refund failed — retry or refund manually", color: "#f87171" },
@@ -93,7 +98,7 @@ export default function CancellationsPage() {
                   <span style={{ color: "#94a3b8", fontSize: 13 }}> · {r.departureDate ? new Date(r.departureDate).toLocaleDateString("en-IN") : "—"} · PNR {r.pnr ?? "—"}</span>
                   <div style={{ color: "#94a3b8", fontSize: 12 }}>{r.customerName ?? "Guest"} · {r.contactEmail} · requested {new Date(r.createdAt).toLocaleString("en-IN")}</div>
                 </div>
-                <span style={{ color: STATUS_COLOR[r.status] ?? "#94a3b8", fontWeight: 800, fontSize: 13 }}>{r.type === "AKBAR_CANCELLATION" ? "AKBAR · " : ""}{r.status}{r.supplierStatus ? ` · ${r.type === "AKBAR_CANCELLATION" ? "Akbar code" : "TJ"} ${r.supplierStatus}` : ""}</span>
+                <span style={{ color: STATUS_COLOR[r.status] ?? "#94a3b8", fontWeight: 800, fontSize: 13 }}>{r.type === "AKBAR_CANCELLATION" ? `AKBAR · ${AKBAR_LABEL[r.status] ?? r.status}` : r.status}{r.supplierStatus ? ` · ${r.type === "AKBAR_CANCELLATION" ? "Akbar code" : "TJ"} ${r.supplierStatus}` : ""}</span>
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "10px 0", fontSize: 13, color: "#cbd5e1" }}>
                 <span>Paid {money(r.amountPaid, r.currency)}</span>
