@@ -118,6 +118,8 @@ env:
     apps/api/src/lib/trips.ts
     apps/api/src/lib/booking-recovery.ts
     apps/api/test/akbar-cancellation.test.ts
+    apps/api/src/routes/recent-searches.ts
+    apps/api/test/recent-searches.test.ts
     packages/suppliers/src/akbar/cancellation.ts
     packages/suppliers/src/akbar/client.ts
     packages/suppliers/src/akbar/adapter.ts

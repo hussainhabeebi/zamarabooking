@@ -5,6 +5,8 @@ import { AiTripSearch, type AiTripFields } from "./AiTripSearch";
 import { useRouter } from "next/navigation";
 import { CURRENCY_EVENT, readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
 import { AED_PAYMENTS_ENABLED, SHOWN_CURRENCIES, type DisplayCurrency } from "../lib/fx";
+import RecentSearches from "./RecentSearches";
+import { searchDatePassed, searchUrl, type RecentSearch } from "../lib/recent-searches";
 
 const AIRPORTS = [
   { code: "BOM", city: "Mumbai",        country: "IN" },
@@ -292,6 +294,34 @@ export default function SearchWidget() {
     window.requestAnimationFrame(() => router.push(url));
   }
 
+  // Recent searches → "Search again": fill the form with that search and run it again (a new live
+  // search, exactly as if the form had been submitted). A date in the past only fills the form.
+  function searchAgain(s: RecentSearch) {
+    const airport = (code: string): Airport => AIRPORTS.find((a) => a.code === code) ?? ({ code, city: code, country: "" } as Airport);
+    const passed = searchDatePassed(s);
+    const legs = s.tripType === "MULTICITY" && s.legs?.length ? s.legs : null;
+    setTripType(s.tripType === "ROUNDTRIP" ? "Round Trip" : legs ? "Multi-city" : "One Way");
+    setOrigin(airport(s.origin));
+    setDest(airport(legs ? legs[0].destination : s.destination));
+    setDepartDate(passed ? "" : s.departureDate);
+    setReturnDate(!passed && s.tripType === "ROUNDTRIP" ? s.returnDate ?? "" : "");
+    if (legs) setExtraLegs(legs.slice(1).map((l) => ({ origin: airport(l.origin), dest: airport(l.destination), date: passed ? "" : l.departureDate })));
+    setAdults(s.adults); setChildren(s.children); setInfants(s.infants);
+    setCabinClass(({ ECONOMY: "Economy", PREMIUM_ECONOMY: "Premium Economy", BUSINESS: "Business", FIRST: "First" } as const)[s.cabinClass]);
+    setSpecialFare(s.fareType === "STUDENT" ? "Student" : s.fareType === "SENIOR_CITIZEN" ? "Senior Citizen" : "Regular");
+    setDirectOnly(false);
+    setAiPrefs({});
+    if (passed) {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => document.getElementById("sw-depart")?.focus(), 300);
+      return;
+    }
+    const url = searchUrl(s, currency);
+    setSearching(true);
+    router.prefetch(url);
+    window.requestAnimationFrame(() => router.push(url));
+  }
+
   const today = new Date().toISOString().split("T")[0];
 
   return (
@@ -489,6 +519,8 @@ export default function SearchWidget() {
           <div><strong>{SEARCH_STAGES[searchStage]}</strong><small>Live supplier results can take a few seconds. Please don’t close this page.</small></div>
         </div>
       )}
+
+      <RecentSearches onSearchAgain={searchAgain} busy={searching} />
 
       <div className="search-shortcuts" aria-label="Quick travel benefits">
         <span>✓ Compare flights</span><span>✓ Baggage details</span><span>✓ Secure checkout</span>

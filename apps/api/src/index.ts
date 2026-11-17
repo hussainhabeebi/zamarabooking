@@ -34,6 +34,7 @@ import { checkoutRoutes }      from "./routes/checkout.js";
 import { whatsappRoutes }      from "./routes/whatsapp.js";
 import { partnerRoutes }       from "./routes/partner.js";
 import { profileRoutes }       from "./routes/profile.js";
+import { recentSearchRoutes }  from "./routes/recent-searches.js";
 import { customerWalletRoutes } from "./routes/customer-wallet.js";
 import { customerTripRoutes, guestTripRoutes } from "./routes/trips.js";
 import { customerAccountRoutes, customerSupportRoutes, createGuestSupportRequest } from "./routes/customer-account.js";
@@ -118,6 +119,7 @@ app.route("/api/profile/wallet", customerWalletRoutes);
 app.route("/api/profile/trips",   customerTripRoutes);
 app.route("/api/profile/account", customerAccountRoutes);
 app.route("/api/profile/support", customerSupportRoutes);
+app.route("/api/profile/recent-searches", recentSearchRoutes);
 app.route("/api/profile",  profileRoutes);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
