@@ -396,6 +396,32 @@ export function hasJourneys(data: unknown): boolean {
   return Array.isArray(trips) && trips.some((t) => Array.isArray((t as { Journey?: unknown } | null)?.Journey) && ((t as { Journey: unknown[] }).Journey.length > 0));
 }
 
+// Akbar sends a search's results in batches: ExpressSearch, then each GetExpSearch (full-service airlines
+// usually first, low-cost carriers such as IndiGo / Air India Express later). Whether a later batch repeats
+// the earlier fares or holds only the new ones is not documented, so no batch is ever thrown away: the
+// journeys of every batch are merged, per trip (Trips[0] onward, Trips[1] return), keyed by their Index
+// (unique within the search's TUI). A journey that comes again replaces the older copy (newer price /
+// seats) in its first position. Everything else (TUI, Completed, …) is the newest answer's.
+const journeyKey = (j: unknown) => {
+  const index = (j as { Index?: unknown } | null)?.Index;
+  return typeof index === "string" && index.trim() ? `i:${index.trim()}` : `j:${JSON.stringify(j)}`;
+};
+export function mergeAkbarBatches(older: unknown, newer: unknown): unknown {
+  if (!hasJourneys(older)) return newer;
+  const o = older as { Trips: unknown[] };
+  const n = (newer && typeof newer === "object" ? newer : {}) as { Trips?: unknown };
+  const newTrips = Array.isArray(n.Trips) ? n.Trips : [];
+  const trips = Array.from({ length: Math.max(o.Trips.length, newTrips.length) }, (_, t) => {
+    const before = (o.Trips[t] ?? {}) as { Journey?: unknown };
+    const after = (newTrips[t] ?? null) as { Journey?: unknown } | null;
+    const merged = new Map<string, unknown>();
+    for (const j of Array.isArray(before.Journey) ? before.Journey : []) merged.set(journeyKey(j), j);
+    for (const j of after && Array.isArray(after.Journey) ? after.Journey : []) merged.set(journeyKey(j), j);
+    return { ...before, ...(after ?? {}), Journey: [...merged.values()] };
+  });
+  return { ...(newer && typeof newer === "object" ? newer : {}), Trips: trips };
+}
+
 export interface AkbarSearchOptions {
   pollIntervalMs?: number;   // between GetExpSearch calls
   deadlineMs?:     number;   // the docs allow 50 s after ExpressSearch
@@ -608,7 +634,8 @@ export class AkbarClient {
 
     if (mode === "AS") {
       // Postman sequence: ExpressSearch (Mode AS) returns the TUI, GetExpSearch with that TUI
-      // (ClientID "") returns the fares; called at least once, then until "Completed".
+      // (ClientID "") returns the fares; called at least once, then until "Completed". Every batch's
+      // journeys are kept (mergeAkbarBatches), not only the last one's.
       let best: unknown = hasJourneys(first) ? first : null;
       while (tui && (polls === 0 || !isSearchComplete(data)) && left() > 1000) {
         if (polls > 0) {
@@ -623,15 +650,15 @@ export class AkbarClient {
           throw failed(err);
         }
         polls++;
-        if (hasJourneys(data)) best = data;
+        best = best ? mergeAkbarBatches(best, data) : hasJourneys(data) ? data : null;
       }
-      const result = hasJourneys(data) ? data : best ?? data;
+      const result = best ?? data;
       return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data) };
     }
 
     // Mode SY: ExpressSearch can answer with Akbar's first batch only (full-service carriers usually
     // first, low-cost carriers later) and Completed false. Keep asking GetExpSearch until Akbar says
-    // Completed or the deadline, keeping the latest response with flights. Once flights are in hand a
+    // Completed or the deadline, merging every batch (mergeAkbarBatches). Once flights are in hand a
     // slow / failed GetExpSearch never loses them: each further poll gets at most SY_POLL_TIMEOUT_MS.
     let best: unknown = hasJourneys(first) ? first : null;
     while (!isSearchComplete(data) && tui && left() > pollIntervalMs + 1000) {
@@ -644,9 +671,9 @@ export class AkbarClient {
         throw failed(err);
       }
       polls++;
-      if (hasJourneys(data)) best = data;
+      best = best ? mergeAkbarBatches(best, data) : hasJourneys(data) ? data : null;
     }
-    const result = hasJourneys(data) ? data : best ?? data;
+    const result = best ?? data;
     return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data) };
   }
 }
