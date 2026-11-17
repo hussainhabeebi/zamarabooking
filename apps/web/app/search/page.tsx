@@ -1,5 +1,7 @@
 import { Fragment } from "react";
 import RecordRecentSearch from "../components/RecordRecentSearch";
+import AirlineLogo from "../components/AirlineLogo";
+import { airportCity } from "../lib/airports";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import SearchResultControls, { ChangeDatesAction } from "./SearchResultControls";
@@ -461,7 +463,14 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
   const isBookable = Boolean(fare.isBookable && fare.supplier !== "GOOGLE_SERP");
   const durationH = Math.floor(fare.duration / 60);
   const durationM = fare.duration % 60;
-  const airlineCode = (fare.flightNumber ?? "").slice(0, 2).toUpperCase();
+  // The airline's code (Akbar's flight numbers come without it: "493" → "IX 493").
+  const airlineCode = String(fare.airline || (fare.flightNumber ?? "").slice(0, 2)).toUpperCase();
+  const flightNo = String(fare.flightNumber ?? "");
+  const flightLabel = flightNo && !flightNo.toUpperCase().startsWith(airlineCode) ? `${airlineCode} ${flightNo}` : flightNo;
+  const place = (code: string) => {
+    const city = airportCity(code);
+    return city ? <><b>{city}</b> ({code})</> : <b>{code}</b>;
+  };
   const arrNextDay = dep.getUTCDate() !== arr.getUTCDate();
 
   const cabinLabel = String(fare.cabinClass ?? "ECONOMY").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -478,9 +487,9 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
       <div className="fare-card-v2-main" style={fare.__badge ? { paddingTop: 22 } : {}}>
         {/* Airline */}
         <div className="fare-card-v2-airline">
-          <div className="fare-card-v2-airline-logo">{airlineCode}</div>
+          <AirlineLogo className="fare-card-v2-airline-logo" code={airlineCode} name={fare.airlineName} />
           <div className="fare-card-v2-airline-name">{fare.airlineName}</div>
-          <div className="fare-card-v2-flight-num">{fare.flightNumber}</div>
+          <div className="fare-card-v2-flight-num">{flightLabel}</div>
         </div>
 
         {/* Times & duration bar */}
@@ -488,7 +497,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
           <div className="fare-card-v2-time-row">
             <div>
               <div className="fare-card-v2-time">{fmt(dep)}</div>
-              <div className="fare-card-v2-airport">{fare.origin}</div>
+              <div className="fare-card-v2-airport">{place(fare.origin)}</div>
             </div>
             <div className="fare-card-v2-duration-bar">
               <div className="fare-card-v2-duration">{durationH}h {durationM}m</div>
@@ -502,7 +511,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
                 {fmt(arr)}
                 {arrNextDay && <sup style={{ fontSize: 10, color: "#f59e0b", marginLeft: 2 }}>+1</sup>}
               </div>
-              <div className="fare-card-v2-airport">{fare.destination}</div>
+              <div className="fare-card-v2-airport">{place(fare.destination)}</div>
             </div>
           </div>
           {viaText(fare) && (
