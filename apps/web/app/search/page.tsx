@@ -155,9 +155,13 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
   const groups = groupFareOptions(filteredFares as any[]);
   const optionsByKey = new Map(groups.map((g) => [g.key, g.options]));
   const leadFares = groups.map((g) => g.lead);
-  const displayFares = params.all === "1" || params.sort
+  // Every flight is listed. Without a chosen sort, the recommended ones (Best overall / Lowest fare /
+  // Fastest) come first, then all the other flights in the usual order.
+  const showAll = params.all === "1" || Boolean(params.sort);
+  const shortlist = showAll ? [] : recommendedFares(leadFares, params);
+  const displayFares = showAll
     ? leadFares
-    : recommendedFares(leadFares, params);
+    : [...shortlist, ...leadFares.filter((f: any) => !shortlist.some((x: any) => x.id === f.id))];
   // Each group fare goes under the live result for the same flight (airline + flight number), or at the top.
   const airlineChoice = (params.airlines ?? "").split(",").filter(Boolean);
   const groupFares = groupResult.fares.filter((g) => !airlineChoice.length || airlineChoice.includes(g.airlineName));
@@ -168,8 +172,6 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
     if (host) groupAfter.set(String(host.id), [...(groupAfter.get(String(host.id)) ?? []), g]);
     else groupTop.push(g);
   }
-  const allQuery = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null) as [string, string][]);
-  allQuery.set("all", "1");
 
   const sortParam = params.sort ?? "best";
 
@@ -289,11 +291,14 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {params.all !== "1" && (
+              {!showAll && shortlist.length > 0 && (
                 <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700, marginBottom: 2 }}>Recommended for you</div>
               )}
               {displayFares.map((fare, i) => (
                 <Fragment key={`${fare.id ?? i}-${i}`}>
+                {!showAll && i === shortlist.length && i > 0 && (
+                  <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700, margin: "8px 0 2px" }}>All flights</div>
+                )}
                 {rank(fare) > 0 && (i === 0 || rank(displayFares[i - 1]) === 0) && (
                   <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700, margin: "8px 0 2px" }}>Flights from nearby airports</div>
                 )}
@@ -310,14 +315,6 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
                 {(groupAfter.get(String(fare.id)) ?? []).map((g) => <GroupFareResultCard key={g.id} fare={g} sameFlightAsAbove payCurrency={requestedCurrency} />)}
                 </Fragment>
               ))}
-              {params.all !== "1" && groups.length > displayFares.length && (
-                <a
-                  href={`/search?${allQuery.toString()}`}
-                  style={{ textAlign: "center", padding: 14, border: "1.5px solid #e2e8f0", borderRadius: 14, color: "#0f172a", textDecoration: "none", fontWeight: 800, background: "#fff", fontSize: 14 }}
-                >
-                  View all {groups.length} flights →
-                </a>
-              )}
             </div>
           )}
         </div>
