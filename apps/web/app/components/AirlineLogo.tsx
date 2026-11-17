@@ -1,6 +1,7 @@
 "use client";
-// Airline logo on flight results, from the pics.avs.io airline-logo images (loaded by the visitor's
-// browser). If an image can't be loaded, the airline code is shown instead, as before.
+// Airline logo on flight results: the airline's own square logo, by IATA code, from pics.avs.io
+// (al_square), loaded by the visitor's browser. Unknown codes get "not found" from pics.avs.io; any
+// logo that can't be loaded shows the airline code instead.
 import { useEffect, useRef, useState } from "react";
 
 export default function AirlineLogo({ code, name, className }: { code: string; name?: string; className?: string }) {
@@ -14,8 +15,8 @@ export default function AirlineLogo({ code, name, className }: { code: string; n
     <div className={`${className ?? ""} airline-logo-img`}>
       <img
         ref={img}
-        src={`https://pics.avs.io/120/120/${iata}.png`}
-        srcSet={`https://pics.avs.io/120/120/${iata}.png 1x, https://pics.avs.io/240/240/${iata}.png 2x`}
+        src={`https://pics.avs.io/al_square/120/120/${iata}.png`}
+        srcSet={`https://pics.avs.io/al_square/120/120/${iata}.png 1x, https://pics.avs.io/al_square/240/240/${iata}.png 2x`}
         alt={name ? `${name} logo` : `${iata} logo`}
         width={40} height={40} loading="lazy" decoding="async" referrerPolicy="no-referrer"
         onError={() => setFailed(true)}

@@ -2706,7 +2706,7 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
 }
 
 /* Flight result cards: airline logo image, city + airport code, bolder text (reference: Akbar's result card). */
-.fare-card-v2-airline-logo.airline-logo-img { background: #fff; padding: 2px; }
+.fare-card-v2-airline-logo.airline-logo-img { background: #fff; padding: 0; }
 .fare-card-v2-airline-logo.airline-logo-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .flight-results-page .fare-card-v2-airline-logo { width: 40px; height: 40px; }
 .fare-card-v2-airline-name { font-weight: 800; font-size: 15px; }
