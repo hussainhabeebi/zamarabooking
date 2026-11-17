@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, akbarCancelBody, akbarGetRefundBody,
+  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, akbarCancelBody, akbarGetRefundBody, mergeAkbarBatches,
 } from "@zamrabooking/suppliers";
 import {
   DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
@@ -573,4 +573,118 @@ test("Akbar stops come from the stop count and connections; missing details are 
   const unknown = n({ Stops: undefined, Connections: undefined });
   assert.equal(unknown.stopsUnknown, true);
   assert.equal(n({ Stops: "Non-Stop", Connections: undefined }).stopsUnknown, true);       // non-numeric label
+});
+
+// ── Akbar search batches: every batch is kept (mergeAkbarBatches) ─────────────────────────────────
+// Akbar sends results in batches (full-service airlines usually first, IndiGo / Air India Express later).
+// Whether a later batch repeats the earlier fares is not documented: both kinds must give every fare.
+const ix = { ...akbarJourney, Index: "IX|5", Provider: "IX", VAC: "IX", FlightNo: "IX 493", AirlineName: "Air India Express", NetFare: 3700 };
+const flights = (data: unknown) => normalizeAkbarSearch(data, "ECONOMY").map((f) => `${f.airline}${f.flightNumber}`).sort();
+const AS_CREDS = { ...akbarCreds, apiBooking: "MANUAL", getToken: async () => ({ token: "jwt", clientId: "cid" }) };
+
+test("merge: batches holding only new fares are all kept; batches repeating earlier fares give no duplicates", () => {
+  const b1 = { TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] };
+  const onlyNew = { TUI: "t", Completed: true, Trips: [{ Journey: [lcc, ix] }] };
+  const cumulative = { TUI: "t", Completed: true, Trips: [{ Journey: [gds, lcc, ix] }] };
+  assert.deepEqual(flights(mergeAkbarBatches(b1, onlyNew)), ["6E9", "IX493", "WY1"]);
+  assert.deepEqual(flights(mergeAkbarBatches(b1, cumulative)), ["6E9", "IX493", "WY1"]);
+  assert.equal((mergeAkbarBatches(b1, cumulative) as any).Trips[0].Journey.length, 3);
+  assert.equal((mergeAkbarBatches(b1, onlyNew) as any).Completed, true);   // the newest answer's status
+});
+
+test("merge: a fare sent again replaces the older copy (newer price / seats), in its first position", () => {
+  const older = { TUI: "t", Completed: false, Trips: [{ Journey: [gds, { ...lcc, NetFare: 3990, Seats: 9 }] }] };
+  const newer = { TUI: "t", Completed: true, Trips: [{ Journey: [{ ...lcc, NetFare: 4250, Seats: 2 }] }] };
+  const merged = mergeAkbarBatches(older, newer) as any;
+  assert.deepEqual(merged.Trips[0].Journey.map((j: any) => j.Index), ["WY|1", "6E|9"]);
+  const fares = normalizeAkbarSearch(merged, "ECONOMY");
+  assert.equal(fares.length, 2);
+  assert.equal(fares.find((f) => f.airline === "6E")!.totalFare, 4250);
+});
+
+test("merge: a later answer with no flights keeps the flights already received; round-trip trips merge separately", () => {
+  const got = { TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] };
+  const empty = { TUI: "t", Completed: true, Trips: [{ Journey: [] }] };
+  const kept = mergeAkbarBatches(got, empty) as any;
+  assert.equal(kept.Completed, true);
+  assert.deepEqual(flights(kept), ["WY1"]);
+  assert.deepEqual(flights(mergeAkbarBatches(got, { TUI: "t", Completed: true })), ["WY1"]);
+  const rt = mergeAkbarBatches(
+    { TUI: "t", Trips: [{ Journey: [{ ...gds, Index: "o1" }] }, { Journey: [{ ...gds, Index: "r1" }] }] },
+    { TUI: "t", Trips: [{ Journey: [{ ...lcc, Index: "o2" }] }, { Journey: [] }] },
+  ) as any;
+  assert.deepEqual(rt.Trips.map((t: any) => t.Journey.map((j: any) => j.Index)), [["o1", "o2"], ["r1"]]);
+});
+
+for (const [label, batches] of [
+  ["full-service first, low-cost later (only new fares each time)", [[gds], [lcc, ix]]],
+  ["low-cost first, full-service later (only new fares each time)", [[lcc, ix], [gds]]],
+  ["one airline per batch, then an empty final answer", [[ix], [gds], [lcc], []]],
+  ["each batch repeats everything so far", [[gds], [gds, ix], [gds, ix, lcc]]],
+] as const) {
+  test(`Akbar search (Mode AS): every fare kept — ${label}`, async () => {
+    const replies = [{ TUI: "t", Code: "200" }, ...batches.map((j, i) => ({ TUI: "t", Completed: i === batches.length - 1, Trips: [{ Journey: j }] }))];
+    const fetchImpl = (async () => json(replies.shift())) as unknown as typeof fetch;
+    const r = await new AkbarClient(akbarCreds, fetchImpl).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { mode: "AS", sleep: async () => {} });
+    assert.equal(r.finished, true);
+    assert.equal(r.polls, batches.length);
+    assert.deepEqual(flights(r.data), ["6E9", "IX493", "WY1"]);
+  });
+}
+
+test("Akbar search (Mode SY): the first batch from ExpressSearch is kept when GetExpSearch sends only the low-cost batch", async () => {
+  const replies = [
+    { TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] },
+    { TUI: "t", Completed: true, Trips: [{ Journey: [lcc, ix] }] },
+  ];
+  const fetchImpl = (async () => json(replies.shift())) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { sleep: async () => {} });
+  assert.deepEqual(flights(r.data), ["6E9", "IX493", "WY1"]);
+});
+
+test("Akbar search: incomplete (failed poll or deadline) keeps every batch received so far, marked unfinished", async () => {
+  let n = 0;
+  const failing = (async () => {
+    n++;
+    if (n === 1) return json({ TUI: "t", Code: "200" });
+    if (n === 2) return json({ TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] });
+    if (n === 3) return json({ TUI: "t", Completed: false, Trips: [{ Journey: [lcc] }] });
+    return new Response("Gateway timeout", { status: 504 });
+  }) as unknown as typeof fetch;
+  const a = await new AkbarClient(akbarCreds, failing).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { mode: "AS", sleep: async () => {} });
+  assert.equal(a.finished, false);
+  assert.deepEqual(flights(a.data), ["6E9", "WY1"]);
+
+  const batches = [[gds], [lcc], [ix]];
+  let i = 0;
+  const slow = (async (url: string) => url.endsWith("/ExpressSearch")
+    ? json({ TUI: "t", Code: "200" })
+    : json({ TUI: "t", Completed: false, Trips: [{ Journey: batches[i++ % batches.length] }] })) as unknown as typeof fetch;
+  const b = await new AkbarClient(akbarCreds, slow).search(BOM_DEL, { token: "jwt", clientId: "cid" }, { mode: "AS", deadlineMs: 1_400, pollIntervalMs: 50 });
+  assert.equal(b.finished, false);
+  assert.deepEqual(flights(b.data), ["6E9", "IX493", "WY1"]);
+});
+
+test("AkbarAdapter (API booking on): fares from every batch reach the search, each once; an unfinished search stays flagged", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    for (const finished of [true, false]) {
+      const replies: unknown[] = [
+        { TUI: "t", Code: "200" },
+        { TUI: "t", Completed: false, Trips: [{ Journey: [gds] }] },
+        { TUI: "t", Completed: false, Trips: [{ Journey: [lcc, { ...gds, NetFare: 5100 }] }] },
+        finished ? { TUI: "t", Completed: true, Trips: [{ Journey: [ix] }] } : null,
+      ];
+      globalThis.fetch = (async (url: string) => {
+        if (url.endsWith("/WebSettings")) return json({ Settings: [] });
+        const next = replies.shift();
+        return next ? json(next) : new Response("Gateway timeout", { status: 504 });
+      }) as unknown as typeof fetch;
+      const adapter = new AkbarAdapter(AS_CREDS as never);
+      const fares = await adapter.search(BOM_DEL);
+      assert.deepEqual(fares.map((f) => `${f.airline}${f.flightNumber}`).sort(), finished ? ["6E9", "IX493", "WY1"] : ["6E9", "WY1"]);
+      assert.equal(fares.find((f) => f.airline === "WY")!.totalFare, 5100);
+      assert.equal(adapter.incomplete, !finished);
+    }
+  } finally { globalThis.fetch = realFetch; }
 });
