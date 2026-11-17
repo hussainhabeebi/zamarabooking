@@ -12,6 +12,11 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import SearchResultControls from "../SearchResultControls";
 import RecordRecentSearch from "../../components/RecordRecentSearch";
+import AirlineLogo from "../../components/AirlineLogo";
+import { airportCity } from "../../lib/airports";
+
+// "Kochi (COK)", or the code alone when the city isn't known.
+const place = (code: string) => { const city = airportCity(code); return city ? <><b>{city}</b> ({code})</> : <b>{code}</b>; };
 import { journeyResponse } from "./response";
 import { filterJourneyFares } from "./filters";
 import { stopsLabel, viaText } from "../../lib/stops";
@@ -308,19 +313,22 @@ function FareRow({ fare, selected, onPick, showSegments, travellers = 1, show = 
       borderRadius: 10, padding: 14, cursor: "pointer", display: "grid", gap: 6,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-        <div>
-          <b>{fare.airlineName} · {fare.flightNumber ? `${fare.airline} ${fare.flightNumber}` : ""}</b>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
+        <AirlineLogo className="fare-card-v2-airline-logo" code={fare.airline} name={fare.airlineName} />
+        <div style={{ minWidth: 0 }}>
+          <b style={{ fontSize: 15, color: "#0f172a" }}>{fare.airlineName} · {fare.flightNumber ? `${fare.airline} ${fare.flightNumber}` : ""}</b>
           <div style={{ fontSize: 13, color: "#344054" }}>
-            {time(fare.departureTime)} {fare.origin} → {time(fare.arrivalTime)} {fare.destination} · {hm(fare.duration)} · {fare.tripKey === "COMBO" ? (fare.stops ? `${fare.stops} stop${fare.stops > 1 ? "s" : ""}` : "Non-stop") : stopsLabel(fare)}{fare.tripKey !== "COMBO" && viaText(fare) ? ` · ${viaText(fare)}` : ""}
+            <b>{time(fare.departureTime)}</b> {place(fare.origin)} → <b>{time(fare.arrivalTime)}</b> {place(fare.destination)} · {hm(fare.duration)} · {fare.tripKey === "COMBO" ? (fare.stops ? `${fare.stops} stop${fare.stops > 1 ? "s" : ""}` : "Non-stop") : stopsLabel(fare)}{fare.tripKey !== "COMBO" && viaText(fare) ? ` · ${viaText(fare)}` : ""}
           </div>
           {showSegments && inbound.length > 0 && (
             <div style={{ fontSize: 13, color: "#344054" }}>
-              Return: {time(inbound[0].departureTime)} {inbound[0].origin} → {time(inbound[inbound.length - 1].arrivalTime)} {inbound[inbound.length - 1].destination} · {day(inbound[0].departureTime)} · {inbound.length > 1 ? `${inbound.length - 1} stop` : "Non-stop"}
+              Return: <b>{time(inbound[0].departureTime)}</b> {place(inbound[0].origin)} → <b>{time(inbound[inbound.length - 1].arrivalTime)}</b> {place(inbound[inbound.length - 1].destination)} · {day(inbound[0].departureTime)} · {inbound.length > 1 ? `${inbound.length - 1} stop` : "Non-stop"}
             </div>
           )}
           {showSegments && outbound.length > 1 && !inbound.length && segs.length > 1 && (
             <div style={{ fontSize: 12, color: "#667085" }}>{segs.map((s) => `${s.origin}→${s.destination}`).join(" · ")}</div>
           )}
+        </div>
         </div>
         <div style={{ textAlign: "right" }}>
           <b style={{ fontSize: 18, color: "#0D4B96" }}>{show(price(fare), fare.currency)}</b>

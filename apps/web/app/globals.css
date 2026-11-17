@@ -2704,3 +2704,13 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
   .home-phase1 .wa-float { bottom: calc(86px + env(safe-area-inset-bottom)); }
   .mobile-tab-bar a:focus-visible { outline: 2px solid #0D4B96; outline-offset: -3px; }
 }
+
+/* Flight result cards: airline logo image, city + airport code, bolder text (reference: Akbar's result card). */
+.fare-card-v2-airline-logo.airline-logo-img { background: #fff; padding: 0; }
+.fare-card-v2-airline-logo.airline-logo-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.flight-results-page .fare-card-v2-airline-logo { width: 40px; height: 40px; }
+.fare-card-v2-airline-name { font-weight: 800; font-size: 15px; }
+.fare-card-v2-flight-num { font-weight: 700; color: #475569; }
+.fare-card-v2-airport { font-size: 13px; color: #334155; font-weight: 600; }
+.fare-card-v2-airport b { color: #0f172a; font-weight: 800; }
+.fare-card-v2-duration { font-weight: 700; color: #334155; }
