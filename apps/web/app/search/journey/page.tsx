@@ -11,6 +11,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import SearchResultControls from "../SearchResultControls";
+import RecordRecentSearch from "../../components/RecordRecentSearch";
 import { journeyResponse } from "./response";
 import { filterJourneyFares } from "./filters";
 import { stopsLabel, viaText } from "../../lib/stops";
@@ -207,6 +208,7 @@ function Journey() {
 
   return (
     <main className="page-container flight-results-page" style={{ paddingTop: 16, paddingBottom: 120 }}>
+      <RecordRecentSearch query={q.toString()} />
       <h1 style={{ fontSize: "clamp(18px,4vw,24px)", fontWeight: 800, margin: "0 0 4px" }}>{title}</h1>
       <p style={{ margin: "0 0 12px", color: "#667085", fontSize: 14 }}>
         {legs.map((l) => day(l.departureDate)).join(" · ")} · {adults} adult{adults > 1 ? "s" : ""}{children ? `, ${children} child` : ""}{infants ? `, ${infants} infant` : ""}

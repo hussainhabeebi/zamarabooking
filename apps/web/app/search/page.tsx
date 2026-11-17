@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import RecordRecentSearch from "../components/RecordRecentSearch";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import SearchResultControls, { ChangeDatesAction } from "./SearchResultControls";
@@ -189,6 +190,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
 
   return (
     <main className="page-container flight-results-page">
+      <RecordRecentSearch query={new URLSearchParams(Object.entries(params).filter(([, v]) => typeof v === "string") as [string, string][]).toString()} />
       {/* Route-neutral travel banner; all journey details come from search state. */}
       <div className="search-page-header">
         <div className="search-page-summary">
