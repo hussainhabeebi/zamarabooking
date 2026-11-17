@@ -1,7 +1,10 @@
 import type { NormalizedFare, SearchParams, StopDetail, SupplierAdapter, SupplierCredentials } from "../base.js";
-import { AkbarClient, AkbarError, searchTui, type AkbarCredentials, type AkbarToken } from "./client.js";
-import { akbarWebSettings, type WebSettingsMap } from "./websettings.js";
+import { AkbarClient, AkbarError, searchTui, type AkbarCredentials, type AkbarSearchTiming, type AkbarToken } from "./client.js";
 import { akbarRoundTripJourneys, akbarSpecialFarePairs, type AkbarRoundTripFareType } from "./roundtrip.js";
+
+// GetExpSearch every 1 s for the first 12 s of a search (most finish by then), then every 2 s, up to
+// 22 s (Zamra's search waits 28 s for every source). At most about 16 GetExpSearch calls per search.
+export const AKBAR_SEARCH_POLLING = { deadlineMs: 22_000, pollIntervalMs: 2_000, fastPollMs: 1_000, fastPollWindowMs: 12_000 } as const;
 
 // Akbar Travels search for Zamra's flight results. Like Poomas, Akbar fares are
 // sold on Zamra and ticketed by staff on Akbar's portal until the CreateItinerary
@@ -166,6 +169,11 @@ export class AkbarAdapter implements SupplierAdapter {
   // Set when an Akbar search ended before Akbar reported it Completed (deadline / failed poll): the
   // fares returned are real but may not be all of them, so the search must not be cached.
   incomplete = false;
+  // Akbar calls that follow a search but nothing waits for (WebSettings): the caller keeps them alive
+  // after answering (Workers waitUntil) so they finish and are logged.
+  background: Promise<unknown>[] = [];
+  // Step timings of each Akbar search this adapter ran (search timing logs).
+  timings: AkbarSearchTiming[] = [];
 
   constructor(credentials: SupplierCredentials) {
     this.client = new AkbarClient(credentials as unknown as AkbarCredentials);
@@ -204,34 +212,39 @@ export class AkbarAdapter implements SupplierAdapter {
 
   // RT and RS searches at once (Akbar's samples); RS failing never fails RT.
   private async searchRoundTrip(params: SearchParams): Promise<NormalizedFare[]> {
-    const started = Date.now();
     let token = await this.getToken();
-    const run = (fareType: AkbarRoundTripFareType) => this.client.search(params, token, { deadlineMs: 22_000, fareType }).catch(async (err) => {
+    const run = (fareType: AkbarRoundTripFareType) => this.client.search(params, token, { ...AKBAR_SEARCH_POLLING, fareType }).catch(async (err) => {
       if (!(err instanceof AkbarError && err.statusCode === 401)) throw err;
       token = await this.getToken(true);
-      return this.client.search(params, token, { deadlineMs: 22_000, fareType });
+      return this.client.search(params, token, { ...AKBAR_SEARCH_POLLING, fareType });
     });
     const [rt, rs] = await Promise.all([run("RT"), run("RS").catch(() => null)]);
     const results = [{ r: rt, fareType: "RT" as const }, ...(rs ? [{ r: rs, fareType: "RS" as const }] : [])];
     const out: NormalizedFare[] = [];
     for (const { r, fareType } of results) {
       if (!r.finished) this.incomplete = true;
+      this.timings.push(r.timing);
       const fares = normalizeAkbarRoundTrip(r.data, params.cabinClass, fareType);
-      const tui = r.tui || searchTui(r.data);
-      const budget = Math.min(8_000, 26_000 - (Date.now() - started));
-      const settings: WebSettingsMap | null = fares.length && tui && budget >= 1_000
-        ? await this.client.webSettings(tui, token, budget).then(akbarWebSettings).catch(() => null) : null;
-      out.push(...(settings ? fares.map((f) => ({ ...f, raw: { ...(f.raw as Record<string, unknown>), webSettings: settings } })) : fares));
+      if (fares.length) this.webSettingsInBackground(r.tui || searchTui(r.data), token);
+      out.push(...fares);
     }
     // A round trip needs both directions.
     return out.some((f) => f.tripKey === "ONWARD") && out.some((f) => f.tripKey === "RETURN") ? out : [];
   }
 
+  // WebSettings (API booking on): Akbar's call after the search, for the search's TUI. Nothing waits for
+  // it any more (it used to hold every search up): it runs in the background. The fares carry no
+  // raw.webSettings, so the booking run reads WebSettings itself with the fare's search TUI when it
+  // needs it (lib/akbar-booking.ts, unchanged).
+  private webSettingsInBackground(tui: string, token: AkbarToken) {
+    if (!tui) return;
+    this.background.push(this.client.webSettings(tui, token, 8_000).catch(() => null));
+  }
+
   private async searchLeg(params: SearchParams): Promise<NormalizedFare[]> {
-    const started = Date.now();
     let token = await this.getToken();
     // Zamra's search waits 28 s for every source, so stop collecting Akbar results before then.
-    const opts = { deadlineMs: 22_000, mode: this.mode };
+    const opts = { ...AKBAR_SEARCH_POLLING, mode: this.mode };
     const result = await this.client.search(params, token, opts).catch(async (err) => {
       // A cached token Akbar no longer accepts: get a new one and retry once.
       if (!(err instanceof AkbarError && err.statusCode === 401)) throw err;
@@ -239,17 +252,11 @@ export class AkbarAdapter implements SupplierAdapter {
       return this.client.search(params, token, opts);
     });
     if (!result.finished) this.incomplete = true;
+    this.timings.push(result.timing);
     const fares = normalizeAkbarSearch(result.data, params.cabinClass);
-    // API booking on (certification): WebSettings for this search's TUI, right after the search.
-    // Its Settings (Key → Value, as Akbar sent them) ride on each fare (raw.webSettings) to the
-    // booking, which works out SSR / SeatLayout for the fare's airline and sector. It never fails or
-    // holds up the search: it gets what is left of the 26 s before Zamra's 28 s limit, at most 8 s.
-    if (this.mode !== "AS" || !fares.length) return fares;
-    const tui = result.tui || searchTui(result.data);   // ExpressSearch's response TUI
-    const budget = Math.min(8_000, 26_000 - (Date.now() - started));
-    if (!tui || budget < 1_000) return fares;
-    const settings: WebSettingsMap | null = await this.client.webSettings(tui, token, budget).then(akbarWebSettings).catch(() => null);
-    return settings ? fares.map((f) => ({ ...f, raw: { ...(f.raw as Record<string, unknown>), webSettings: settings } })) : fares;
+    // API booking on: Akbar's WebSettings for this search's TUI (ExpressSearch's), in the background.
+    if (this.mode === "AS" && fares.length) this.webSettingsInBackground(result.tui || searchTui(result.data), token);
+    return fares;
   }
 }
 
