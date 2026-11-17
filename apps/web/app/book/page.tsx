@@ -8,6 +8,7 @@ import { bookingError } from "./booking-error";
 import BaggageSelection, { availableBaggage } from "./BaggageSelection";
 import FlightItinerary, { itinCss, legsFromJourney, legsFromSegments, type ItinLeg } from "./FlightItinerary";
 import { BUSINESS } from "../lib/business";
+import { WALLET_ENABLED } from "../lib/features";
 import { passengerNameProblem } from "./passenger-names";
 import PassengerDateInput from "../components/PassengerDateInput";
 import { passengerDatesProblem } from "../lib/passenger-dates";
@@ -588,7 +589,7 @@ export default function BookPage() {
   const seatPrice = (key: string, code: string) => seatMaps?.find((m) => m.key === key)?.seats.find((s) => s.code === code)?.amount ?? 0;
   const seatSum = passengers.reduce((n, p) => n + (p.type === "INFANT" ? 0 : Object.entries(p.seat).reduce((m, [k, c]) => m + (c ? seatPrice(k, c) : 0), 0)), 0);
   const grandTotal = (fare?.totalFare ?? 0) + ssrSum + seatSum;
-  const walletUsable = Boolean(token) && fare?.currency === "INR" && payCurrency === "INR" && walletBalance !== null;
+  const walletUsable = WALLET_ENABLED && Boolean(token) && fare?.currency === "INR" && payCurrency === "INR" && walletBalance !== null;
   const walletCovers = walletUsable && walletBalance! >= grandTotal && grandTotal > 0;
   const method: PayMethod = payMethod === "WALLET" && walletCovers ? "WALLET" : gateway;
   const onlineAvailable = phonePeUsable || gateways.NOMOD;
@@ -652,7 +653,7 @@ export default function BookPage() {
 
   // Signed-in customers can pay from their ZamraBooking wallet (INR, full fare only).
   useEffect(() => {
-    if (!token) { setWalletBalance(null); return; }
+    if (!token || !WALLET_ENABLED) { setWalletBalance(null); return; }
     fetch(`${apiUrl}/api/profile/wallet`, { headers: { "x-tenant-slug": "zamra", Authorization: `Bearer ${token}` } })
       .then((res) => res.ok ? res.json() : null)
       .then((w: { balance?: number } | null) => setWalletBalance(typeof w?.balance === "number" ? w.balance : null))
@@ -1315,7 +1316,7 @@ export default function BookPage() {
                       <span><b>{label}</b><br /><span style={{ fontSize: 12, color: "#64748b" }}>{hint}</span></span>
                     </label>
                   ))}
-                  {!token && fare?.currency === "INR" && (
+                  {WALLET_ENABLED && !token && fare?.currency === "INR" && (
                     <span style={{ fontSize: 12, color: "#64748b" }}>Sign in to pay from your ZamraBooking wallet.</span>
                   )}
                 </div>

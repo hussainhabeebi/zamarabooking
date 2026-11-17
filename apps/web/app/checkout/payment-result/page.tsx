@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { saveGuestToken } from "../../lib/customer-api";
+import { WALLET_ENABLED } from "../../lib/features";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
@@ -90,7 +91,7 @@ function PaymentResult() {
             : issuing
               ? "Payment received. Your ticket is being issued — the e-ticket with your airline PNR will be emailed to you once the airline confirms it."
             : bookingFailed
-              ? "The airline couldn't confirm this booking. Your payment is being refunded automatically (wallet payments return to your wallet)."
+              ? `The airline couldn't confirm this booking. Your payment is being refunded automatically${WALLET_ENABLED ? " (wallet payments return to your wallet)" : " to your original payment method"}.`
             : successful
             ? "Your payment has been received. We're confirming your seat with the airline — this usually takes under a minute."
             : failed

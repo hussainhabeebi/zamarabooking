@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 import styles from "./wallet.module.css";
+import { WALLET_ENABLED } from "../lib/features";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
 
@@ -38,7 +39,21 @@ function readToken() {
   return m ? decodeURIComponent(m[1]) : "";
 }
 
-export default function WalletPage() {
+// Hidden for now (lib/features.ts): the page says so instead of showing the wallet.
+export default function WalletRoute() {
+  if (!WALLET_ENABLED) {
+    return (
+      <main style={{ maxWidth: 560, margin: "64px auto", padding: "0 16px", textAlign: "center", color: "#334155" }}>
+        <h1 style={{ fontSize: 22, margin: "0 0 10px", color: "#0f172a" }}>This page isn&apos;t available</h1>
+        <p style={{ margin: "0 0 18px", lineHeight: 1.6 }}>Please contact us if you have a question about a refund or a payment.</p>
+        <a href="/trips" style={{ color: "#0D4B96", fontWeight: 700 }}>Go to My Trips</a>
+      </main>
+    );
+  }
+  return <WalletPage />;
+}
+
+function WalletPage() {
   const [token, setToken] = useState<string | null>(null);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Tx[]>([]);
