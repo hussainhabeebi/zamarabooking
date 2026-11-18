@@ -2714,3 +2714,34 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
 .fare-card-v2-airport { font-size: 13px; color: #334155; font-weight: 600; }
 .fare-card-v2-airport b { color: #0f172a; font-weight: 800; }
 .fare-card-v2-duration { font-weight: 700; color: #334155; }
+
+/* Results filters: larger, bolder text so they're easy to read on phones and laptops. Kept last so it
+   wins over the earlier filter rules; sizes only (no layout or behaviour change). */
+@media (min-width: 901px) { .flight-results-page .search-results-layout { grid-template-columns: minmax(300px, 340px) minmax(0,1fr); } }
+.flight-results-page .filter-sidebar-title { font-size: 21px; font-weight: 800; color: #0f172a; }
+.flight-results-page .filter-sidebar-title a { font-size: 14px; font-weight: 800; }
+.flight-results-page .filter-section { padding: 16px 0; }
+.flight-results-page .filter-section-label { margin-bottom: 11px; color: #0f172a; font-size: 16px; font-weight: 800; }
+.flight-results-page .date-switcher button span { font-size: 11px; font-weight: 700; color: #475569; }
+.flight-results-page .date-switcher button strong { font-size: 14px; font-weight: 800; }
+.flight-results-page .date-switcher button.active span { color: #e0ecfb; }
+.flight-results-page .date-switcher button.active strong { color: #fff; }
+.flight-results-page .airport-select span { font-size: 12px; font-weight: 800; color: #334155; }
+.flight-results-page .airport-select select { height: 46px; font-size: 14px; font-weight: 700; padding: 0 8px; }
+.flight-results-page .stops-btn { min-height: 46px; font-size: 14px; font-weight: 800; color: #1e293b; }
+.flight-results-page .time-band { min-height: 54px; font-size: 13px; font-weight: 800; color: #1e293b; }
+.flight-results-page .time-band-title { margin-bottom: 2px; font-size: 12px; font-weight: 700; color: #475569; }
+.flight-results-page .stops-btn.active, .flight-results-page .time-band.active { color: var(--color-primary); }
+.flight-results-page .time-band.active .time-band-title { color: var(--color-primary); }
+.flight-results-page .filter-option { min-height: 40px; gap: 11px; font-size: 15px; font-weight: 600; color: #0f172a; }
+.flight-results-page .filter-option input[type="checkbox"] { width: 19px; height: 19px; }
+.flight-results-page .filter-option-badge { font-size: 13px; font-weight: 800; color: #475569; }
+@media (max-width: 620px) {
+  .flight-results-page .filter-sidebar-title { font-size: 22px; }
+  .flight-results-page .filter-section-label { font-size: 17px; }
+  .flight-results-page .date-switcher button span { font-size: 10px; }
+  .flight-results-page .date-switcher button strong { font-size: 13px; }
+  .flight-results-page .stops-btn { font-size: 14px; padding: 7px 2px; }
+  .flight-results-page .filter-option { min-height: 44px; font-size: 16px; }
+  .flight-results-page .filter-option-badge { font-size: 14px; }
+}
