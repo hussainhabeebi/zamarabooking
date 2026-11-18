@@ -46,14 +46,15 @@ test('Search again URL is the same search the form runs (fresh results page)', (
   assert.equal(R.recentSearchKey(back), R.recentSearchKey(s({ tripType: 'ROUNDTRIP', returnDate: '2099-12-01' })));
 });
 
-test('keeps the last 10, newest first; repeating a search moves it to the top (no duplicates)', () => {
+test('keeps the last 4, newest first; repeating a search moves it to the top (no duplicates)', () => {
   let list = [];
   for (let i = 0; i < 12; i++) list = R.mergeRecentSearches([s({ destination: ['DOH', 'DXB', 'BOM', 'DEL', 'BLR', 'MAA', 'HYD', 'CCU', 'AUH', 'SHJ', 'MCT', 'RUH'][i], searchedAt: at(i) })], list);
-  assert.equal(list.length, 10);
-  assert.equal(list[0].destination, 'RUH');
-  assert.ok(!list.some((x) => x.destination === 'DOH' || x.destination === 'DXB'));   // oldest two dropped
-  list = R.mergeRecentSearches([s({ destination: 'MAA', searchedAt: at(30) })], list);
-  assert.equal(list.length, 10); assert.equal(list[0].destination, 'MAA'); assert.equal(list.filter((x) => x.destination === 'MAA').length, 1);
+  assert.equal(R.RECENT_SEARCH_LIMIT, 4);
+  assert.deepEqual(list.map((x) => x.destination), ['RUH', 'MCT', 'SHJ', 'AUH']);   // only the newest 4
+  list = R.mergeRecentSearches([s({ destination: 'SHJ', searchedAt: at(30) })], list);   // a repeat moves to the top, once
+  assert.deepEqual(list.map((x) => x.destination), ['SHJ', 'RUH', 'MCT', 'AUH']);
+  list = R.mergeRecentSearches([s({ destination: 'MAA', searchedAt: at(31) })], list);
+  assert.deepEqual(list.map((x) => x.destination), ['MAA', 'SHJ', 'RUH', 'MCT']);
   // Different passengers / cabin / dates are different searches.
   const two = R.mergeRecentSearches([s({ adults: 2, searchedAt: at(1) })], [s()]);
   assert.equal(two.length, 2);
@@ -112,4 +113,18 @@ test('labels and past dates', () => {
   assert.match(R.dateLabel('2026-11-24'), /^Tue,? 24 Nov$/);   // ICU builds differ on the comma
   assert.equal(R.searchDatePassed(s({ departureDate: '2026-11-16' }), '2026-11-17'), true);
   assert.equal(R.searchDatePassed(s({ departureDate: '2026-11-17' }), '2026-11-17'), false);
+});
+
+test('a browser list saved before the limit was 4 shows only its newest 4; the next search keeps 4', async () => {
+  store.set('zamra_recent_searches', JSON.stringify(['DOH', 'DXB', 'BOM', 'DEL', 'BLR', 'MAA'].map((d, i) => s({ destination: d, searchedAt: at(50 - i) }))));
+  assert.deepEqual((await R.loadRecentSearches()).map((x) => x.destination), ['DOH', 'DXB', 'BOM', 'DEL']);
+  await R.recordRecentSearch(s({ destination: 'RUH', searchedAt: at(55) }));
+  assert.deepEqual((await R.loadRecentSearches()).map((x) => x.destination), ['RUH', 'DOH', 'DXB', 'BOM']);
+});
+
+test('signed in: the website shows at most 4 even if the account still sends more', async () => {
+  signIn('jwt-1');
+  const many = ['DOH', 'DXB', 'BOM', 'DEL', 'BLR', 'MAA'].map((d, i) => s({ destination: d, searchedAt: at(60 - i) }));
+  global.fetch = async () => ({ ok: true, json: async () => ({ searches: many }) });
+  assert.deepEqual((await R.loadRecentSearches()).map((x) => x.destination), ['DOH', 'DXB', 'BOM', 'DEL']);
 });

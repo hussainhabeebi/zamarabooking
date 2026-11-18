@@ -1,5 +1,5 @@
 "use client";
-// "Recent searches" under the flight search form: the last 10 searches (account or this browser),
+// "Recent searches" under the flight search form: the last 4 searches (account or this browser),
 // each with "Search again", and "Clear". See lib/recent-searches.ts.
 import { useEffect, useState } from "react";
 import styles from "./recent-searches.module.css";

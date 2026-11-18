@@ -1,4 +1,4 @@
-// Recent flight searches (last 10), shown under the search form with "Search again".
+// Recent flight searches (last 4), shown under the search form with "Search again".
 //   Signed in: kept with the account (/api/profile/recent-searches). A guest's searches made in this
 //              browser are moved to the account the first time the customer is signed in.
 //   Guest:     kept in this browser (localStorage).
@@ -20,7 +20,7 @@ export interface RecentSearch {
   searchedAt: string;
 }
 
-export const RECENT_SEARCH_LIMIT = 10;
+export const RECENT_SEARCH_LIMIT = 4;
 export const RECENT_SEARCHES_EVENT = "zamrabooking:recent-searches";
 const LOCAL_KEY = "zamra_recent_searches";
 const CABINS = ["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"] as const;
@@ -33,7 +33,7 @@ export const recentSearchKey = (s: RecentSearch) => JSON.stringify([
   (s.legs ?? []).map((l) => `${l.origin}-${l.destination}-${l.departureDate}`), s.adults, s.children, s.infants, s.cabinClass, s.fareType ?? "",
 ]);
 
-// New first (the newest copy of a repeated search wins), then the older ones; max 10.
+// New first (the newest copy of a repeated search wins), then the older ones; the last 4 are kept.
 export function mergeRecentSearches(added: RecentSearch[], saved: RecentSearch[]): RecentSearch[] {
   const out: RecentSearch[] = [];
   const seen = new Set<string>();
@@ -119,7 +119,7 @@ async function account(method: "GET" | "POST" | "DELETE", token: string, body?: 
     });
     if (!res.ok) return null;
     const d = await res.json() as { searches?: unknown };
-    return Array.isArray(d.searches) ? d.searches.filter(valid) : [];
+    return Array.isArray(d.searches) ? d.searches.filter(valid).slice(0, RECENT_SEARCH_LIMIT) : [];
   } catch { return null; }
 }
 
