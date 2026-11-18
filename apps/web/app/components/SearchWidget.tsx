@@ -81,13 +81,21 @@ const FARE_TYPE_PARAM: Record<string, string> = { Regular: "REGULAR", Student: "
 type ExtraLeg = { origin: Airport | null; dest: Airport | null; date: string };
 type SpecialFare = typeof SPECIAL_FARES[number];
 
+const COUNTRY: Record<string, string> = {
+  IN: "India", AE: "United Arab Emirates", QA: "Qatar", OM: "Oman", BH: "Bahrain", KW: "Kuwait", SA: "Saudi Arabia",
+  GB: "United Kingdom", FR: "France", DE: "Germany", SG: "Singapore", MY: "Malaysia", TH: "Thailand", HK: "Hong Kong",
+  JP: "Japan", US: "United States", CA: "Canada", AU: "Australia",
+};
+
+// From / To field: the city in large bold type, "[COK] India" under it. onPicked runs after a city is
+// chosen, so the form moves on to the next field by itself (From → To → Depart).
 function AirportInput({
-  id, label, value, onChange, placeholder,
+  id, label, value, onChange, placeholder, onPicked,
 }: {
   id: string; label: string; value: Airport | null;
-  onChange: (a: Airport) => void; placeholder: string;
+  onChange: (a: Airport) => void; placeholder: string; onPicked?: () => void;
 }) {
-  const displayVal = value ? `${value.city} (${value.code})` : "";
+  const displayVal = value ? value.city : "";
   const [query, setQuery] = useState(displayVal);
   const [open,  setOpen]  = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -95,14 +103,14 @@ function AirportInput({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setQuery(value ? `${value.city} (${value.code})` : "");
+    setQuery(value ? value.city : "");
   }, [value]);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setOpen(false);
-        setQuery(value ? `${value.city} (${value.code})` : "");
+        setQuery(value ? value.city : "");
       }
     }
     document.addEventListener("mousedown", onOutside);
@@ -120,17 +128,18 @@ function AirportInput({
 
   function pick(a: Airport) {
     onChange(a);
-    setQuery(`${a.city} (${a.code})`);
+    setQuery(a.city);
     setOpen(false);
+    onPicked?.();
   }
 
   return (
-    <div className="airport-wrap" ref={wrapRef}>
+    <div className="airport-wrap bf-field bf-airport" ref={wrapRef} onClick={() => inputRef.current?.focus()}>
       <label htmlFor={id}>{label}</label>
       <input
         ref={inputRef}
         id={id}
-        className="search-input"
+        className="search-input bf-city"
         value={query}
         placeholder={placeholder}
         autoComplete="off"
@@ -153,6 +162,7 @@ function AirportInput({
         onChange={(e) => { setQuery(e.target.value); setOpen(true); setActiveIndex(-1); }}
         required
       />
+      <span className="bf-sub">{value ? `[${value.code}] ${COUNTRY[value.country] ?? value.country}` : "Select city or airport"}</span>
       {open && (
         <ul className="airport-dropdown" id={`${id}-options`} role="listbox" aria-label={`${label} airports`}>
           {matches.map((a, index) => (
@@ -176,6 +186,43 @@ function AirportInput({
           {matches.length === 0 && <li role="presentation" className="airport-empty">No matching airport. Try a city or airport code.</li>}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Date field: chosen from the calendar only (no typing). Shows "24 Nov'26" in large bold type with the
+// weekday under it. The real <input type="date"> is kept (min date, the browser's own calendar) but
+// can't be typed into; clicking the field, Enter / Space, or openDatePicker() opens its calendar.
+export function openDatePicker(id: string) {
+  const el = document.getElementById(`${id}-input`) as (HTMLInputElement & { showPicker?: () => void }) | null;
+  if (!el) return;
+  try { if (el.showPicker) { el.showPicker(); return; } } catch { /* not allowed here: fall back */ }
+  el.focus();
+  el.click();
+}
+
+function DateField({ id, label, value, min, onChange, empty, onOpen }: {
+  id: string; label: string; value: string; min: string; onChange: (v: string) => void;
+  empty?: React.ReactNode; onOpen?: () => void;
+}) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const d = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  const open = () => { onOpen?.(); openDatePicker(id); };
+  return (
+    <div className="bf-field bf-date" onClick={open}>
+      <span className="bf-label">{label}</span>
+      <div id={id} role="button" tabIndex={0} className="bf-date-value" aria-label={`${label}: ${d ? d.toDateString() : "choose a date"}`}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
+        {d ? (
+          <>
+            <span className="bf-date-main"><b>{d.getUTCDate()}</b> {d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" })}&rsquo;{String(d.getUTCFullYear()).slice(2)}</span>
+            <span className="bf-sub">{d.toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" })}</span>
+          </>
+        ) : empty ?? <span className="bf-date-empty">Select date</span>}
+      </div>
+      <input id={`${id}-input`} className="bf-date-native" type="date" tabIndex={-1} aria-hidden="true" value={value} min={min}
+        onKeyDown={(e) => { if (e.key !== "Tab") e.preventDefault(); }}
+        onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
@@ -268,7 +315,12 @@ export default function SearchWidget() {
     e.preventDefault();
     if (!origin || !dest) return;
     const multi = tripType === "Multi-city";
-    if (multi && extraLegs.some((l) => !l.origin || !l.dest || !l.date)) return;
+    // Dates come from the calendar only: open the first one still missing.
+    if (!departDate) { openDatePicker("sw-depart"); return; }
+    if (tripType === "Round Trip" && !returnDate) { openDatePicker("sw-return"); return; }
+    if (multi && extraLegs.some((l) => !l.origin || !l.dest)) return;
+    const noDate = multi ? extraLegs.findIndex((l) => !l.date) : -1;
+    if (noDate >= 0) { openDatePicker(`sw-leg-${noDate}-date`); return; }
     const params = new URLSearchParams({
       origin:        origin.code,
       destination:   multi ? extraLegs[extraLegs.length - 1].dest!.code : dest.code,
@@ -327,7 +379,7 @@ export default function SearchWidget() {
   return (
     <div className="search-widget">
       <AiTripSearch onApply={applyAi} onSearchNow={() => formRef.current?.requestSubmit()} />
-      {/* Top bar: trip type + passengers */}
+      {/* Top bar: trip type + direct flights + currency */}
       <div className="trip-tabs">
         {(["One Way", "Round Trip", "Multi-city"] as TripType[]).map((t) => (
           <button
@@ -339,41 +391,10 @@ export default function SearchWidget() {
             {t}
           </button>
         ))}
-        <div ref={paxRef} style={{ position: "relative" }}>
-          <button
-            type="button"
-            className="passengers-select"
-            onClick={() => setPaxOpen((v) => !v)}
-            aria-label="Passengers"
-            aria-expanded={paxOpen}
-            style={{ cursor: "pointer", textAlign: "left" }}
-          >
-            {adults + children + infants} Pax {children + infants > 0 ? `· ${adults}A${children > 0 ? ` ${children}C` : ""}${infants > 0 ? ` ${infants}I` : ""}` : adults === 1 ? "Adult" : "Adults"}
-          </button>
-          {paxOpen && (
-            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, background: "#fff", border: "1px solid #d0d5dd", borderRadius: 14, padding: "14px 16px", minWidth: 220, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
-              {([
-                // Airline rules: max 9 seats (adults + children); infants sit on an adult's lap, 1 per adult.
-                { label: "Adults", sub: "12+ years", val: adults, set: (n: number) => { setAdults(n); setInfants((i) => Math.min(i, n)); }, min: 1, max: 9 - children },
-                { label: "Children", sub: "2–11 years", val: children, set: setChildren, min: 0, max: Math.min(6, 9 - adults) },
-                { label: "Infants", sub: "Under 2 · 1 per adult", val: infants, set: setInfants, min: 0, max: Math.min(4, adults) },
-              ] as const).map(({ label, sub, val, set, min, max }) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: label !== "Infants" ? "1px solid #f2f4f7" : "none" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{label}</div>
-                    <div style={{ fontSize: 12, color: "#667085" }}>{sub}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <button type="button" onClick={() => (set as (n: number) => void)(Math.max(min, val - 1))} disabled={val <= min} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd", background: val <= min ? "#f9fafb" : "#fff", fontWeight: 800, fontSize: 18, cursor: val <= min ? "default" : "pointer", color: val <= min ? "#d0d5dd" : "#111" }}>−</button>
-                    <span style={{ minWidth: 18, textAlign: "center", fontWeight: 700 }}>{val}</span>
-                    <button type="button" onClick={() => (set as (n: number) => void)(Math.min(max, val + 1))} disabled={val >= max} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd", background: val >= max ? "#f9fafb" : "#fff", fontWeight: 800, fontSize: 18, cursor: val >= max ? "default" : "pointer", color: val >= max ? "#d0d5dd" : "#111" }}>+</button>
-                  </div>
-                </div>
-              ))}
-              <button type="button" onClick={() => setPaxOpen(false)} style={{ marginTop: 12, width: "100%", height: 40, borderRadius: 10, border: "none", background: "#0f172a", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>Done</button>
-            </div>
-          )}
-        </div>
+        <label className={`toggle-pill bf-direct${directOnly ? " on" : ""}`}>
+          <input type="checkbox" checked={directOnly} onChange={(e) => setDirectOnly(e.target.checked)} />
+          <span className="toggle-pill-icon">✈</span> Direct flights only
+        </label>
 
         {/* Currency selector */}
         <div className="currency-pills" role="group" aria-label="Currency">
@@ -405,109 +426,119 @@ export default function SearchWidget() {
         </div>
       </div>
 
-      <form ref={formRef} onSubmit={handleSearch} aria-busy={searching}>
-        <div className={tripType === "Multi-city" ? "sw-grid sw-grid-multicity" : "sw-grid"}>
-          {tripType === "Multi-city" && <div className="sw-flight-label">Flight 1</div>}
-          {/* Route row: FROM ⇄ TO */}
-          <div className="sw-route-row">
+      <form ref={formRef} onSubmit={handleSearch} aria-busy={searching} className={`bf-form${tripType === "Multi-city" ? " bf-multi" : ""}`}>
+        {/* Row 1 (as on Akbar's portal): From ⇄ To · Depart · Return */}
+        <div className="bf-row1">
+          {tripType === "Multi-city" && <div className="bf-leg-label">Flight 1</div>}
+          <div className="bf-route">
             <AirportInput
               id="sw-origin" label="From" value={origin}
               onChange={setOrigin} placeholder="City or airport"
+              onPicked={() => document.getElementById("sw-dest")?.focus()}
             />
-            <button type="button" className="swap-btn" onClick={swap} aria-label="Swap airports">
-              ⇄
-            </button>
+            <button type="button" className="swap-btn bf-swap" onClick={swap} aria-label="Swap airports">⇄</button>
             <AirportInput
               id="sw-dest" label="To" value={dest}
               onChange={setDest} placeholder="City or airport"
+              onPicked={() => openDatePicker("sw-depart")}
             />
           </div>
-
-          {/* Extras row: DEPART + RETURN/CLASS */}
-          <div className="sw-extras-row">
-            <div className="search-field">
-              <label htmlFor="sw-depart">Depart</label>
-              <input
-                id="sw-depart" className="search-input" type="date"
-                value={departDate} onChange={(e) => setDepartDate(e.target.value)}
-                required min={today}
-              />
-            </div>
-
-            {tripType === "Round Trip" ? (
-              <div className="search-field">
-                <label htmlFor="sw-return">Return</label>
-                <input
-                  id="sw-return" className="search-input" type="date"
-                  value={returnDate} onChange={(e) => setReturnDate(e.target.value)}
-                  required min={departDate || today}
-                />
-              </div>
-            ) : (
-              <div className="search-field">
-                <label htmlFor="sw-class">Class</label>
-                <select
-                  id="sw-class" className="search-input" value={cabinClass}
-                  onChange={(e) => setCabinClass(e.target.value as typeof cabinClass)}
-                >
-                  {CABIN_CLASSES.map((c) => <option key={c}>{c}</option>)}
-                </select>
-              </div>
+          <div className="bf-dates">
+            <DateField id="sw-depart" label="Depart" value={departDate} min={today}
+              onChange={(v) => { setDepartDate(v); if (returnDate && returnDate < v) setReturnDate(""); }} />
+            {tripType !== "Multi-city" && (
+              <DateField id="sw-return" label="Return" value={tripType === "Round Trip" ? returnDate : ""} min={departDate || today}
+                onOpen={() => { if (tripType !== "Round Trip") setTripType("Round Trip"); }}
+                onChange={(v) => { setReturnDate(v); setTripType("Round Trip"); }}
+                empty={<span className="bf-date-hint">Book a round trip to save more</span>} />
             )}
           </div>
+        </div>
 
-          {tripType === "Multi-city" && (
-            <div className="sw-multicity">
-              {extraLegs.map((leg, i) => (
-                <div key={i} className="sw-route-row sw-leg-row">
-                  <div className="sw-leg-heading">
-                    <span className="sw-flight-label">Flight {i + 2}</span>
-                    {extraLegs.length > 1 && (
-                      <button type="button" className="sw-leg-remove" aria-label={`Remove flight ${i + 2}`}
-                        onClick={() => setExtraLegs((ls) => ls.filter((_, n) => n !== i))}>✕</button>
-                    )}
-                  </div>
+        {tripType === "Multi-city" && (
+          <div className="bf-legs">
+            {extraLegs.map((leg, i) => (
+              <div key={i} className="bf-row1 bf-leg">
+                <div className="bf-leg-label">
+                  Flight {i + 2}
+                  {extraLegs.length > 1 && (
+                    <button type="button" className="sw-leg-remove" aria-label={`Remove flight ${i + 2}`}
+                      onClick={() => setExtraLegs((ls) => ls.filter((_, n) => n !== i))}>✕</button>
+                  )}
+                </div>
+                <div className="bf-route">
                   <AirportInput id={`sw-leg-${i}-from`} label="From" value={leg.origin}
-                    onChange={(a) => updLeg(i, { origin: a })} placeholder="City or airport" />
-                  <span className="sw-leg-direction" aria-hidden="true">→</span>
+                    onChange={(a) => updLeg(i, { origin: a })} placeholder="City or airport"
+                    onPicked={() => document.getElementById(`sw-leg-${i}-to`)?.focus()} />
+                  <span className="bf-leg-arrow" aria-hidden="true">→</span>
                   <AirportInput id={`sw-leg-${i}-to`} label="To" value={leg.dest}
-                    onChange={(a) => updLeg(i, { dest: a })} placeholder="City or airport" />
-                  <div className="search-field">
-                    <label htmlFor={`sw-leg-${i}-date`}>Depart</label>
-                    <input id={`sw-leg-${i}-date`} className="search-input" type="date" required
-                      min={(i === 0 ? departDate : extraLegs[i - 1].date) || today}
-                      value={leg.date} onChange={(e) => updLeg(i, { date: e.target.value })} />
+                    onChange={(a) => updLeg(i, { dest: a })} placeholder="City or airport"
+                    onPicked={() => openDatePicker(`sw-leg-${i}-date`)} />
+                </div>
+                <div className="bf-dates bf-dates-one">
+                  <DateField id={`sw-leg-${i}-date`} label="Depart" value={leg.date}
+                    min={(i === 0 ? departDate : extraLegs[i - 1].date) || today}
+                    onChange={(v) => updLeg(i, { date: v })} />
+                </div>
+              </div>
+            ))}
+            {extraLegs.length < 5 && (
+              <button type="button" className="toggle-pill bf-add-leg"
+                onClick={() => setExtraLegs((ls) => [...ls, { origin: ls[ls.length - 1]?.dest ?? null, dest: null, date: "" }])}>
+                + Add another flight
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Row 2: Travellers · Class · Fare type · Search */}
+        <div className="bf-row2">
+          <div ref={paxRef} className="bf-field bf-pax" style={{ position: "relative" }}>
+            <span className="bf-label">Travellers</span>
+            <button type="button" className="bf-select-btn" onClick={() => setPaxOpen((v) => !v)} aria-label="Travellers" aria-expanded={paxOpen}>
+              <span><b>{adults + children + infants}</b> {adults + children + infants === 1 ? "Passenger" : "Passengers"}</span>
+              <span className="bf-caret" aria-hidden="true">▾</span>
+            </button>
+            <span className="bf-sub">{adults} Adult{adults > 1 ? "s" : ""}{children ? ` · ${children} Child${children > 1 ? "ren" : ""}` : ""}{infants ? ` · ${infants} Infant${infants > 1 ? "s" : ""}` : ""}</span>
+            {paxOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 60, background: "#fff", border: "1px solid #d0d5dd", borderRadius: 14, padding: "14px 16px", minWidth: 220, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
+              {([
+                // Airline rules: max 9 seats (adults + children); infants sit on an adult's lap, 1 per adult.
+                { label: "Adults", sub: "12+ years", val: adults, set: (n: number) => { setAdults(n); setInfants((i) => Math.min(i, n)); }, min: 1, max: 9 - children },
+                { label: "Children", sub: "2–11 years", val: children, set: setChildren, min: 0, max: Math.min(6, 9 - adults) },
+                { label: "Infants", sub: "Under 2 · 1 per adult", val: infants, set: setInfants, min: 0, max: Math.min(4, adults) },
+              ] as const).map(({ label, sub, val, set, min, max }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: label !== "Infants" ? "1px solid #f2f4f7" : "none" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{label}</div>
+                    <div style={{ fontSize: 12, color: "#667085" }}>{sub}</div>
                   </div>
-                  <div className="search-field sw-leg-class"><span className="sw-field-label">Class</span><span className="sw-leg-class-value">{cabinClass}</span></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button type="button" onClick={() => (set as (n: number) => void)(Math.max(min, val - 1))} disabled={val <= min} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd", background: val <= min ? "#f9fafb" : "#fff", fontWeight: 800, fontSize: 18, cursor: val <= min ? "default" : "pointer", color: val <= min ? "#d0d5dd" : "#111" }}>−</button>
+                    <span style={{ minWidth: 18, textAlign: "center", fontWeight: 700 }}>{val}</span>
+                    <button type="button" onClick={() => (set as (n: number) => void)(Math.min(max, val + 1))} disabled={val >= max} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd", background: val >= max ? "#f9fafb" : "#fff", fontWeight: 800, fontSize: 18, cursor: val >= max ? "default" : "pointer", color: val >= max ? "#d0d5dd" : "#111" }}>+</button>
+                  </div>
                 </div>
               ))}
-              {extraLegs.length < 5 && (
-                <button type="button" className="toggle-pill"
-                  onClick={() => setExtraLegs((ls) => [...ls, { origin: ls[ls.length - 1]?.dest ?? null, dest: null, date: "" }])}>
-                  + Add another flight
-                </button>
-              )}
+              <button type="button" onClick={() => setPaxOpen(false)} style={{ marginTop: 12, width: "100%", height: 40, borderRadius: 10, border: "none", background: "#0f172a", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>Done</button>
             </div>
           )}
-
-          {/* Extras bar: direct-flights + special fares + cabin (always) */}
-          <div className="sw-extras-bar">
-            <label className={`toggle-pill${directOnly ? " on" : ""}`}>
-              <input type="checkbox" checked={directOnly} onChange={(e) => setDirectOnly(e.target.checked)} />
-              <span className="toggle-pill-icon">✈</span> Direct flights only
-            </label>
-            <select
-              className="special-fare-select"
-              value={specialFare}
-              onChange={(e) => setSpecialFare(e.target.value as SpecialFare)}
-              aria-label="Special fare"
-            >
+          </div>
+          <div className="bf-field bf-class">
+            <label className="bf-label" htmlFor="sw-class">Cabin class</label>
+            <select id="sw-class" className="bf-select" value={cabinClass}
+              onChange={(e) => setCabinClass(e.target.value as typeof cabinClass)}>
+              {CABIN_CLASSES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="bf-field bf-fare">
+            <label className="bf-label" htmlFor="sw-fare">Fare type</label>
+            <select id="sw-fare" className="bf-select" value={specialFare}
+              onChange={(e) => setSpecialFare(e.target.value as SpecialFare)}>
               {SPECIAL_FARES.map((f) => <option key={f}>{f}</option>)}
             </select>
           </div>
-
-          {/* Search button */}
-          <button type="submit" className={searching ? "search-btn search-btn-loading" : "search-btn"} disabled={searching}>
+          <button type="submit" className={searching ? "search-btn bf-search search-btn-loading" : "search-btn bf-search"} disabled={searching}>
             {searching ? <><span className="search-spinner" /> {SEARCH_STAGES[searchStage]}</> : <>Search flights <span aria-hidden="true">→</span></>}
           </button>
         </div>
