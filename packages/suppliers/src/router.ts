@@ -34,6 +34,9 @@ export interface SearchResult {
   errors:         Record<string, string>;
   // Diagnostic detail per supplier for operator logs (never shown to customers).
   diagnostics?:   Record<string, SupplierDiagnostic>;
+  // Supplier calls that follow the search but nothing waits for (Akbar WebSettings). The caller keeps
+  // them running after answering (Workers waitUntil); they never change the fares.
+  background?:    Promise<unknown>[];
 }
 
 export interface SupplierDiagnostic {
@@ -48,6 +51,8 @@ export interface SupplierDiagnostic {
   // The supplier answered but hadn't finished (e.g. Akbar not "Completed" by the deadline): the
   // fares are real but possibly not all of them — such a search is not cached.
   incomplete?:      boolean;
+  // Akbar: how long each search step took (ExpressSearch, GetExpSearch polls), per Akbar search.
+  timing?:          { mode: string; expressMs: number; pollMs: number; polls: number; totalMs: number; finished: boolean }[];
 }
 
 function diagnosticFromError(err: unknown, durationMs: number): SupplierDiagnostic {
@@ -151,15 +156,24 @@ function deduplicate(fares: NormalizedFare[]): NormalizedFare[] {
 //   • SERP fares that have no bookable equivalent are appended (labelled indicative).
 //   • If ALL bookable suppliers return nothing, SERP results are used (isIndicative=true).
 //   • "No flights found" is only returned after every available supplier has been checked.
-export async function searchFares(
+type SearchOptions = {
+  platformCredentials?: PlatformCredentials;
+  // Deprecated flags kept for backwards-compat; behaviour is now always "fan-out + fallback"
+  allowSerpFallback?:    boolean;
+  includeSerpParallel?:  boolean;
+};
+
+export async function searchFares(params: SearchParams, supplierConfigs: SupplierConfig[], options: SearchOptions = {}): Promise<SearchResult> {
+  const background: Promise<unknown>[] = [];
+  const result = await searchAll(params, supplierConfigs, options, background);
+  return background.length ? { ...result, background } : result;
+}
+
+async function searchAll(
   params: SearchParams,
   supplierConfigs: SupplierConfig[],
-  options: {
-    platformCredentials?: PlatformCredentials;
-    // Deprecated flags kept for backwards-compat; behaviour is now always "fan-out + fallback"
-    allowSerpFallback?:    boolean;
-    includeSerpParallel?:  boolean;
-  } = {},
+  options: SearchOptions,
+  background: Promise<unknown>[],
 ): Promise<SearchResult> {
   const platform = options.platformCredentials ?? {};
 
@@ -198,14 +212,21 @@ export async function searchFares(
   const settled = await Promise.allSettled(
     bookableConfigs.map(async (config) => {
       const startedAt = Date.now();
+      let adapter: SupplierAdapter | null = null;
+      // Akbar: step timings and the calls left running after the search (WebSettings).
+      const extras = () => {
+        const a = adapter as { timings?: SupplierDiagnostic["timing"]; background?: Promise<unknown>[] } | null;
+        if (a?.background?.length) background.push(...a.background);
+        return a?.timings?.length ? { timing: a.timings } : {};
+      };
       try {
-        const adapter = buildAdapter(config, platform);
+        adapter = buildAdapter(config, platform);
         const fares   = await searchWithTimeout(adapter, params, config.timeoutMs, config.maxRetries);
         const incomplete = (adapter as { incomplete?: boolean }).incomplete === true;
-        diagnostics[config.name] = { ok: true, fareCount: fares.length, durationMs: Date.now() - startedAt, ...(incomplete ? { incomplete } : {}) };
+        diagnostics[config.name] = { ok: true, fareCount: fares.length, durationMs: Date.now() - startedAt, ...(incomplete ? { incomplete } : {}), ...extras() };
         return { supplier: config.name, fares };
       } catch (err) {
-        diagnostics[config.name] = diagnosticFromError(err, Date.now() - startedAt);
+        diagnostics[config.name] = { ...diagnosticFromError(err, Date.now() - startedAt), ...extras() };
         throw err;
       }
     }),

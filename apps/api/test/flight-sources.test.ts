@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, akbarCancelBody, akbarGetRefundBody, mergeAkbarBatches,
+  AkbarAdapter, AkbarClient, akbarDurationMinutes, normalizeAkbarSearch, expressSearchBody, fareRuleBody, flightInfoBody, normalizePoomasOffer, PoomasAdapter, seatLayoutBody, signatureBody, smartPricerBody, ssrBody, startPayBody, retrieveBookingBody, akbarCancelBody, akbarGetRefundBody, mergeAkbarBatches, AKBAR_SEARCH_POLLING,
 } from "@zamrabooking/suppliers";
 import {
   DEFAULT_AKBAR, getAkbarSettings, getAkbarToken, saveAkbarSettings, isOfflineSupplier, manualFareToNormalized, parseCsv, parseManualFaresCsv, quoteOfflineFare, rememberOfflineFares, sheetCsvUrl,
@@ -687,4 +687,73 @@ test("AkbarAdapter (API booking on): fares from every batch reach the search, ea
       assert.equal(adapter.incomplete, !finished);
     }
   } finally { globalThis.fetch = realFetch; }
+});
+
+// ── Search speed: GetExpSearch every 1 s at first, WebSettings in the background, timing logs ─────
+test("Akbar polling: every 1 s for the first 12 s, then every 2 s, never past 22 s (bounded number of calls)", () => {
+  assert.deepEqual({ ...AKBAR_SEARCH_POLLING }, { deadlineMs: 22_000, pollIntervalMs: 2_000, fastPollMs: 1_000, fastPollWindowMs: 12_000 });
+  // Upper bound on GetExpSearch calls per search (each call takes time too, so real counts are lower).
+  const max = AKBAR_SEARCH_POLLING.fastPollWindowMs / AKBAR_SEARCH_POLLING.fastPollMs
+    + (AKBAR_SEARCH_POLLING.deadlineMs - AKBAR_SEARCH_POLLING.fastPollWindowMs) / AKBAR_SEARCH_POLLING.pollIntervalMs;
+  assert.ok(max <= 17, `at most ${max} GetExpSearch calls`);
+});
+
+test("Akbar client: fast checks inside the window, normal interval after it; timing reports each step", async () => {
+  const waits: number[] = [];
+  let n = 0;
+  const fetchImpl = (async (url: string) => url.endsWith("/ExpressSearch")
+    ? json({ TUI: "t", Code: "200" })
+    : json({ TUI: "t", Completed: ++n >= 8, Trips: [{ Journey: [gds] }] })) as unknown as typeof fetch;
+  const r = await new AkbarClient(akbarCreds, fetchImpl).search(BOM_DEL, { token: "jwt", clientId: "cid" }, {
+    mode: "AS", fastPollMs: 10, fastPollWindowMs: 60, pollIntervalMs: 40,
+    sleep: (ms) => { waits.push(ms); return new Promise((res) => setTimeout(res, ms)); },
+  });
+  assert.equal(r.finished, true);
+  assert.equal(r.polls, 8);
+  assert.equal(waits[0], 10);
+  assert.ok(waits.includes(40), `switched to the normal interval: ${waits}`);
+  assert.ok(waits.indexOf(40) > 0 && waits.slice(waits.indexOf(40)).every((w) => w === 40), `fast first, then normal: ${waits}`);
+  assert.equal(r.timing.mode, "AS");
+  assert.equal(r.timing.polls, 8);
+  assert.ok(r.timing.totalMs >= r.timing.expressMs && r.timing.pollMs === r.timing.totalMs - r.timing.expressMs);
+  // Without the fast options the old 2 s interval is unchanged (other callers).
+  const plain: number[] = [];
+  let m = 0;
+  await new AkbarClient(akbarCreds, (async (url: string) => url.endsWith("/ExpressSearch") ? json({ TUI: "t" }) : json({ TUI: "t", Completed: ++m >= 3, Trips: [{ Journey: [gds] }] })) as unknown as typeof fetch)
+    .search(BOM_DEL, { token: "jwt", clientId: "cid" }, { mode: "AS", sleep: async (ms) => { plain.push(ms); } });
+  assert.deepEqual(plain, [2000, 2000]);
+});
+
+test("search router: the WebSettings call is handed back as background work and step timings reach the diagnostics", async () => {
+  const { searchFares } = await import("@zamrabooking/suppliers");
+  const realFetch = globalThis.fetch;
+  const steps: string[] = [];
+  try {
+    globalThis.fetch = (async (url: string) => {
+      steps.push(url.split("/").pop()!);
+      if (url.endsWith("/ExpressSearch")) return json({ TUI: "t", Code: "200" });
+      if (url.endsWith("/GetExpSearch")) return json({ TUI: "t", Completed: true, Trips: [{ Journey: [gds, lcc] }] });
+      if (url.endsWith("/WebSettings")) return json({ Settings: [] });
+      return json({}, 404);
+    }) as unknown as typeof fetch;
+    const r = await searchFares(BOM_DEL, [{ name: "AKBAR", isEnabled: true, priority: 1, timeoutMs: 20_000, maxRetries: 0,
+      credentials: { ...akbarCreds, apiBooking: "MANUAL", getToken: async () => ({ token: "jwt", clientId: "cid" }) } as never }]);
+    assert.equal(r.fares.length, 2);
+    assert.equal(r.background?.length, 1);
+    await Promise.all(r.background!);
+    assert.deepEqual(steps, ["ExpressSearch", "GetExpSearch", "WebSettings"]);
+    const t = r.diagnostics?.AKBAR?.timing;
+    assert.equal(t?.length, 1);
+    assert.equal(t![0].polls, 1);
+    assert.equal(t![0].finished, true);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("search timing header: total, cache, suppliers and Akbar steps", async () => {
+  const { searchTimingHeader } = await import("../src/routes/search.js");
+  assert.equal(searchTimingHeader({ cache: "hit", totalMs: 312 }), 'total;dur=312, cache;desc="hit"');
+  const h = searchTimingHeader({ cache: "miss", totalMs: 6400, suppliersMs: 6100, diagnostics: {
+    AKBAR: { ok: true, fareCount: 13, durationMs: 6050, timing: [{ mode: "AS", expressMs: 900, pollMs: 5100, polls: 5, totalMs: 6000, finished: true }] },
+  } });
+  assert.equal(h, 'total;dur=6400, cache;desc="miss", suppliers;dur=6100, akbar;dur=6050, akbar-express;dur=900, akbar-polls;dur=5100;desc="5 polls, complete"');
 });

@@ -557,7 +557,7 @@ const withFetch = async <T>(impl: (url: string, init: RequestInit) => Promise<Re
   try { return await fn(); } finally { globalThis.fetch = real; }
 };
 
-test("one-way and round-trip searches read WebSettings for each ExpressSearch TUI; Settings and carriers ride on the fares", async () => {
+test("one-way and round-trip searches call WebSettings for each ExpressSearch TUI in the background; the booking reads it itself", async () => {
   const sent: { step: string; body: any }[] = [];
   const impl = async (url: string, init: RequestInit) => {
     const step = url.split("/").pop()!;
@@ -572,20 +572,53 @@ test("one-way and round-trip searches read WebSettings for each ExpressSearch TU
     return json({ Code: "404" }, 404);
   };
   const adapter = new AkbarAdapter({ ...creds, apiBooking: "MANUAL", getToken: async () => token } as any);
-  const ow = await withFetch(impl, () => adapter.search(searchParams));
+  const ow = await withFetch(impl, async () => { const f = await adapter.search(searchParams); await Promise.all(adapter.background); return f; });
   assert.deepEqual(sent.filter((x) => x.step === "WebSettings").map((x) => x.body), [{ ClientID: "enc-client", TUI: "tui-BOM" }]);
   assert.deepEqual((ow[0].raw as any).carriers, ["6E"]);
-  assert.equal((ow[0].raw as any).webSettings.ShowSeatLayoutDom, "6E,AI");
+  assert.equal((ow[0].raw as any).webSettings, undefined);   // not waited for: the booking reads it (test below)
   sent.length = 0;
-  const rt = await withFetch(impl, () => adapter.search({ ...searchParams, tripType: "ROUNDTRIP", returnDate: "2026-12-20" }));
+  const rtAdapter = new AkbarAdapter({ ...creds, apiBooking: "MANUAL", getToken: async () => token } as any);
+  const rt = await withFetch(impl, async () => { const f = await rtAdapter.search({ ...searchParams, tripType: "ROUNDTRIP", returnDate: "2026-12-20" }); await Promise.all(rtAdapter.background); return f; });
   assert.deepEqual(sent.filter((x) => x.step === "WebSettings").map((x) => x.body.TUI).sort(), ["tui-BOM", "tui-DEL"]);
-  // The booking gets each leg's route, carriers and Settings from the stored fare.
+  // The booking gets each leg's search TUI, route and carriers from the stored fare; webSettings
+  // undefined = "not read at search time", so the booking run reads WebSettings with that TUI.
   const legs = rt.map(({ raw, ...f }) => ({ ...f, sourceRef: raw }));
   const refs = akbarLegRefs({ offline: { legs } });
-  assert.deepEqual(refs.map((r) => [r.origin, r.destination, r.carriers, r.webSettings?.ShowSSRDom]), [["BOM", "DEL", ["6E"], "6E,SG,AI"], ["DEL", "BOM", ["6E"], "6E,SG,AI"]]);
-  // One-way bookings: route from the stored fare, Settings from its source reference.
+  assert.deepEqual(refs.map((r) => [r.tui, r.origin, r.destination, r.carriers, r.webSettings]), [["tui-BOM", "BOM", "DEL", ["6E"], undefined], ["tui-DEL", "DEL", "BOM", ["6E"], undefined]]);
   const single = akbarLegRefs({ offline: { fare: { ...ow[0], raw: undefined }, sourceRef: ow[0].raw } })[0];
   assert.deepEqual([single.origin, single.destination, single.carriers], ["BOM", "DEL", ["6E"]]);
+});
+
+test("search results never wait for WebSettings (a slow WebSettings no longer delays the answer)", async () => {
+  let release: () => void = () => {};
+  const slow = new Promise<void>((r) => { release = r; });
+  const impl = async (url: string, init: RequestInit) => {
+    const step = url.split("/").pop()!;
+    if (step === "ExpressSearch") return json({ TUI: "search-tui", Code: "200" });
+    if (step === "GetExpSearch") return json({ ...searchReply, TUI: "search-tui", Completed: "Completed" });
+    if (step === "WebSettings") { await slow; return json(officialSettings); }   // answers only when released
+    return json({ Code: "404" }, 404);
+  };
+  const adapter = new AkbarAdapter({ ...creds, apiBooking: "MANUAL", getToken: async () => token } as any);
+  const real = globalThis.fetch;
+  globalThis.fetch = impl as unknown as typeof fetch;
+  try {
+    const started = Date.now();
+    const fares = await adapter.search(searchParams);          // returns while WebSettings is still pending
+    assert.equal(fares.length, 1);
+    assert.ok(Date.now() - started < 2_000);
+    assert.equal(adapter.background.length, 1);
+    let done = false;
+    void adapter.background[0].then(() => { done = true; });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(done, false);
+    release();
+    await Promise.all(adapter.background);
+    assert.equal(done, true);
+    assert.equal(adapter.timings.length, 1);
+    assert.equal(adapter.timings[0].mode, "AS");
+    assert.equal(adapter.timings[0].finished, true);
+  } finally { globalThis.fetch = real; }
 });
 
 test("WebSettings is called with the ExpressSearch response TUI", async () => {

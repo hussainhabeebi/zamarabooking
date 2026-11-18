@@ -422,8 +422,17 @@ export function mergeAkbarBatches(older: unknown, newer: unknown): unknown {
   return { ...(newer && typeof newer === "object" ? newer : {}), Trips: trips };
 }
 
+// How long one search took, step by step (search timing logs: Server-Timing / [search-timing]).
+export interface AkbarSearchTiming {
+  mode: "SY" | "AS"; expressMs: number; pollMs: number; polls: number; totalMs: number; finished: boolean;
+}
+
 export interface AkbarSearchOptions {
   pollIntervalMs?: number;   // between GetExpSearch calls
+  // Faster checks while most searches finish: every fastPollMs for the first fastPollWindowMs of the
+  // search, then every pollIntervalMs (keeps the number of GetExpSearch calls bounded).
+  fastPollMs?:       number;
+  fastPollWindowMs?: number;
   deadlineMs?:     number;   // the docs allow 50 s after ExpressSearch
   sleep?:          (ms: number) => Promise<void>;
   // "SY" (default): ExpressSearch waits for every airline; GetExpSearch only while it has no flights.
@@ -617,14 +626,22 @@ export class AkbarClient {
   // tui: the ExpressSearch response's TUI (the one WebSettings and GetExpSearch are called with).
   // finished: Akbar reported the search Completed (all airlines answered). false = only the batches
   // received before the deadline, or before a GetExpSearch failed (results kept; not to be cached).
-  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number; tui: string; finished: boolean }> {
+  async search(params: SearchParams, auth: AkbarToken, opts: AkbarSearchOptions = {}): Promise<{ data: unknown; completed: boolean; polls: number; tui: string; finished: boolean; timing: AkbarSearchTiming }> {
     const { pollIntervalMs = 2000, deadlineMs = 45_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = opts;
+    const fastPollMs = opts.fastPollMs ?? pollIntervalMs;
+    const fastPollWindowMs = opts.fastPollWindowMs ?? 0;
     const mode = opts.fareType ? "AS" : opts.mode ?? "SY";
     const started = Date.now();
     const left = () => deadlineMs - (Date.now() - started);
+    const interval = () => (Date.now() - started < fastPollWindowMs ? fastPollMs : pollIntervalMs);
     const first = opts.fareType
       ? await this.roundTripExpressSearch(params, auth, opts.fareType, deadlineMs)
       : await this.expressSearch(params, auth, deadlineMs, mode);
+    const expressMs = Date.now() - started;
+    const timing = (polls: number, finished: boolean): AkbarSearchTiming => {
+      const totalMs = Date.now() - started;
+      return { mode, expressMs, pollMs: totalMs - expressMs, polls, totalMs, finished };
+    };
     let data = first;
     const tui = searchTui(data);
     let polls = 0;
@@ -639,8 +656,9 @@ export class AkbarClient {
       let best: unknown = hasJourneys(first) ? first : null;
       while (tui && (polls === 0 || !isSearchComplete(data)) && left() > 1000) {
         if (polls > 0) {
-          if (left() <= pollIntervalMs + 1000) break;
-          await sleep(pollIntervalMs);
+          const wait = interval();
+          if (left() <= wait + 1000) break;
+          await sleep(wait);
         }
         try {
           data = await this.getExpSearch(tui, auth, left(), "");
@@ -653,7 +671,7 @@ export class AkbarClient {
         best = best ? mergeAkbarBatches(best, data) : hasJourneys(data) ? data : null;
       }
       const result = best ?? data;
-      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data) };
+      return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data), timing: timing(polls, isSearchComplete(data)) };
     }
 
     // Mode SY: ExpressSearch can answer with Akbar's first batch only (full-service carriers usually
@@ -661,8 +679,8 @@ export class AkbarClient {
     // Completed or the deadline, merging every batch (mergeAkbarBatches). Once flights are in hand a
     // slow / failed GetExpSearch never loses them: each further poll gets at most SY_POLL_TIMEOUT_MS.
     let best: unknown = hasJourneys(first) ? first : null;
-    while (!isSearchComplete(data) && tui && left() > pollIntervalMs + 1000) {
-      await sleep(pollIntervalMs);
+    while (!isSearchComplete(data) && tui && left() > interval() + 1000) {
+      await sleep(interval());
       try {
         data = await this.getExpSearch(tui, auth, best ? Math.min(left(), SY_POLL_TIMEOUT_MS) : left());
       } catch (err) {
@@ -674,6 +692,6 @@ export class AkbarClient {
       best = best ? mergeAkbarBatches(best, data) : hasJourneys(data) ? data : null;
     }
     const result = best ?? data;
-    return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data) };
+    return { data: result, completed: isSearchComplete(data) || hasJourneys(result), polls, tui, finished: isSearchComplete(data), timing: timing(polls, isSearchComplete(data)) };
   }
 }
