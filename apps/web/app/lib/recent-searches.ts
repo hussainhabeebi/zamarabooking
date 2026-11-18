@@ -119,7 +119,7 @@ async function account(method: "GET" | "POST" | "DELETE", token: string, body?: 
     });
     if (!res.ok) return null;
     const d = await res.json() as { searches?: unknown };
-    return Array.isArray(d.searches) ? d.searches.filter(valid) : [];
+    return Array.isArray(d.searches) ? d.searches.filter(valid).slice(0, RECENT_SEARCH_LIMIT) : [];
   } catch { return null; }
 }
 

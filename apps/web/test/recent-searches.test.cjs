@@ -121,3 +121,10 @@ test('a browser list saved before the limit was 4 shows only its newest 4; the n
   await R.recordRecentSearch(s({ destination: 'RUH', searchedAt: at(55) }));
   assert.deepEqual((await R.loadRecentSearches()).map((x) => x.destination), ['RUH', 'DOH', 'DXB', 'BOM']);
 });
+
+test('signed in: the website shows at most 4 even if the account still sends more', async () => {
+  signIn('jwt-1');
+  const many = ['DOH', 'DXB', 'BOM', 'DEL', 'BLR', 'MAA'].map((d, i) => s({ destination: d, searchedAt: at(60 - i) }));
+  global.fetch = async () => ({ ok: true, json: async () => ({ searches: many }) });
+  assert.deepEqual((await R.loadRecentSearches()).map((x) => x.destination), ['DOH', 'DXB', 'BOM', 'DEL']);
+});
