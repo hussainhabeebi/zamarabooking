@@ -2826,3 +2826,22 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
   .search-widget .bf-select-btn > span:first-child { white-space: nowrap; font-size: 16px; }
   .home-phase1 .search-widget .trip-tabs .bf-direct { grid-column: 1 / -1; width: 100%; justify-content: center; white-space: nowrap; }
 }
+
+/* Home search form, row 2 (Travellers · Cabin class · Fare type · Search): smaller than row 1. */
+.search-widget .bf-row2 > .bf-field { min-height: 66px; padding: 9px 18px; gap: 1px; }
+.search-widget .bf-row2 .bf-label { font-size: 11px; }
+.search-widget .bf-row2 .bf-sub { font-size: 12px; }
+.search-widget .bf-row2 .bf-select-btn { font-size: 16px; }
+.search-widget .bf-row2 .bf-select-btn b { font-size: 19px; }
+.search-widget .bf-row2 .bf-caret { font-size: 13px; }
+.search-widget .bf-row2 .bf-select { font-size: 16px; }
+.home-phase1 .search-widget .bf-row2 > .search-btn.bf-search { min-height: 66px; font-size: 17px; }
+@media (max-width: 1024px) {
+  .home-phase1 .search-widget .bf-row2 > .search-btn.bf-search { min-height: 54px; }
+}
+@media (max-width: 640px) {
+  .search-widget .bf-row2 > .bf-field { min-height: 62px; padding: 8px 16px; }
+  .search-widget .bf-row2 .bf-select-btn, .search-widget .bf-row2 .bf-select { font-size: 16px; }
+  .search-widget .bf-row2 .bf-select-btn > span:first-child { font-size: 15px; }
+  .search-widget .bf-row2 .bf-select-btn b { font-size: 18px; }
+}
