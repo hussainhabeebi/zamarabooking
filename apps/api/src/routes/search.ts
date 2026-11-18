@@ -207,9 +207,12 @@ type LoggableSupplier = "TRIPJACK" | "RIYA" | "DUFFEL" | "GOOGLE_SERP" | "POOMAS
 // Search timing (compare search speed before / after changes). Every /api/search answer carries a
 // Server-Timing header (total, suppliers, and per Akbar search: ExpressSearch, GetExpSearch polls), and
 // the same goes to the Worker log as one "[search-timing]" JSON line. No prices or personal data.
-export function searchTimingHeader(t: { cache: "hit" | "miss"; totalMs: number; suppliersMs?: number; diagnostics?: Record<string, SupplierDiagnostic> }): string {
+export function searchTimingHeader(t: { cache: "hit" | "miss"; totalMs: number; prepMs?: number; suppliersMs?: number; afterMs?: number; diagnostics?: Record<string, SupplierDiagnostic> }): string {
   const parts = [`total;dur=${t.totalMs}`, `cache;desc="${t.cache}"`];
+  // prep: before the suppliers are asked (settings, cache read); after: markup, manual fares, logs.
+  if (t.prepMs !== undefined) parts.push(`prep;dur=${t.prepMs}`);
   if (t.suppliersMs !== undefined) parts.push(`suppliers;dur=${t.suppliersMs}`);
+  if (t.afterMs !== undefined) parts.push(`after;dur=${t.afterMs}`);
   for (const [name, d] of Object.entries(t.diagnostics ?? {})) {
     const key = name.toLowerCase().replace(/[^a-z0-9]/g, "");
     parts.push(`${key};dur=${d.durationMs}`);
@@ -223,12 +226,12 @@ export function searchTimingHeader(t: { cache: "hit" | "miss"; totalMs: number; 
 
 function logSearchTiming(
   c: Context<{ Bindings: Env; Variables: Variables }>,
-  t: { searchId: string; params: z.infer<typeof searchSchema>; cache: "hit" | "miss"; totalMs: number; suppliersMs?: number; diagnostics?: Record<string, SupplierDiagnostic>; fares: number },
+  t: { searchId: string; params: z.infer<typeof searchSchema>; cache: "hit" | "miss"; totalMs: number; prepMs?: number; suppliersMs?: number; afterMs?: number; diagnostics?: Record<string, SupplierDiagnostic>; fares: number },
 ) {
   try { c.header("Server-Timing", searchTimingHeader(t)); } catch { /* headers are best effort */ }
   console.info("[search-timing]", JSON.stringify({
     searchId: t.searchId, route: `${t.params.origin}-${t.params.destination}`, date: t.params.departureDate, tripType: t.params.tripType,
-    cache: t.cache, totalMs: t.totalMs, suppliersMs: t.suppliersMs, fares: t.fares,
+    cache: t.cache, totalMs: t.totalMs, prepMs: t.prepMs, suppliersMs: t.suppliersMs, afterMs: t.afterMs, fares: t.fares,
     suppliers: Object.fromEntries(Object.entries(t.diagnostics ?? {}).map(([k, d]) => [k, { ms: d.durationMs, ok: d.ok, fares: d.fareCount, ...(d.timing ? { steps: d.timing } : {}) }])),
   }));
 }
@@ -506,9 +509,23 @@ async function runSearch(
     console.error("[search] fare cache read unavailable; continuing live", err);
   }
 
+  // Zamra's own price list (Admin → Manual Fares) and the markup rules don't depend on the supplier
+  // results: read them from the database while the suppliers search, not after. A database problem
+  // never fails the search (handled where they are used below).
+  const manualFaresLoad = searchManualFares(c.env, db, tenantId, params).catch((err) => {
+    console.error("[search] manual fares unavailable", err);
+    return [];
+  });
+  const markupRulesLoad = (async () => {
+    const { markupRules } = await import("@zamrabooking/db/schema");
+    const { eq } = await import("drizzle-orm");
+    return db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId));
+  })().then((rules) => ({ rules }), (error: unknown) => ({ error }));
+
   // Capture the raw TripJack exchange(s) for this search (certification logs).
   const collector = collectExchanges();
   const suppliersStarted = Date.now();
+  const prepMs = suppliersStarted - searchStarted;
   const result = await searchFares(
     {
       ...params, currency: searchCurrency,
@@ -522,11 +539,8 @@ async function runSearch(
   // files are stored once it has finished, so they include it.
   persistInBackground(c, Promise.allSettled(result.background ?? []).then(() => persistExchanges(c.env, db, tenantId, collector.exchanges, { searchId })));
 
-  // Zamra's own price list (Admin → Manual Fares). A database problem never fails the search.
-  const manualFares = await searchManualFares(c.env, db, tenantId, params).catch((err) => {
-    console.error("[search] manual fares unavailable", err);
-    return [];
-  });
+  // Zamra's own price list (Admin → Manual Fares), read while the suppliers searched.
+  const manualFares = await manualFaresLoad;
   if (manualFares.length) {
     result.fares = [...result.fares, ...manualFares].sort((a, b) => a.totalFare - b.totalFare);
   }
@@ -541,9 +555,9 @@ async function runSearch(
   let pricedFares = result.fares.map((fare) => ({ ...fare, displayPrice: fare.totalFare, markup: undefined }));
   try {
     const { priceSearchFares } = await import("../lib/markup.js");
-    const { markupRules } = await import("@zamrabooking/db/schema");
-    const { eq } = await import("drizzle-orm");
-    const rules = await db.select().from(markupRules).where(eq(markupRules.tenantId, tenantId));
+    const loaded = await markupRulesLoad;   // read while the suppliers searched
+    if ("error" in loaded) throw loaded.error;
+    const rules = loaded.rules;
     // Company-wide rules only: agency rules apply to that agency's own searches. Per passenger,
     // once per journey (lib/markup.ts).
     pricedFares = priceSearchFares(result.fares, rulesFor(rules, null), { pax, standalone })
@@ -553,7 +567,7 @@ async function runSearch(
   }
 
   logSearchOutcome(c, tenantId, searchId, { ...params, currency: searchCurrency }, availableSuppliers, result.diagnostics ?? {}, pricedFares);
-  logSearchTiming(c, { searchId, params, cache: "miss", totalMs: Date.now() - searchStarted, suppliersMs, diagnostics: result.diagnostics ?? {}, fares: pricedFares.length });
+  logSearchTiming(c, { searchId, params, cache: "miss", totalMs: Date.now() - searchStarted, prepMs, suppliersMs, afterMs: Date.now() - suppliersStarted - suppliersMs, diagnostics: result.diagnostics ?? {}, fares: pricedFares.length });
 
   const hasErrors = Object.keys(result.errors).length > 0;
   const response = {
