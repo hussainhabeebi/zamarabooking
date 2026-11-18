@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CURRENCY_EVENT, readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
 import { AED_PAYMENTS_ENABLED, SHOWN_CURRENCIES, type DisplayCurrency } from "../lib/fx";
 import RecentSearches from "./RecentSearches";
+import { DateCalendar } from "./DateCalendar";
 import { searchDatePassed, searchUrl, type RecentSearch } from "../lib/recent-searches";
 
 const AIRPORTS = [
@@ -190,29 +191,35 @@ function AirportInput({
   );
 }
 
-// Date field: chosen from the calendar only (no typing). Shows "24 Nov'26" in large bold type with the
-// weekday under it. The real <input type="date"> is kept (min date, the browser's own calendar) but
-// can't be typed into; clicking the field, Enter / Space, or openDatePicker() opens its calendar.
+// Date field: chosen from our calendar only (no typing). Shows "24 Nov'26" in large bold type with the
+// weekday under it. Clicking the field, Enter / Space, or openDatePicker(id) opens its calendar
+// (a bottom sheet on phones, a popover on wider screens).
+const OPEN_DATE_EVENT = "bf-open-date";
 export function openDatePicker(id: string) {
-  const el = document.getElementById(`${id}-input`) as (HTMLInputElement & { showPicker?: () => void }) | null;
-  if (!el) return;
-  try { if (el.showPicker) { el.showPicker(); return; } } catch { /* not allowed here: fall back */ }
-  el.focus();
-  el.click();
+  window.dispatchEvent(new CustomEvent(OPEN_DATE_EVENT, { detail: id }));
 }
 
-function DateField({ id, label, value, min, onChange, empty, onOpen }: {
+function DateField({ id, label, value, min, onChange, empty, onOpen, rangeStart }: {
   id: string; label: string; value: string; min: string; onChange: (v: string) => void;
-  empty?: React.ReactNode; onOpen?: () => void;
+  empty?: React.ReactNode; onOpen?: () => void; rangeStart?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const field = useRef<HTMLDivElement>(null);
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   const d = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
-  const open = () => { onOpen?.(); openDatePicker(id); };
+  const show = () => { onOpen?.(); setOpen(true); };
+  const close = useCallback(() => setOpen(false), []);
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent<string>).detail === id) show(); };
+    window.addEventListener(OPEN_DATE_EVENT, on);
+    return () => window.removeEventListener(OPEN_DATE_EVENT, on);
+  });
   return (
-    <div className="bf-field bf-date" onClick={open}>
+    <div ref={field} className="bf-field bf-date" onClick={show}>
       <span className="bf-label">{label}</span>
-      <div id={id} role="button" tabIndex={0} className="bf-date-value" aria-label={`${label}: ${d ? d.toDateString() : "choose a date"}`}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
+      <div id={id} role="button" tabIndex={0} className="bf-date-value" aria-haspopup="dialog" aria-expanded={open}
+        aria-label={`${label}: ${d ? d.toDateString() : "choose a date"}`}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(); } }}>
         {d ? (
           <>
             <span className="bf-date-main"><b>{d.getUTCDate()}</b> {d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" })}&rsquo;{String(d.getUTCFullYear()).slice(2)}</span>
@@ -220,9 +227,8 @@ function DateField({ id, label, value, min, onChange, empty, onOpen }: {
           </>
         ) : empty ?? <span className="bf-date-empty">Select date</span>}
       </div>
-      <input id={`${id}-input`} className="bf-date-native" type="date" tabIndex={-1} aria-hidden="true" value={value} min={min}
-        onKeyDown={(e) => { if (e.key !== "Tab") e.preventDefault(); }}
-        onChange={(e) => onChange(e.target.value)} />
+      <DateCalendar open={open} anchor={field.current} title={`${label} date`} value={value} min={min} rangeStart={rangeStart}
+        onClose={close} onPick={(v) => { setOpen(false); onChange(v); }} />
     </div>
   );
 }
@@ -445,9 +451,15 @@ export default function SearchWidget() {
           </div>
           <div className="bf-dates">
             <DateField id="sw-depart" label="Depart" value={departDate} min={today}
-              onChange={(v) => { setDepartDate(v); if (returnDate && returnDate < v) setReturnDate(""); }} />
+              onChange={(v) => {
+                setDepartDate(v);
+                const keepReturn = returnDate && returnDate >= v;
+                if (!keepReturn) setReturnDate("");
+                if (tripType === "Round Trip" && !keepReturn) setTimeout(() => openDatePicker("sw-return"), 260);
+              }} />
             {tripType !== "Multi-city" && (
               <DateField id="sw-return" label="Return" value={tripType === "Round Trip" ? returnDate : ""} min={departDate || today}
+                rangeStart={departDate || undefined}
                 onOpen={() => { if (tripType !== "Round Trip") setTripType("Round Trip"); }}
                 onChange={(v) => { setReturnDate(v); setTripType("Round Trip"); }}
                 empty={<span className="bf-date-hint">Book a round trip to save more</span>} />
