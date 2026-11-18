@@ -2745,3 +2745,84 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
   .flight-results-page .filter-option { min-height: 44px; font-size: 16px; }
   .flight-results-page .filter-option-badge { font-size: 14px; }
 }
+
+/* ── Home search form (laid out like Akbar's): heading, From ⇄ To · Depart · Return, then
+      Travellers · Cabin class · Fare type · Search. Large bold text inside every field. ── */
+.home-phase1.home-phase1 .search-overlap > .section-kicker.book-flight-title { margin-top: 0; text-transform: none; letter-spacing: -.01em; font-size: clamp(26px, 2.6vw, 36px); font-weight: 800; line-height: 1.15; }
+.search-widget .trip-tabs .bf-direct { min-height: 40px; }
+.search-widget .bf-form { display: grid; gap: 14px; }
+.search-widget .bf-row1 { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.35fr); gap: 14px; align-items: stretch; }
+.search-widget .bf-multi .bf-row1 { grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); }
+.search-widget .bf-leg-label { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; color: #1B5BA9; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.search-widget .bf-legs { display: grid; gap: 14px; }
+.search-widget .bf-add-leg { justify-self: start; }
+
+.search-widget .bf-route, .search-widget .bf-dates { position: relative; display: grid; border: 1.5px solid #d6e0eb; border-radius: 16px; background: #fff; }
+.search-widget .bf-route { grid-template-columns: minmax(0, 1fr) 0 minmax(0, 1fr); }
+.search-widget .bf-dates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.search-widget .bf-dates.bf-dates-one { grid-template-columns: minmax(0, 1fr); }
+.search-widget .bf-route > .bf-airport + * + .bf-airport { border-left: 1.5px solid #e2e8f0; padding-left: 30px; }
+.search-widget .bf-dates > .bf-date + .bf-date { border-left: 1.5px solid #e2e8f0; }
+
+.search-widget .bf-field { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; min-height: 104px; padding: 14px 20px; cursor: pointer; border-radius: 16px; transition: background .15s; }
+.search-widget .bf-field:focus-within, .search-widget .bf-field:hover { background: #f6f9fe; }
+.search-widget .bf-field > label, .search-widget .bf-label { display: block; margin: 0; color: #475569; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.search-widget .bf-sub { overflow: hidden; color: #334155; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.home-phase1 .search-widget .bf-airport .search-input.bf-city {
+  width: 100%; min-width: 0; height: auto; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+  color: #0f172a; font-size: 28px; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; box-shadow: none; outline: none;
+}
+.home-phase1 .search-widget .bf-airport .search-input.bf-city::placeholder { color: #94a3b8; font-size: 22px; font-weight: 700; }
+.search-widget .bf-airport .airport-dropdown { top: calc(100% + 4px); left: 0; right: 0; z-index: 70; }
+.search-widget .bf-swap, .search-widget .bf-leg-arrow {
+  position: relative; z-index: 3; align-self: center; left: -21px; width: 42px; height: 42px; min-height: 42px; margin: 0; padding: 0;
+  display: grid; place-items: center; border: 1.5px solid #d6e0eb; border-radius: 50%; background: #fff; color: #0D4B96; font-size: 18px; font-weight: 800;
+}
+.search-widget .bf-swap:hover { border-color: #0D4B96; background: #EEF4FB; }
+
+.search-widget .bf-date-native { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.search-widget .bf-date-value { display: flex; flex-direction: column; gap: 2px; min-width: 0; outline: none; border-radius: 8px; }
+.search-widget .bf-date-value:focus-visible { box-shadow: 0 0 0 3px #C9DDF5; }
+.search-widget .bf-date-main { color: #0f172a; font-size: 20px; font-weight: 700; white-space: nowrap; }
+.search-widget .bf-date-main b { font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+.search-widget .bf-date-empty { color: #94a3b8; font-size: 22px; font-weight: 800; }
+.search-widget .bf-date-hint { color: #0f172a; font-size: 15px; font-weight: 800; line-height: 1.3; }
+
+.search-widget .bf-row2 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(220px, .95fr); gap: 0; align-items: stretch; }
+.search-widget .bf-row2 > .bf-field { min-height: 88px; border: 1.5px solid #d6e0eb; border-radius: 0; background: #fff; }
+.search-widget .bf-row2 > .bf-field + .bf-field { margin-left: -1.5px; }
+.search-widget .bf-row2 > .bf-pax { border-radius: 16px 0 0 16px; }
+.search-widget .bf-row2 > .bf-fare { border-radius: 0 16px 16px 0; }
+.search-widget .bf-row2 > .bf-field:hover, .search-widget .bf-row2 > .bf-field:focus-within { background: #f6f9fe; }
+.search-widget .bf-select-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 0; border: 0; background: none; color: #0f172a; font: inherit; font-size: 20px; font-weight: 700; text-align: left; cursor: pointer; }
+.search-widget .bf-select-btn b { font-size: 26px; font-weight: 800; }
+.search-widget .bf-caret { color: #0f172a; font-size: 16px; }
+.search-widget .bf-select { width: 100%; padding: 0 4px 0 0; border: 0; background: transparent; color: #0f172a; font: inherit; font-size: 20px; font-weight: 800; cursor: pointer; outline: none; }
+.home-phase1 .search-widget .bf-row2 > .search-btn.bf-search { width: auto; height: auto; min-height: 88px; margin: 0 0 0 14px; border-radius: 16px; font-size: 19px; font-weight: 800; }
+
+@media (max-width: 1024px) {
+  .search-widget .bf-row1, .search-widget .bf-multi .bf-row1 { grid-template-columns: minmax(0, 1fr); }
+  .search-widget .bf-row2 { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 14px; }
+  .home-phase1 .search-widget .bf-row2 > .search-btn.bf-search { grid-column: 1 / -1; margin: 0; min-height: 60px; }
+}
+@media (max-width: 640px) {
+  .home-phase1.home-phase1 .search-overlap > .section-kicker.book-flight-title { font-size: 26px; }
+  .search-widget .bf-route { grid-template-columns: minmax(0, 1fr); }
+  .search-widget .bf-route > .bf-airport + * + .bf-airport { border-left: 0; border-top: 1.5px solid #e2e8f0; padding-left: 18px; }
+  .search-widget .bf-swap, .search-widget .bf-leg-arrow { position: absolute; top: 50%; right: 16px; left: auto; transform: translateY(-50%) rotate(90deg); }
+  .search-widget .bf-field { min-height: 84px; padding: 12px 18px; }
+  .home-phase1 .search-widget .bf-airport .search-input.bf-city { padding-right: 52px; font-size: 24px; }
+  .search-widget .bf-date-main b { font-size: 28px; }
+  .search-widget .bf-date-main { font-size: 17px; }
+  .search-widget .bf-date-hint { font-size: 14px; }
+  .search-widget .bf-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 0; }
+  .home-phase1 .search-widget .bf-row2 > .search-btn.bf-search { margin-top: 14px; }
+  .search-widget .bf-row2 > .bf-field { min-height: 78px; }
+  .search-widget .bf-row2 > .bf-pax { border-radius: 16px 0 0 0; }
+  .search-widget .bf-row2 > .bf-class { border-radius: 0 16px 0 0; }
+  .search-widget .bf-row2 > .bf-fare { grid-column: 1 / -1; margin: -1.5px 0 0 !important; border-radius: 0 0 16px 16px; }
+  .search-widget .bf-select-btn, .search-widget .bf-select { font-size: 18px; }
+  .search-widget .bf-select-btn b { font-size: 22px; }
+  .search-widget .bf-select-btn > span:first-child { white-space: nowrap; font-size: 16px; }
+  .home-phase1 .search-widget .trip-tabs .bf-direct { grid-column: 1 / -1; width: 100%; justify-content: center; white-space: nowrap; }
+}

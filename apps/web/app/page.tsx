@@ -34,7 +34,7 @@ export default function HomePage() {
     <main className="home-phase1">
       <HeroBanner banners={[]} />
       <section id="flight-search" className="home-shell search-overlap">
-        <div className="section-kicker">LET’S FIND YOUR FLIGHT</div>
+        <h2 className="section-kicker book-flight-title">Book your Flight</h2>
         <SearchWidget />
       </section>
 
