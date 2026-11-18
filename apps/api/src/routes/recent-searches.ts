@@ -1,8 +1,8 @@
-// A signed-in customer's last 10 flight searches (website "Recent searches").
+// A signed-in customer's last 4 flight searches (website "Recent searches").
 // Guests keep theirs in the browser; nothing here is used for searching, pricing or booking.
 //
 //   GET    /api/profile/recent-searches          { searches }   newest first
-//   POST   /api/profile/recent-searches          { searches: [...] } → { searches }   adds (newest first), de-duplicated, max 10
+//   POST   /api/profile/recent-searches          { searches: [...] } → { searches }   adds (newest first), de-duplicated, keeps 4
 //   DELETE /api/profile/recent-searches          clears them
 //
 // Stored with the login in SESSIONS_KV (like the account's currency preference): no database table.
@@ -13,7 +13,9 @@ import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
 import type { Env, Variables } from "../types.js";
 
-export const RECENT_SEARCH_LIMIT = 10;
+export const RECENT_SEARCH_LIMIT = 4;
+// A POST may carry up to 10 (a browser's guest list saved before the limit was 4); only 4 are kept.
+const RECENT_SEARCH_BATCH_MAX = 10;
 const TTL = 60 * 60 * 24 * 365;   // kept with the login, like the account's preferences
 
 const code = z.string().regex(/^[A-Za-z]{3}$/).transform((s) => s.toUpperCase());
@@ -45,7 +47,7 @@ export const recentSearchKey = (s: RecentSearch) => JSON.stringify([
   (s.legs ?? []).map((l) => `${l.origin}-${l.destination}-${l.departureDate}`), s.adults, s.children, s.infants, s.cabinClass, s.fareType ?? "",
 ]);
 
-// New searches first (the newest of each repeat wins), then the saved ones; max 10.
+// New searches first (the newest of each repeat wins), then the saved ones; the last 4 are kept.
 export function mergeRecentSearches(added: RecentSearch[], saved: RecentSearch[]): RecentSearch[] {
   const out: RecentSearch[] = [];
   const seen = new Set<string>();
@@ -77,7 +79,7 @@ async function load(env: Env, key: string): Promise<RecentSearch[]> {
 
 recentSearchRoutes.get("/", async (c) => c.json({ searches: await load(c.env, keyFor(c)) }, 200, { "Cache-Control": "no-store" }));
 
-recentSearchRoutes.post("/", zValidator("json", z.object({ searches: z.array(recentSearchSchema).min(1).max(RECENT_SEARCH_LIMIT) })), async (c) => {
+recentSearchRoutes.post("/", zValidator("json", z.object({ searches: z.array(recentSearchSchema).min(1).max(RECENT_SEARCH_BATCH_MAX) })), async (c) => {
   const key = keyFor(c);
   const searches = mergeRecentSearches(c.req.valid("json").searches, await load(c.env, key));
   await c.env.SESSIONS_KV.put(key, JSON.stringify(searches), { expirationTtl: TTL });

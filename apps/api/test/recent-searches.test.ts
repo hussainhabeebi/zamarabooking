@@ -1,4 +1,4 @@
-// /api/profile/recent-searches: a signed-in customer's last 10 flight searches, kept in SESSIONS_KV.
+// /api/profile/recent-searches: a signed-in customer's last 4 flight searches, kept in SESSIONS_KV.
 // In-memory KV; no supplier calls.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -33,7 +33,7 @@ test("guests and non-customer logins can't use the account list", async () => {
   assert.equal((await api(env, { userId: "a1", role: "AGENT_ADMIN" })("GET")).status, 401);
 });
 
-test("add, list newest first, de-duplicate, keep 10, clear", async () => {
+test("add, list newest first, de-duplicate, keep the last 4, clear", async () => {
   const env = { SESSIONS_KV: memoryKv() };
   const call = api(env);
   assert.deepEqual(await (await call("GET")).json(), { searches: [] });
@@ -42,13 +42,14 @@ test("add, list newest first, de-duplicate, keep 10, clear", async () => {
   const dests = ["DXB", "BOM", "DEL", "BLR", "MAA", "HYD", "CCU", "AUH", "SHJ", "MCT", "RUH"];
   for (const [i, d] of dests.entries()) await call("POST", { searches: [s({ destination: d, searchedAt: at(i + 1) })] });
   let list = (await (await call("GET")).json() as any).searches;
-  assert.equal(list.length, RECENT_SEARCH_LIMIT);
-  assert.equal(list[0].destination, "RUH");
+  assert.equal(RECENT_SEARCH_LIMIT, 4);
+  assert.deepEqual(list.map((x: any) => x.destination), ["RUH", "MCT", "SHJ", "AUH"]);
   assert.ok(!list.some((x: any) => x.destination === "DOH"));    // oldest dropped
   await call("POST", { searches: [s({ destination: "MAA", searchedAt: at(40) })] });
   list = (await (await call("GET")).json() as any).searches;
-  assert.equal(list[0].destination, "MAA");
-  assert.equal(list.filter((x: any) => x.destination === "MAA").length, 1);
+  assert.deepEqual(list.map((x: any) => x.destination), ["MAA", "RUH", "MCT", "SHJ"]);
+  await call("POST", { searches: [s({ destination: "SHJ", searchedAt: at(41) })] });   // a repeat moves to the top, once
+  assert.deepEqual(((await (await call("GET")).json()) as any).searches.map((x: any) => x.destination), ["SHJ", "MAA", "RUH", "MCT"]);
   assert.equal((await call("DELETE")).status, 200);
   assert.deepEqual(await (await call("GET")).json(), { searches: [] });
 });
@@ -85,4 +86,14 @@ test("merge: newest of a batch first, then the saved list", () => {
   const parse = (o: Record<string, unknown>) => recentSearchSchema.parse(s(o));
   const out = mergeRecentSearches([parse({ destination: "DXB", searchedAt: at(1) }), parse({ destination: "BOM", searchedAt: at(5) })], [parse({})]);
   assert.deepEqual(out.map((x) => x.destination), ["BOM", "DXB", "DOH"]);
+});
+
+test("a list saved before the limit was 4 shows only the newest 4; a browser's older 10-search list is still accepted", async () => {
+  const env = { SESSIONS_KV: memoryKv() };
+  const ten = ["DXB", "BOM", "DEL", "BLR", "MAA", "HYD", "CCU", "AUH", "SHJ", "MCT"].map((d, i) => recentSearchSchema.parse(s({ destination: d, searchedAt: at(20 - i) })));
+  env.SESSIONS_KV.store.set("recent_searches:t1:u1", JSON.stringify(ten));
+  assert.deepEqual(((await (await api(env)("GET")).json()) as any).searches.map((x: any) => x.destination), ["DXB", "BOM", "DEL", "BLR"]);
+  const res = await api(env)("POST", { searches: ten.map((x) => ({ ...x, destination: x.destination === "DXB" ? "RUH" : x.destination })) });
+  assert.equal(res.status, 200);
+  assert.equal(((await res.json()) as any).searches.length, 4);
 });
