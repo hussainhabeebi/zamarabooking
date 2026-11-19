@@ -42,6 +42,8 @@ import { syncAllManualFareSheets } from "./lib/flight-sources.js";
 import { releaseGroupSeats } from "./lib/group-fares.js";
 import { runAkbarAutoChecks } from "./lib/akbar-auto-check.js";
 import { createDb } from "@zamrabooking/db";
+import { analyticsRoutes, trackBooking, trackSearch } from "./routes/analytics.js";
+import { purgeAnalytics } from "./lib/search-analytics.js";
 
 // wrangler.toml [triggers] crons.
 const SHEET_SYNC_CRON = "41 * * * *";
@@ -51,10 +53,14 @@ export { TenantRateLimiter };
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.use("*", logger());
 app.use("*", secureHeaders());
-app.use("*", cors({origin:(origin)=>origin,credentials:true,allowMethods:["GET","POST","PUT","PATCH","DELETE","OPTIONS"],allowHeaders:["Content-Type","Authorization","X-Tenant-ID","X-API-Key","x-tenant-slug","X-Session-ID","X-Channel","X-ZAMRA-INTEGRATION-KEY","X-Checkout-Token","X-Trip-Token","X-FP-Agent"],exposeHeaders:["Content-Disposition"]}));
+app.use("*", cors({origin:(origin)=>origin,credentials:true,allowMethods:["GET","POST","PUT","PATCH","DELETE","OPTIONS"],allowHeaders:["Content-Type","Authorization","X-Tenant-ID","X-API-Key","x-tenant-slug","X-Session-ID","X-Channel","X-ZAMRA-INTEGRATION-KEY","X-Checkout-Token","X-Trip-Token","X-FP-Agent"],exposeHeaders:["Content-Disposition","X-Search-Event-Id"]}));
 app.get("/health",(c)=>c.json({status:"ok",env:c.env.ENVIRONMENT,worker:"zamra-api",timestamp:new Date().toISOString()}));
 app.use("*", resolveTenant);
 app.use("/api/*", rateLimitMiddleware);
+// Customer search tracking (Admin → Analytics; off until switched on). Runs around the search and
+// booking routes without changing them: routes/analytics.ts.
+app.use("/api/search", trackSearch);
+app.use("/api/book",   trackBooking);
 
 // ── Public routes (no auth) ────────────────────────────────────
 app.route("/api/auth",           authRoutes);
@@ -69,6 +75,7 @@ app.route("/api/group-fares",    groupFareRoutes);
 app.route("/api/agent-public",   agentPublicRoutes);
 app.route("/api/duffel-sandbox", duffelSandboxRoutes);
 app.route("/api/book",           bookDirectRoutes);
+app.route("/api/analytics",      analyticsRoutes);
 app.route("/api/integrations",   integrationRoutes);
 app.route("/api/partner/v1",    partnerRoutes);
 // Guest "find my booking" — authorised by a short-lived signed trip token.
@@ -166,6 +173,8 @@ export default {
         .catch((err) => console.error("[akbar-auto-check]", err)));
       return;
     }
+    // Search analytics older than 13 months (only the two analytics tables).
+    ctx.waitUntil(purgeAnalytics(createDb(env.DATABASE_URL)).then((r) => console.info("[search-analytics] purged", JSON.stringify(r))).catch((err) => console.error("[search-analytics] purge", err)));
     ctx.waitUntil(sweepFareAlerts(env).then((r) => console.info("[fare-alert-sweep]", r)).catch((err) => console.error("[fare-alert-sweep]", err)));
     // Automatic exchange rates (INR ↔ GCC currencies, USD) for prices and AED payments.
     ctx.waitUntil(refreshAutoRates(env).then((r) => console.info("[fx] auto rates", r.ok ? r.rates.source : r.error)).catch((err) => console.error("[fx]", err)));

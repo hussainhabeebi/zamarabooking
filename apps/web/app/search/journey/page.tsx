@@ -20,6 +20,7 @@ const place = (code: string) => { const city = airportCity(code); return city ? 
 import { journeyResponse } from "./response";
 import { filterJourneyFares } from "./filters";
 import { stopsLabel, viaText } from "../../lib/stops";
+import { browserTracking } from "../../lib/visitor";
 import { NO_CHECKED_BAG_TEXT, carriedBaggage, checkedTag, fareBaggageView } from "../../lib/baggage";
 import { readPrefCurrency } from "../../lib/currency-pref";
 import { convertInr, fetchFxRates, formatIn, type FxRates } from "../../lib/fx";
@@ -94,6 +95,7 @@ function Journey() {
     return v === null ? money(n, cur) : formatIn(v, fx.cur);
   };
   const [searchId, setSearchId] = useState<string>();
+  const [searchEventId, setSearchEventId] = useState("");   // customer search tracking (only while it is on)
   const [error, setError] = useState("");
   const [emptyReason, setEmptyReason] = useState("");
   const [picked, setPicked] = useState<Record<string, Fare>>({});
@@ -114,9 +116,10 @@ function Journey() {
         ...(tripType === "MULTICITY" ? { legs } : {}),
         adults, children, infants, cabinClass: q.get("cabinClass") ?? "ECONOMY", tripType,
         ...(fareType ? { fareType } : {}), ...((readPrefCurrency() ?? q.get("currency")) ? { currency: readPrefCurrency() ?? q.get("currency") } : {}),
+        tracking: browserTracking(),   // customer search tracking (lib/visitor.ts); the search ignores it
       }),
     })
-      .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error((typeof d.error === "string" ? d.error : d.error?.issues?.[0]?.message) ?? `Search failed (${r.status})`); return d; })
+      .then(async (r) => { const se = r.headers.get("X-Search-Event-Id"); setSearchEventId(se && /^[0-9a-f-]{36}$/i.test(se) ? se : ""); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error((typeof d.error === "string" ? d.error : d.error?.issues?.[0]?.message) ?? `Search failed (${r.status})`); return d; })
       .then((d) => {
         const result = journeyResponse<Fare>(d);
         setSearchId(d.searchId);
@@ -203,7 +206,7 @@ function Journey() {
       from: legs[0].origin, to: tripType === "ROUNDTRIP" ? legs[0].destination : legs[legs.length - 1].destination,
       dep: firstFare.departureTime, arr: lastFare.arrivalTime, dur: String(firstFare.duration ?? 0), stops: String(firstFare.stops ?? 0),
       price: String(Math.round(total * 100) / 100), cur: currency, ref: selection.every((f) => f.isRefundable) ? "1" : "0",
-      bag: fareBaggageView(firstFare).checked.text, cab: fareBaggageView(firstFare).cabin.text, ...(q.get("cabinClass") ? { cls: q.get("cabinClass")! } : {}), ...(searchId ? { sid: searchId } : {}), ...(q.get("pc") ? { pc: q.get("pc")! } : {}),
+      bag: fareBaggageView(firstFare).checked.text, cab: fareBaggageView(firstFare).cabin.text, ...(q.get("cabinClass") ? { cls: q.get("cabinClass")! } : {}), ...(searchId ? { sid: searchId } : {}), ...(searchEventId ? { se: searchEventId } : {}), ...(q.get("pc") ? { pc: q.get("pc")! } : {}),
     });
     window.location.href = `/book?${p}`;
   }

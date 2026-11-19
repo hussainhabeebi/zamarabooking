@@ -7,3 +7,4 @@ export * from "./payment.js";
 export * from "./supplier.js";
 export * from "./audit.js";
 export * from "./email.js";
+export * from "./analytics.js";

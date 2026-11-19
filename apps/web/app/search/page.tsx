@@ -2,7 +2,8 @@ import { Fragment } from "react";
 import RecordRecentSearch from "../components/RecordRecentSearch";
 import AirlineLogo from "../components/AirlineLogo";
 import { airportCity } from "../lib/airports";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { serverTracking, type Tracking } from "../lib/visitor";
 import { redirect } from "next/navigation";
 import SearchResultControls, { ChangeDatesAction } from "./SearchResultControls";
 import { FareTools } from "./FareTools";
@@ -34,6 +35,7 @@ type SearchResult = {
   apiError?: string;
   validationError?: string;
   searchId?: string;
+  searchEventId?: string;   // customer search tracking (X-Search-Event-Id), only while tracking is on
 };
 
 const CURRENCY_LOCALES: Record<string, string> = {
@@ -69,7 +71,7 @@ function inChosenCurrency(price: number, fareCurrency: string, chosen: string | 
   return { amount: price, currency: fareCurrency, converted: false };
 }
 
-async function searchFlights(params: SearchParams, sessionId: string | null): Promise<SearchResult> {
+async function searchFlights(params: SearchParams, sessionId: string | null, tracking?: Tracking): Promise<SearchResult> {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.zamrabooking.com";
     const res = await fetch(`${apiUrl}/api/search`, {
@@ -91,6 +93,8 @@ async function searchFlights(params: SearchParams, sessionId: string | null): Pr
         tripType: "ONEWAY",
         ...(params.fareType ? { fareType: params.fareType } : {}),
         ...(params.currency ? { currency: params.currency } : {}),
+        // Customer search tracking (lib/visitor.ts); the search itself ignores it.
+        ...(tracking ? { tracking } : {}),
       }),
       cache: "no-store",
       // Must outlast the API's 28s TripJack search budget.
@@ -98,6 +102,8 @@ async function searchFlights(params: SearchParams, sessionId: string | null): Pr
     });
 
     const raw = await res.text();
+    const eventId = res.headers.get("X-Search-Event-Id");
+    const searchEventId = eventId && /^[0-9a-f-]{36}$/i.test(eventId) ? eventId : undefined;
     let data: SearchResult | { error?: string } | null = null;
     try { data = raw ? JSON.parse(raw) : null; } catch {}
     if (!res.ok) {
@@ -111,7 +117,7 @@ async function searchFlights(params: SearchParams, sessionId: string | null): Pr
         ...(res.status === 400 && issue ? { validationError: issue } : {}),
       };
     }
-    return (data as SearchResult) ?? { fares: [], isIndicative: false, apiError: "Search API returned an empty response" };
+    return data ? { ...(data as SearchResult), ...(searchEventId ? { searchEventId } : {}) } : { fares: [], isIndicative: false, apiError: "Search API returned an empty response" };
   } catch (err) {
     return { fares: [], isIndicative: false, apiError: err instanceof Error ? err.message : "Search API unavailable" };
   }
@@ -125,9 +131,12 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
   }
   let sessionId: string | null = null;
   let prefCurrency: string | null = null;
+  let tracking: Tracking | undefined;
   try {
     const s = await cookies();
     sessionId = s.get("sid")?.value ?? null;
+    const h = await headers();
+    tracking = serverTracking((n) => h.get(n), (n) => s.get(n)?.value);
     const cur = s.get("fp_cur")?.value;
     if (isShownCurrency(cur)) prefCurrency = cur;
   } catch {}
@@ -141,7 +150,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
     infants: parseInt(params.infants ?? "0") || 0,
   };
   const [result, aedRate, groupResult] = await Promise.all([
-    searchFlights(params, sessionId), fetchRates(),
+    searchFlights(params, sessionId, tracking), fetchRates(),
     fetchGroupFares({ origin: params.origin?.toUpperCase(), destination: params.destination?.toUpperCase(), departureDate: params.departureDate, ...pax }),
   ]);
   const requestedCurrency = params.currency ?? null;
@@ -313,6 +322,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
                   requestedCurrency={requestedCurrency}
                   aedRate={aedRate}
                   searchId={result.searchId}
+                  searchEventId={result.searchEventId}
                   adults={adults}
                   children={children}
                   infants={infants}
@@ -453,7 +463,9 @@ function optionLinkParams(fare: any, options: any[]): Record<string, string> {
   return extra;
 }
 
-function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults, children = 0, infants = 0 }: { fare: any; options: any[]; requestedCurrency: string | null; aedRate: FxRates; searchId?: string; adults: number; children?: number; infants?: number }) {
+function FareCard({ fare, options, requestedCurrency, aedRate, searchId, searchEventId, adults, children = 0, infants = 0 }: { fare: any; options: any[]; requestedCurrency: string | null; aedRate: FxRates; searchId?: string; searchEventId?: string; adults: number; children?: number; infants?: number }) {
+  // Customer search tracking: the booking page links its booking to this search (se).
+  const linkParams = (o: any) => ({ ...optionLinkParams(o, options), ...(searchEventId ? { se: searchEventId } : {}) });
   const dep = new Date(fare.departureTime);
   const arr = new Date(fare.arrivalTime);
   const fmt = (d: Date) => d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -543,7 +555,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
             {adults + children + infants > 1 && ` · total for ${adults + children + infants} travellers`}
           </div>
           {isBookable && options.length > 1 ? null : isBookable ? (
-            <a href={buildBookUrl(fare, fareCurrency, price, adults, children, infants, shown.converted ? shown.currency : undefined, searchId, optionLinkParams(fare, options))} className="fare-card-v2-book">
+            <a href={buildBookUrl(fare, fareCurrency, price, adults, children, infants, shown.converted ? shown.currency : undefined, searchId, linkParams(fare))} className="fare-card-v2-book">
               Book Now
             </a>
           ) : (
@@ -567,7 +579,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
               price: formatMoney(oShown.amount, oShown.currency),
               diff: diff > 0 ? formatMoney(inChosenCurrency(diff, fareCurrency, requestedCurrency, aedRate).amount, oShown.currency) : undefined,
               perks: [perks.refund, cabinLabel, perks.meal, checkedPerk(perks.checked), cabinPerk(perks.cabin)].filter(Boolean).join(" · "),
-              bookUrl: buildBookUrl(o, fareCurrency, op, adults, children, infants, oShown.converted ? oShown.currency : undefined, searchId, optionLinkParams(o, options)),
+              bookUrl: buildBookUrl(o, fareCurrency, op, adults, children, infants, oShown.converted ? oShown.currency : undefined, searchId, linkParams(o)),
             };
           })}
         />
