@@ -33,7 +33,7 @@ export async function issueOfflineTicket(
     airline: flightData.airline ?? "", airlineName: flightData.airlineName ?? flightData.airline ?? "", flightNumber: flightData.flightNumber ?? "",
     origin: b.origin, destination: b.destination, departureTime, arrivalTime: flightData.arrivalTime ?? departureTime,
     cabinClass: flightData.cabinClass ?? b.cabinClass, isRefundable: Boolean(flightData.isRefundable),
-    baggage: flightData.baggage ?? { cabin: "As per airline", checked: "As per airline" },
+    baggage: flightData.baggage ?? { cabin: "", checked: "" }, supplier: b.supplier,
     passengers: paxRows.map((p, i) => ({ name: `${p.firstName} ${p.lastName}`, type: p.passengerType, ticketNumber: ticketNumbers[i] })),
     totalAmount: Number(b.totalAmount), currency: b.currency,
     brandName: tenantRow?.name ?? "Zamra Travels", brandLogo: tenantRow?.logoUrl ?? undefined,

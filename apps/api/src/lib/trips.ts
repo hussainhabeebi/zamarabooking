@@ -7,7 +7,7 @@
 
 import { emailCancellation } from "./transactional-emails.js";
 import type { Context } from "hono";
-import { TripjackClient, type ExchangeRecorder } from "@zamrabooking/suppliers";
+import { TripjackClient, baggageView, type ExchangeRecorder } from "@zamrabooking/suppliers";
 import { persistExchanges, persistInBackground } from "./api-exchanges.js";
 import { bookings, bookingPassengers, payments, bookingAmendments } from "@zamrabooking/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -134,7 +134,7 @@ async function offlineItinerary(c: Ctx, booking: Booking): Promise<Itinerary> {
       from: { code: booking.origin }, to: { code: booking.destination },
       departure: String(fd.departureTime ?? booking.departureDate.toISOString()), arrival: String(fd.arrivalTime ?? ""),
       durationMin: Number(fd.offline?.fare?.duration) || undefined,
-      cabinBaggage: fd.baggage?.cabin, checkedBaggage: fd.baggage?.checked,
+      ...tripBaggage(fd.baggage, booking.supplier),
     }],
     travellers: pax.map((p, i) => ({ name: `${p.firstName} ${p.lastName}`, type: p.type, ticketNumber: booking.ticketNumbers[i] || undefined })),
   };
@@ -434,5 +434,14 @@ export function publicTrip(trip: NonNullable<Awaited<ReturnType<typeof loadTrip>
     // Poomas / manual fares: paid, waiting for staff to issue the ticket.
     ticketing: isOfflineSupplier(b.supplier) && b.status === "CONFIRMED" ? "PENDING" as const : null,
     eticketAvailable: isOfflineSupplier(b.supplier) ? b.status === "TICKETED" : ["CONFIRMED", "TICKETED"].includes(b.status),
+  };
+}
+
+// Included baggage for My Trips: only what is known ("25 kg", "No check-in bag"); unknown is left out.
+function tripBaggage(b: unknown, supplier: string | null | undefined): { cabinBaggage?: string; checkedBaggage?: string } {
+  const v = baggageView(b as { checked?: unknown; cabin?: unknown } | null, { akbar: supplier === "AKBAR" });
+  return {
+    ...(v.cabin.status !== "UNKNOWN" ? { cabinBaggage: v.cabin.text } : {}),
+    ...(v.checked.status !== "UNKNOWN" ? { checkedBaggage: v.checked.text } : {}),
   };
 }

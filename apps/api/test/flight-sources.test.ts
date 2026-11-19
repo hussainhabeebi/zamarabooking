@@ -293,7 +293,7 @@ const akbarJourney = {
   Index: "6E|1", Provider: "6E", VAC: "6E", FlightNo: "6E 2101", From: "BOM", To: "DEL",
   DepartureTime: "2026-12-01T06:00:00", ArrivalTime: "2026-12-01T08:10:00", Duration: "02h 10m ", Stops: 0, Seats: 7,
   AirlineName: "IndiGo|IndiGo|IndiGo", NetFare: 4890.5, GrossFare: 5100, Refundable: "Y", Cabin: "E", RBD: "R",
-  FCType: "SAVER", Inclusions: { Baggage: "15 Kg", Cabin: "7 Kg" }, Connections: [], OrderID: 1,
+  FCType: "SAVER", Inclusions: { Baggage: "15 Kg,7 Kg" }, Connections: [], OrderID: 1,
 };
 
 test("Akbar journey becomes a Zamra fare at Akbar's net fare", () => {
@@ -312,7 +312,7 @@ test("Akbar journey becomes a Zamra fare at Akbar's net fare", () => {
   assert.equal(f.duration, 130);
   assert.equal(f.totalFare, 4890.5);
   assert.equal(f.isRefundable, true);
-  assert.deepEqual(f.baggage, { cabin: "7 Kg", checked: "15 Kg" });
+  assert.deepEqual(f.baggage, { cabin: "7 kg", checked: "15 kg", checkedStatus: "INCLUDED", cabinStatus: "INCLUDED" });
   assert.equal(f.seatsLeft, 7);
   assert.equal(f.fareIdentifier, "SAVER");
 });

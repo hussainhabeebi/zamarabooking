@@ -2,6 +2,7 @@
 // Generates a self-contained HTML ticket for email embedding and PDF export.
 
 import type { R2Bucket } from "@cloudflare/workers-types";
+import { allowanceLabel, baggageView } from "@zamrabooking/suppliers";
 
 export interface ETicketData {
   bookingRef:    string;
@@ -19,14 +20,18 @@ export interface ETicketData {
   totalAmount:   number;
   currency:      string;
   isRefundable:  boolean;
-  baggage:       { cabin: string; checked: string };
+  baggage:       { cabin: string; checked: string; checkedStatus?: string };
+  supplier?:     string | null;   // "AKBAR": baggage saved before the split reading is split on the ticket too
   brandName:     string;
   brandLogo?:    string;
   primaryColor:  string;
   supportEmail?: string;
 }
 
+const esc = (v: string) => v.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+
 export function renderETicketHtml(data: ETicketData): string {
+  const bag = baggageView(data.baggage, { akbar: data.supplier === "AKBAR" });
   const fmt = new Intl.DateTimeFormat("en-IN", {
     dateStyle: "full",
     timeStyle: "short",
@@ -124,11 +129,11 @@ export function renderETicketHtml(data: ETicketData): string {
     <div class="meta-grid">
       <div class="meta-item">
         <div class="label">Cabin Baggage</div>
-        <div class="value">${data.baggage.cabin}</div>
+        <div class="value">${esc(allowanceLabel(bag.cabin))}</div>
       </div>
       <div class="meta-item">
         <div class="label">Check-in Baggage</div>
-        <div class="value">${data.baggage.checked}</div>
+        <div class="value">${esc(allowanceLabel(bag.checked))}</div>
       </div>
       <div class="meta-item">
         <div class="label">Refundable</div>

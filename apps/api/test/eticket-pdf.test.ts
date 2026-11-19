@@ -31,7 +31,7 @@ test("the PDF carries the booking's PNR, travellers, flight and only the issued 
   assert.ok(pdf.startsWith("%PDF-1.4"));
   assert.ok(pdf.trimEnd().endsWith("%%EOF"));
   for (const s of ["(88IZ5R)", "(Anand Kumar)", "(Zoë Kumar)", "(0987345536870)", "(Pending)", "(BOM)", "(DEL)",
-    "(IndiGo  ·  6E 2101)", "(06:00  Tue, 15 Dec 2026)", "(08:10  Tue, 15 Dec 2026)", "(7 Kg)", "(15 Kg)", "(Non-refundable)",
+    "(IndiGo  ·  6E 2101)", "(06:00  Tue, 15 Dec 2026)", "(08:10  Tue, 15 Dec 2026)", "(7 kg)", "(15 kg)", "(Non-refundable)",
     "(INR 10,450.50)", "(bk-0001)", "(Zamra Travels)"]) {
     assert.ok(pdf.includes(s), `missing ${s}`);
   }
@@ -77,7 +77,7 @@ test("flights come from the booking: TripJack segments, Akbar journey legs, or t
     { airline: "6E", airlineName: "IndiGo", flightNumber: "2102", origin: "DEL", destination: "BOM", departureTime: "2026-12-20T19:00:00", arrivalTime: "2026-12-20T21:10:00" },
   ] } } }), pax, tenant)!;
   assert.equal(legs.segments.length, 2);
-  assert.deepEqual(legs.baggage, { cabin: "7 Kg", checked: "15 Kg" });
+  assert.deepEqual(legs.baggage, { cabin: "7 kg", checked: "15 kg" });
   assert.equal(eticketFileName(legs.pnr), "e-ticket-ABC123-XYZ789.pdf");
   assert.equal(eticketFileName("88iz5r"), "e-ticket-88IZ5R.pdf");
   // Many travellers / legs still render (continues on a new page).
