@@ -16,3 +16,4 @@ prisma/generated/
 
 # Akbar UAT runner output (contains passenger data)
 akbar-uat-logs/
+__pycache__/
