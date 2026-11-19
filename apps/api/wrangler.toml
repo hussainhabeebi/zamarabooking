@@ -83,6 +83,9 @@ crons = ["17 */4 * * *", "41 * * * *"]
 ENVIRONMENT          = "production"
 PLATFORM_TENANT_SLUG = "zamra"
 
+# Wrangler requires this block for `wrangler preview` in Cloudflare Workers Builds.
+[previews]
+
 # ── Secrets (set via `wrangler secret put <NAME>`) ────────────────
 # DATABASE_URL, JWT_SECRET, RIYA_API_KEY, RIYA_API_SECRET, RIYA_API_BASE_URL,
 # TRIPJACK_API_KEY, TRIPJACK_API_BASE_URL, TRIPJACK_PROXY_KEY, SERP_API_KEY, DUFFEL_API_KEY,
@@ -93,4 +96,3 @@ PLATFORM_TENANT_SLUG = "zamra"
 # RESEND_API_KEY,
 # LEADVYNE_API_KEY, LEADVYNE_API_SECRET, LEADVYNE_BASE_URL,
 # LEADVYNE_INSTANCE_ID, LEADVYNE_WEBHOOK_SECRET
-
