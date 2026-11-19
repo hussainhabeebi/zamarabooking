@@ -49,6 +49,7 @@ export {
   type AkbarCancelPath, type AkbarCancelPax, type AkbarCancelSegment, type AkbarCancelPlan, type AkbarCancelRequest, type AkbarCancelResult,
   type AkbarRefundLine, type AkbarRefundDetails,
 } from "./akbar/cancellation.js";
+export { akbarSsrBaggage, type SsrBaggageResult, type SsrSegmentBaggage } from "./akbar/ssr-baggage.js";
 export { akbarWebSettings, akbarFeaturesFor, akbarSector, type AkbarFeatures, type WebSettingsMap, type FareScope } from "./akbar/websettings.js";
 export { akbarRoundTripSearchBody, akbarRoundTripJourneys, akbarSpecialFarePairs, akbarSpecialFareCombinations, akbarSpecialFarePricerBody, akbarRoundTripPricerBody, type AkbarRoundTripFareType, type AkbarRoundTripPricerLeg } from "./akbar/roundtrip.js";
 export { AkbarAdapter, AKBAR_SEARCH_POLLING, normalizeAkbarRoundTrip, akbarJourneyLegs, normalizeAkbarSearch, normalizeAkbarJourney, akbarJourneys, akbarDurationMinutes } from "./akbar/adapter.js";

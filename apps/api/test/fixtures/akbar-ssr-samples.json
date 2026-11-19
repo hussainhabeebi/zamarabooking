@@ -1,0 +1,302 @@
+{
+ "_about": "Real Akbar UAT /flights/ssr answers (PaidSSR false), BAG items only, TUI blanked. 6E CCJ-BLR direct (ADT/CHD/INF); AM COK-DEL one journey with two flights; Code 1025 store expired.",
+ "indigoDirect": {
+  "TUI": "TUI-REDACTED",
+  "CurrencyCode": "INR",
+  "PaidSSR": false,
+  "Trips": [
+   {
+    "From": "CCJ",
+    "To": "BLR",
+    "Journey": [
+     {
+      "Provider": "6E",
+      "MultiSSR": "",
+      "ConversationID": "",
+      "IsWebCheckInAvailable": false,
+      "WebCheckInMessage": null,
+      "Segments": [
+       {
+        "FUID": "1",
+        "VAC": "6E",
+        "Index": null,
+        "SSR": [
+         {
+          "Code": "BAG",
+          "Description": "15 Kg, 7 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "ADT",
+          "ID": 1,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         },
+         {
+          "Code": "BAG",
+          "Description": "15 Kg, 7 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "CHD",
+          "ID": 2,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         },
+         {
+          "Code": "BAG",
+          "Description": "0 Kg, 7 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "INF",
+          "ID": 3,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "Code": "200",
+  "Msg": [
+   "Success"
+  ]
+ },
+ "connecting": {
+  "TUI": "TUI-REDACTED",
+  "CurrencyCode": "INR",
+  "PaidSSR": false,
+  "Trips": [
+   {
+    "From": "COK",
+    "To": "DEL",
+    "Journey": [
+     {
+      "Provider": "AM",
+      "MultiSSR": "",
+      "ConversationID": "",
+      "IsWebCheckInAvailable": false,
+      "WebCheckInMessage": null,
+      "Segments": [
+       {
+        "FUID": "1",
+        "VAC": "AI",
+        "Index": null,
+        "SSR": [
+         {
+          "Code": "BAG",
+          "Description": "15 Kg, 7 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "ADT",
+          "ID": 1,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         },
+         {
+          "Code": "BAG",
+          "Description": "15 Kg, 7 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "CHD",
+          "ID": 2,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         },
+         {
+          "Code": "BAG",
+          "Description": "10 Kg, 0 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "INF",
+          "ID": 3,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         }
+        ]
+       },
+       {
+        "FUID": "2",
+        "VAC": "AI",
+        "Index": null,
+        "SSR": [
+         {
+          "Code": "BAG",
+          "Description": "15 Kg, 7 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "ADT",
+          "ID": 4,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         },
+         {
+          "Code": "BAG",
+          "Description": "15 Kg, 7 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "CHD",
+          "ID": 5,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         },
+         {
+          "Code": "BAG",
+          "Description": "10 Kg, 0 Kg",
+          "PieceDescription": "",
+          "Charge": 0.0,
+          "WPCharge": 0.0,
+          "VAT": 0.0,
+          "Type": "2",
+          "Category": "",
+          "PTC": "INF",
+          "ID": 6,
+          "IsFreeMeal": false,
+          "MealImage": "",
+          "SSRUrl": null,
+          "OriginalCurrencyCharge": 0.0,
+          "SSRSubCode": "",
+          "SSRTaxcharge": 0.0,
+          "SSRNetAmount": 0.0,
+          "SSRTaxCode": "",
+          "Discount": 0.0,
+          "MulticityRefid": 0,
+          "MealCount": 0,
+          "AdditionalFields": null
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "Code": "200",
+  "Msg": [
+   "Success"
+  ]
+ },
+ "storeExpired": {
+  "TUI": null,
+  "CurrencyCode": "INR",
+  "PaidSSR": false,
+  "Trips": null,
+  "Code": "1025",
+  "Msg": [
+   "Unable to Fetch Store Response"
+  ]
+ }
+}

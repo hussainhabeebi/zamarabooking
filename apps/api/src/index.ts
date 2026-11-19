@@ -35,6 +35,7 @@ import { whatsappRoutes }      from "./routes/whatsapp.js";
 import { partnerRoutes }       from "./routes/partner.js";
 import { profileRoutes }       from "./routes/profile.js";
 import { recentSearchRoutes }  from "./routes/recent-searches.js";
+import { fareBaggageRoutes }   from "./routes/fare-baggage.js";
 import { customerWalletRoutes } from "./routes/customer-wallet.js";
 import { customerTripRoutes, guestTripRoutes } from "./routes/trips.js";
 import { customerAccountRoutes, customerSupportRoutes, createGuestSupportRequest } from "./routes/customer-account.js";
@@ -72,6 +73,7 @@ app.route("/api/insurance",      insuranceRoutes);
 app.route("/api/ai",             aiRoutes);
 app.route("/api/fares",          fareRoutes);
 app.route("/api/group-fares",    groupFareRoutes);
+app.route("/api/fare-baggage",   fareBaggageRoutes);   // Akbar baggage from free SSR (off by default)
 app.route("/api/agent-public",   agentPublicRoutes);
 app.route("/api/duffel-sandbox", duffelSandboxRoutes);
 app.route("/api/book",           bookDirectRoutes);

@@ -50,6 +50,11 @@ on:
         required: false
         # PR #73 release (Admin version c509f556). Update after every Admin release.
         default: 'cc0852f6f52994cf6dc0f18c44dbed59bcd71cb2'
+      keep_search_analytics_admin:
+        description: 'Admin: keep the live Search analytics Admin page (set true once release-search-analytics.yml has deployed Admin)'
+        required: false
+        type: boolean
+        default: false
       api_rollback_version:
         description: 'rollback only: zamra-api version ID to restore'
         required: false
@@ -121,6 +126,12 @@ env:
     apps/api/src/routes/recent-searches.ts
     apps/api/test/recent-searches.test.ts
     apps/api/test/search-route-timing.test.ts
+    apps/api/src/lib/akbar-search-baggage.ts
+    apps/api/src/routes/fare-baggage.ts
+    apps/api/src/routes/admin/akbar-search-baggage.ts
+    apps/api/test/akbar-search-baggage.test.ts
+    apps/api/test/fixtures/akbar-ssr-samples.json
+    packages/suppliers/src/akbar/ssr-baggage.ts
     apps/api/src/lib/eticket.ts
     apps/api/test/akbar-baggage.test.ts
     apps/api/test/fixtures/akbar-baggage-samples.json
@@ -143,9 +154,15 @@ env:
     apps/admin/app/(dashboard)/bookings/[id]/AkbarCancellation.tsx
     apps/admin/app/(dashboard)/cancellations/page.tsx
     apps/admin/app/(dashboard)/integrations/AkbarCancellationSettings.tsx
+    apps/admin/app/(dashboard)/integrations/AkbarSearchBaggageSettings.tsx
   # Live since the Group fares release (PR #65, release-group-fares.yml): kept at that commit in every
   # Admin build here, so an Akbar release never takes group fares out of Admin.
   GROUP_FARES_ADMIN_SHA: e675b92c912a5601236478a2984878a3df53b3a1
+  # The Search analytics Admin page (release-search-analytics.yml, PR #92), kept when keep_search_analytics_admin.
+  SEARCH_ANALYTICS_ADMIN_SHA: 599a9935f9037464de0ee638010668c20a62e24b
+  SEARCH_ANALYTICS_ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/layout.tsx
+    apps/admin/app/(dashboard)/analytics/page.tsx
   GROUP_FARES_ADMIN_FILES: >-
     apps/admin/app/(dashboard)/manual-fares/page.tsx
   # PR #45 files that are never deployed (docs, CI, the local UAT runner).
@@ -236,7 +253,7 @@ jobs:
           apps/api/test/certification-pack.test.ts apps/api/test/log-stop-labels.test.ts apps/api/test/baggage-request.test.ts
           apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/tripjack-reviewed-total.test.ts
           apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts apps/api/test/akbar-roundtrip.test.ts apps/api/test/akbar-trace.test.ts apps/api/test/akbar-failed-booking.test.ts apps/api/test/akbar-auto-check.test.ts
-          apps/api/test/markup-per-pax.test.ts apps/api/test/group-fares.test.ts apps/api/test/akbar-baggage.test.ts
+          apps/api/test/markup-per-pax.test.ts apps/api/test/group-fares.test.ts apps/api/test/akbar-baggage.test.ts apps/api/test/akbar-search-baggage.test.ts
       - name: Live zamra-api must still be the expected baseline (rollback target below)
         working-directory: apps/api
         env:
@@ -300,6 +317,7 @@ jobs:
           BASE: ${{ inputs.pr_base_sha }}
           HEAD: ${{ inputs.pr_head_sha }}
           FILES_BASE: ${{ inputs.admin_files_base_sha }}
+          KEEP_ANALYTICS: ${{ inputs.keep_search_analytics_admin }}
         run: |
           if [ -n "$FILES_BASE" ]; then
             # Live Admin = admin_base_sha + the allowlisted Admin files as they were at FILES_BASE
@@ -322,6 +340,11 @@ jobs:
           # Group fares Admin page as it is live (not taken from this PR).
           git checkout "$GROUP_FARES_ADMIN_SHA" -- $GROUP_FARES_ADMIN_FILES
           echo "Group fares Admin files kept at $GROUP_FARES_ADMIN_SHA: $GROUP_FARES_ADMIN_FILES"
+          # Search analytics Admin page as it is live, once that release has deployed Admin.
+          if [ "$KEEP_ANALYTICS" = "true" ]; then
+            git checkout "$SEARCH_ANALYTICS_ADMIN_SHA" -- $SEARCH_ANALYTICS_ADMIN_FILES
+            echo "Search analytics Admin files kept at $SEARCH_ANALYTICS_ADMIN_SHA: $SEARCH_ANALYTICS_ADMIN_FILES"
+          fi
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -341,6 +364,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           FILES_BASE: ${{ inputs.admin_files_base_sha }}
           LIVE: ${{ inputs.admin_base_sha }}
+          KEEP_ANALYTICS: ${{ inputs.keep_search_analytics_admin }}
         run: |
           pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
           tail -25 "$RUNNER_TEMP/deployments.txt"
@@ -353,8 +377,14 @@ jobs:
             case "$latest" in
               *" Akbar-API-booking-admin-$FILES_BASE-on-$LIVE") ;;
               *" Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-$FILES_BASE-on-$LIVE") ;;
-              *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE (or Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-…) — someone deployed since. Re-check the inputs."; exit 1;;
+              *" Search-analytics-admin-$SEARCH_ANALYTICS_ADMIN_SHA-on-$FILES_BASE-on-$LIVE")
+                # The Analytics page is live: this build must keep it.
+                [ "$KEEP_ANALYTICS" = "true" ] || { echo "::error::The live Admin has the Search analytics page — run again with keep_search_analytics_admin=true so it is not removed"; exit 1; } ;;
+              *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE (or Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-… / Search-analytics-admin-$SEARCH_ANALYTICS_ADMIN_SHA-on-…) — someone deployed since. Re-check the inputs."; exit 1;;
             esac
+            if [ "$KEEP_ANALYTICS" = "true" ]; then
+              case "$latest" in *" Search-analytics-admin-"*) ;; *) echo "::error::keep_search_analytics_admin=true, but the Analytics page is not live yet — leave it false"; exit 1;; esac
+            fi
           fi
           echo "ROLLBACK TARGET (zamra-admin): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
       - name: Deploy zamra-admin
