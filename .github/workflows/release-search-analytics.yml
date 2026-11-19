@@ -30,10 +30,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy, rollback or drop-analytics-tables'
+        description: 'validate (checks + real backup, no migration, no deploy), deploy, rollback or drop-analytics-tables'
         required: true
         type: choice
-        options: [deploy, rollback, drop-analytics-tables]
+        options: [validate, deploy, rollback, drop-analytics-tables]
         default: deploy
       components:
         description: 'Which Workers (deploy / rollback)'
@@ -66,7 +66,7 @@ on:
         required: false
         default: ''
       authorization:
-        description: 'DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015 (deploy), ROLLBACK_SEARCH_ANALYTICS (rollback) or DROP_SEARCH_ANALYTICS_TABLES (drop)'
+        description: 'VALIDATE_SEARCH_ANALYTICS_RELEASE (validate), DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015 (deploy), ROLLBACK_SEARCH_ANALYTICS (rollback) or DROP_SEARCH_ANALYTICS_TABLES (drop)'
         required: true
 
 permissions:
@@ -144,17 +144,18 @@ jobs:
         run: |
           [ "$REF" = "refs/heads/main" ] || { echo "Run this workflow from main"; exit 1; }
           case "$MODE" in
+            validate) [ "$AUTH" = VALIDATE_SEARCH_ANALYTICS_RELEASE ] || { echo "Wrong authorization"; exit 1; } ;;
             deploy) [ "$AUTH" = DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015 ] || { echo "Wrong authorization"; exit 1; } ;;
             rollback) [ "$AUTH" = ROLLBACK_SEARCH_ANALYTICS ] || { echo "Wrong authorization"; exit 1; } ;;
             drop-analytics-tables) [ "$AUTH" = DROP_SEARCH_ANALYTICS_TABLES ] || { echo "Wrong authorization"; exit 1; } ;;
           esac
       - uses: actions/checkout@v4
-        if: inputs.mode == 'deploy'
+        if: inputs.mode == 'deploy' || inputs.mode == 'validate'
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: PR diff only touches allowlisted files
-        if: inputs.mode == 'deploy'
+        if: inputs.mode == 'deploy' || inputs.mode == 'validate'
         env:
           BASE: ${{ inputs.pr_base_sha }}
           HEAD: ${{ inputs.pr_head_sha }}
@@ -183,7 +184,7 @@ jobs:
   test:
     name: Build the API release tree and run the tests (no deploy)
     needs: verify
-    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    if: (inputs.mode == 'deploy' && inputs.components != 'admin') || inputs.mode == 'validate'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -225,7 +226,7 @@ jobs:
   backup:
     name: Back up the production database to Cloudflare R2 (and verify it) before migrating
     needs: test
-    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    if: (inputs.mode == 'deploy' && inputs.components != 'admin') || inputs.mode == 'validate'
     runs-on: ubuntu-latest
     outputs:
       key: ${{ steps.upload.outputs.key }}
@@ -317,9 +318,73 @@ jobs:
           pnpm exec wrangler r2 object put "$BACKUP_BUCKET/$key.manifest.json" --file "$RUNNER_TEMP/manifest.json" --remote
           pnpm exec wrangler r2 object get "$BACKUP_BUCKET/$key.dump.enc" --file "$RUNNER_TEMP/check.enc" --remote
           [ "$(sha256sum < "$RUNNER_TEMP/db.dump.enc")" = "$(sha256sum < "$RUNNER_TEMP/check.enc")" ] || { echo "::error::R2 copy differs from the backup"; exit 1; }
-          rm -f "$RUNNER_TEMP/db.dump.enc" "$RUNNER_TEMP/check.enc"
+          rm -f "$RUNNER_TEMP/db.dump.enc"
           echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Restore test — the copy downloaded from R2 decrypts and is a complete, readable archive
+        env:
+          PASSPHRASE: ${{ secrets.DB_BACKUP_PASSPHRASE }}
+        run: |
+          umask 077
+          cd "$RUNNER_TEMP"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in check.enc -out restored.dump -pass env:PASSPHRASE
+          sha256sum restored.dump | grep -q "^$(node -e 'console.log(require("./manifest.json").sha256)') " || { echo "::error::Downloaded backup does not match the manifest"; exit 1; }
+          pg_restore --list restored.dump > restored.list
+          echo "Tables with data in the backup: $(grep -c 'TABLE DATA' restored.list)"
+          for t in bookings payments users booking_passengers tenants; do grep -q "TABLE DATA public $t " restored.list || { echo "::error::Backup has no data for $t"; exit 1; }; done
+          rm -f restored.dump check.enc restored.list
+          echo "Restore test passed."
           echo "BACKUP (R2): $BACKUP_BUCKET/$key.dump.enc  (+ .manifest.json)"
+
+  preflight:
+    name: Validate only — live baselines, tables not created yet, tracking OFF (read-only; no migration, no deploy)
+    needs: backup
+    if: inputs.mode == 'validate'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.pr_head_sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Live zamra-api / zamra-admin are the versions the release inputs expect
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LIVE_API: ${{ inputs.api_base_sha }}
+          LIVE_ADMIN: ${{ inputs.admin_base_sha }}
+          FILES_BASE: ${{ inputs.admin_files_base_sha }}
+        run: |
+          (cd apps/api && pnpm exec wrangler deployments list) > "$RUNNER_TEMP/api.txt"
+          (cd apps/admin && pnpm exec wrangler deployments list) > "$RUNNER_TEMP/admin.txt"
+          echo "Latest zamra-api deployment:   $(grep '^Message:' "$RUNNER_TEMP/api.txt" | tail -1)"
+          echo "Latest zamra-admin deployment: $(grep '^Message:' "$RUNNER_TEMP/admin.txt" | tail -1)"
+          grep '^Message:' "$RUNNER_TEMP/api.txt" | tail -1 | grep -q -E " $LIVE_API on [0-9a-f]{7,40}$" || { echo "::error::api_base_sha $LIVE_API is not what the live zamra-api was built from"; exit 1; }
+          latest=$(grep '^Message:' "$RUNNER_TEMP/admin.txt" | tail -1)
+          case "$latest" in
+            *" Akbar-API-booking-admin-$FILES_BASE-on-$LIVE_ADMIN") ;;
+            *" Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-$FILES_BASE-on-$LIVE_ADMIN") ;;
+            *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE_ADMIN — re-check admin inputs"; exit 1;;
+          esac
+          echo "Release inputs match the live API and Admin."
+      - name: Migration 0015 not applied yet; search tracking OFF (read-only)
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_BACKUP_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TENANT_CACHE_KV_ID: 3dc6b342af8f4d479d755da91cd6a89b
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT coalesce(to_regclass('public.search_events')::text, 'absent') || ' / ' || coalesce(to_regclass('public.site_visits')::text, 'absent')"
+          pnpm exec wrangler kv key list --namespace-id "$TENANT_CACHE_KV_ID" --prefix "admin_settings:" --remote > "$RUNNER_TEMP/keys.json"
+          node -e 'const k=require(process.argv[1]).filter(x=>x.name.endsWith(":analytics")); console.log(k.length ? "analytics settings keys: "+k.map(x=>x.name).join(", ") : "No analytics setting saved: search tracking is OFF")' "$RUNNER_TEMP/keys.json"
+          echo "VALIDATION COMPLETE — nothing was migrated or deployed."
 
   migrate:
     name: Apply migration 0015 only (two new analytics tables)
