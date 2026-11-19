@@ -576,7 +576,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
       <details className="fare-card-v2-details">
         <summary className="fare-card-v2-expand-row">
           <span className="fare-card-v2-supplier">{fmtDate(dep)}</span>
-          <span className="fare-card-v2-expand-btn">Details <span className="fare-card-v2-expand-indicator" aria-hidden="true">⌄</span></span>
+          <span className="fare-card-v2-expand-btn">Baggage &amp; details <svg className="fare-card-v2-expand-indicator" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></span>
         </summary>
         <div className="fare-card-v2-detail">
           <div className="fare-card-v2-detail-item">

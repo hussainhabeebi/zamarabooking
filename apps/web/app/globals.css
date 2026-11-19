@@ -1160,29 +1160,38 @@ html { scroll-behavior: smooth; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 20px;
+  gap: 12px;
+  padding: 10px 20px;
   background: #fafbfc;
   list-style: none;
   cursor: pointer;
 }
 .fare-card-v2-expand-row::-webkit-details-marker { display: none; }
 .fare-card-v2-expand-row:focus-visible { outline: 2px solid #1C63B9; outline-offset: -3px; }
-.fare-card-v2-supplier { min-width: 0; font-size: 11px; color: #64748b; overflow-wrap: anywhere; }
-.fare-card-v2-expand-indicator { display: inline-block; font-size: 16px; line-height: 1; transition: transform .2s ease; }
+.fare-card-v2-supplier { min-width: 0; font-size: 13px; font-weight: 600; color: #475569; overflow-wrap: anywhere; }
+.fare-card-v2-expand-indicator { display: block; flex-shrink: 0; transition: transform .2s ease; }
 .fare-card-v2-details[open] .fare-card-v2-expand-indicator { transform: rotate(180deg); }
+/* "Baggage & details": a clear button customers notice, not faint small text. */
 .fare-card-v2-expand-btn {
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 700;
-  background: none;
-  border: none;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: #0D4B96;
+  font-weight: 800;
+  background: #EEF4FB;
+  border: 1.5px solid #0D4B96;
+  border-radius: 999px;
+  padding: 7px 14px;
+  min-height: 36px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  white-space: nowrap;
   font-family: var(--font-body);
+  transition: background .15s, color .15s;
 }
-.fare-card-v2-expand-btn:hover { color: var(--color-primary); }
+.fare-card-v2-expand-row:hover .fare-card-v2-expand-btn,
+.fare-card-v2-details[open] .fare-card-v2-expand-btn { background: #0D4B96; color: #fff; }
 .fare-card-v2-badge {
   font-size: 10px;
   font-weight: 800;
@@ -1198,8 +1207,8 @@ html { scroll-behavior: smooth; }
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
-.fare-card-v2-detail-item label { display: block; font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
-.fare-card-v2-detail-item span  { font-size: 13px; font-weight: 600; color: #334155; }
+.fare-card-v2-detail-item label { display: block; font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+.fare-card-v2-detail-item span  { font-size: 15px; font-weight: 700; color: #1e293b; }
 @media (prefers-reduced-motion: reduce) { .fare-card-v2-expand-indicator { transition: none; } }
 
 @media (max-width: 900px) {
