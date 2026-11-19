@@ -235,6 +235,10 @@ jobs:
           git diff --binary "$BASE" "$HEAD" -- $API_FILES > "$RUNNER_TEMP/api.patch"
           git checkout --detach "$LIVE"
           git apply --index "$RUNNER_TEMP/api.patch"
+          # These supplier contracts already exist on main but are not part of PR #96's diff.
+          # The live API baseline predates them, so explicitly include the exact versions from
+          # pr_head_sha; otherwise the SSR baggage module cannot resolve its type/parser exports.
+          git checkout "$HEAD" -- packages/suppliers/src/baggage.ts packages/suppliers/src/base.ts packages/suppliers/src/index.ts
           git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
           for f in $(cat "$RUNNER_TEMP/applied.txt"); do
             case " $API_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
