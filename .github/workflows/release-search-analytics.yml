@@ -12,7 +12,14 @@ name: Release - Search analytics (migration 0015 + API + Admin)
 # (tracking travels in a body field the old API ignores). Search tracking ships OFF: nothing is recorded
 # until a full admin turns it on in Admin → Analytics.
 #
-# mode=deploy               : verify, test, confirm the database snapshot, migrate 0015, deploy API, then Admin.
+# Database: the production database is Postgres (Neon), reached by the Worker through DATABASE_URL and the
+# Cloudflare Hyperdrive config 32010b9c… (a connection pooler — it stores no data and has no backups).
+# Before migrating, this workflow itself takes the backup: pg_dump of the whole database, encrypted with
+# DB_BACKUP_PASSPHRASE, stored in the private Cloudflare R2 bucket BACKUP_BUCKET and read back to verify.
+#
+# mode=deploy               : verify (incl. that DATABASE_URL is the database behind the Worker's Hyperdrive),
+#                             test, back up to R2, migrate 0015 only, deploy API, then Admin, then check
+#                             that search tracking is still OFF and nothing was recorded.
 # mode=rollback             : `wrangler rollback` each selected component to the given version ID (printed as
 #                             "ROLLBACK TARGET" by the deploy run). The 0015 tables stay (unused).
 # mode=drop-analytics-tables: removes the two analytics tables and their data ONLY
@@ -49,10 +56,6 @@ on:
       pr_head_sha:
         description: 'Search analytics PR head commit (must be on main)'
         required: true
-      database_snapshot:
-        description: 'deploy only: the database snapshot / branch taken just before this run (e.g. Neon branch name)'
-        required: false
-        default: ''
       api_rollback_version:
         description: 'rollback only: zamra-api version ID to restore'
         required: false
@@ -80,6 +83,10 @@ concurrency:
 env:
   GIT_LITERAL_PATHSPECS: '1'
   MIGRATION: packages/db/drizzle/migrations/0015_search_analytics.sql
+  # Private R2 bucket for database backups (created once in the Cloudflare dashboard; this workflow never
+  # creates it). The Worker's Hyperdrive config — DATABASE_URL must point at its origin database.
+  BACKUP_BUCKET: zamra-db-backups
+  HYPERDRIVE_ID: 32010b9cdbcb4d788b90ed32bd23ae76
   DOWN_MIGRATION: packages/db/drizzle/rollback/0015_search_analytics_down.sql
   API_FILES: >-
     packages/db/drizzle/migrations/0015_search_analytics.sql
@@ -133,14 +140,10 @@ jobs:
           MODE: ${{ inputs.mode }}
           AUTH: ${{ inputs.authorization }}
           REF: ${{ github.ref }}
-          SNAPSHOT: ${{ inputs.database_snapshot }}
         run: |
           [ "$REF" = "refs/heads/main" ] || { echo "Run this workflow from main"; exit 1; }
           case "$MODE" in
-            deploy)
-              [ "$AUTH" = DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015 ] || { echo "Wrong authorization"; exit 1; }
-              [ -n "${SNAPSHOT// /}" ] || { echo "::error::database_snapshot is required: take a database snapshot / branch first and name it here"; exit 1; }
-              echo "Database snapshot taken before this release: $SNAPSHOT" ;;
+            deploy) [ "$AUTH" = DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015 ] || { echo "Wrong authorization"; exit 1; } ;;
             rollback) [ "$AUTH" = ROLLBACK_SEARCH_ANALYTICS ] || { echo "Wrong authorization"; exit 1; } ;;
             drop-analytics-tables) [ "$AUTH" = DROP_SEARCH_ANALYTICS_TABLES ] || { echo "Wrong authorization"; exit 1; } ;;
           esac
@@ -218,9 +221,94 @@ jobs:
           apps/api/test/akbar-baggage.test.ts apps/api/test/akbar-cancellation.test.ts apps/api/test/recent-searches.test.ts
           apps/api/test/search-route-timing.test.ts apps/api/test/admin-access.test.ts
 
+  backup:
+    name: Back up the production database to Cloudflare R2 (and verify it) before migrating
+    needs: test
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    outputs:
+      key: ${{ steps.upload.outputs.key }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.pr_head_sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check the R2 backup bucket, the passphrase and that DATABASE_URL is the Worker's database (read-only)
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PASSPHRASE: ${{ secrets.DB_BACKUP_PASSPHRASE }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [ -n "$DATABASE_URL" ] || { echo "::error::DATABASE_URL secret is not set"; exit 1; }
+          [ "${#PASSPHRASE}" -ge 24 ] || { echo "::error::Set the DB_BACKUP_PASSPHRASE secret (24+ characters) — the backup is encrypted with it"; exit 1; }
+          pnpm exec wrangler r2 bucket info "$BACKUP_BUCKET" >/dev/null || { echo "::error::R2 bucket $BACKUP_BUCKET is missing or the Cloudflare token can't use R2 — create it (private) first"; exit 1; }
+          # Host only — never the user name or password.
+          db_host=$(node -e 'console.log(new URL(process.env.DATABASE_URL).hostname)')
+          echo "DATABASE_URL host: $db_host"
+          pnpm exec wrangler hyperdrive get "$HYPERDRIVE_ID" > "$RUNNER_TEMP/hyperdrive.txt" 2>&1 || { cat "$RUNNER_TEMP/hyperdrive.txt" | grep -v -i password; echo "::error::Couldn't read the Hyperdrive config"; exit 1; }
+          hd_host=$(grep -o -E '"host":\s*"[^"]+"' "$RUNNER_TEMP/hyperdrive.txt" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')
+          echo "Hyperdrive origin host: $hd_host"
+          # Neon pooled / direct hosts differ only by "-pooler"; compare without it.
+          norm() { echo "$1" | sed 's/-pooler\././'; }
+          [ -n "$hd_host" ] && [ "$(norm "$db_host")" = "$(norm "$hd_host")" ] || { echo "::error::DATABASE_URL ($db_host) is not the Hyperdrive origin ($hd_host) — refusing to migrate a database the Worker may not use"; exit 1; }
+      - name: Install a pg_dump matching the server version
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT 'server ' || current_setting('server_version')"
+      - name: pg_dump the whole database (read-only), verify it, encrypt it
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PASSPHRASE: ${{ secrets.DB_BACKUP_PASSPHRASE }}
+        run: |
+          umask 077
+          cd "$RUNNER_TEMP"
+          # pg_dump needs a direct (unpooled) connection: Neon's pooled host ends in "-pooler".
+          DUMP_URL="${DATABASE_URL/-pooler./.}"
+          pg_dump "$DUMP_URL" --format=custom --no-owner --no-privileges --file=db.dump
+          pg_restore --list db.dump > db.list          # the archive is complete and readable
+          grep -q 'TABLE public bookings' db.list && grep -q 'TABLE DATA public bookings' db.list || { echo "::error::Backup has no bookings table"; exit 1; }
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA -F, -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY relname" > row-estimates.csv
+          sha_plain=$(sha256sum db.dump | cut -d' ' -f1)
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in db.dump -out db.dump.enc -pass env:PASSPHRASE
+          # The encrypted file decrypts back to the same archive.
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in db.dump.enc -pass env:PASSPHRASE | sha256sum | grep -q "^$sha_plain " || { echo "::error::Encrypted backup does not decrypt to the dump"; exit 1; }
+          echo "{\"sha256\":\"$sha_plain\",\"bytes\":$(stat -c%s db.dump),\"tables\":$(grep -c 'TABLE DATA' db.list),\"server\":\"$(psql "$DATABASE_URL" -tAc 'SHOW server_version')\",\"takenAt\":\"$(date -u +%FT%TZ)\",\"release\":\"search-analytics-0015\",\"head\":\"${{ inputs.pr_head_sha }}\"}" > manifest.json
+          cat manifest.json
+          rm -f db.dump                                  # only the encrypted copy leaves the runner
+          # wrangler uploads objects up to 300 MB; a larger database needs a multipart upload — stop before migrating.
+          [ "$(stat -c%s db.dump.enc)" -lt 290000000 ] || { echo "::error::Backup is over 290 MB — too large for this upload step; nothing was migrated"; exit 1; }
+      - name: Upload to R2 and read it back
+        id: upload
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          key="search-analytics-0015/$(date -u +%Y%m%dT%H%M%SZ)-${{ github.run_id }}"
+          pnpm exec wrangler r2 object put "$BACKUP_BUCKET/$key.dump.enc" --file "$RUNNER_TEMP/db.dump.enc" --remote
+          pnpm exec wrangler r2 object put "$BACKUP_BUCKET/$key.manifest.json" --file "$RUNNER_TEMP/manifest.json" --remote
+          pnpm exec wrangler r2 object get "$BACKUP_BUCKET/$key.dump.enc" --file "$RUNNER_TEMP/check.enc" --remote
+          [ "$(sha256sum < "$RUNNER_TEMP/db.dump.enc")" = "$(sha256sum < "$RUNNER_TEMP/check.enc")" ] || { echo "::error::R2 copy differs from the backup"; exit 1; }
+          rm -f "$RUNNER_TEMP/db.dump.enc" "$RUNNER_TEMP/check.enc"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "BACKUP (R2): $BACKUP_BUCKET/$key.dump.enc  (+ .manifest.json)"
+
   migrate:
     name: Apply migration 0015 only (two new analytics tables)
-    needs: test
+    needs: [test, backup]
     if: inputs.mode == 'deploy' && inputs.components != 'admin'
     runs-on: ubuntu-latest
     steps:
@@ -241,7 +329,9 @@ jobs:
           after=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "$shape")
           [ "$before" = "$after" ] || { echo "::error::An existing table changed shape — investigate before deploying"; exit 1; }
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT to_regclass('public.search_events') IS NOT NULL AND to_regclass('public.site_visits') IS NOT NULL" | grep -x t
-          echo "Migration 0015 applied and verified; existing tables unchanged."
+          # Search tracking must still be OFF: the new tables start empty.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT (SELECT count(*) FROM search_events) + (SELECT count(*) FROM site_visits)" | grep -x 0
+          echo "Migration 0015 applied and verified; existing tables unchanged. Backup: $BACKUP_BUCKET/${{ needs.backup.outputs.key }}.dump.enc"
 
   deploy-api:
     name: zamra-api - live tree + search analytics API files
@@ -379,6 +469,43 @@ jobs:
         run: |
           [[ "$MSG" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::Deploy message must be a single shell-safe word: $MSG"; exit 1; }
           pnpm exec wrangler deploy --message "$MSG"
+
+  verify-off:
+    name: After release — API healthy, search tracking still OFF, nothing recorded
+    needs: [migrate, deploy-api, deploy-admin]
+    if: always() && inputs.mode == 'deploy' && needs.deploy-api.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.pr_head_sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Health, switch OFF (Admin setting absent or false), analytics tables empty
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TENANT_CACHE_KV_ID: 3dc6b342af8f4d479d755da91cd6a89b
+        run: |
+          curl -fsS https://api.zamrabooking.com/health | tee /dev/stderr | grep -q '"status":"ok"'
+          # Read-only: the Admin switch lives in TENANT_CACHE_KV as admin_settings:<tenant>:analytics.
+          pnpm exec wrangler kv key list --namespace-id "$TENANT_CACHE_KV_ID" --prefix "admin_settings:" --remote > "$RUNNER_TEMP/keys.json"
+          for k in $(node -e 'for (const x of require(process.argv[1])) if (x.name.endsWith(":analytics")) console.log(x.name)' "$RUNNER_TEMP/keys.json"); do
+            v=$(pnpm exec wrangler kv key get "$k" --namespace-id "$TENANT_CACHE_KV_ID" --remote)
+            echo "$k = $v"
+            echo "$v" | grep -q '"searchTracking":true' && { echo "::error::Search tracking is ON ($k) — it must stay OFF after release"; exit 1; }
+          done
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT (SELECT count(*) FROM search_events) + (SELECT count(*) FROM site_visits)" | grep -x 0
+          echo "Search tracking is OFF and nothing has been recorded."
 
   rollback:
     name: Roll back to the given versions
