@@ -14,6 +14,7 @@ import { passengerNameProblem } from "./passenger-names";
 import PassengerDateInput from "../components/PassengerDateInput";
 import { passengerDatesProblem } from "../lib/passenger-dates";
 import { CURRENCY_EVENT, readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
+import { browserTracking, isUuid } from "../lib/visitor";
 import { AED_PAYMENTS_ENABLED, convertInr, fetchFxRates, formatIn, GCC, isShownCurrency, type DisplayCurrency, type FxRates } from "../lib/fx";
 
 type Passenger = {
@@ -337,6 +338,15 @@ export default function BookPage() {
     const fareId   = q.get("fareId") ?? "";
     const supplier = q.get("supplier") ?? "";
     if (!fareId || !supplier) return;
+    // Customer search tracking: this fare was selected from that search (ignored while tracking is off).
+    const se = q.get("se");
+    if (isUuid(se)) {
+      fetch(`${apiUrl}/api/analytics/selected`, {
+        method: "POST", keepalive: true,
+        headers: { "Content-Type": "application/json", "x-tenant-slug": "zamra" },
+        body: JSON.stringify({ searchEventId: se, tracking: browserTracking() }),
+      }).catch(() => {});
+    }
     // Included baggage from the results link, cleaned (older Akbar links carry "25 Kg,7 Kg" in bag).
     const akbar = supplier.toUpperCase() === "AKBAR" || fareId.startsWith("AK|");
     const urlBagView = baggageView({ checked: q.get("bag") ?? "", cabin: q.get("cab") ?? "" }, { akbar });
@@ -760,6 +770,8 @@ export default function BookPage() {
         name: emergency.name.trim(), phone: emergency.phone.trim(), ...(emergency.email.trim() ? { email: emergency.email.trim() } : {}),
       } } : {}),
       ...(new URLSearchParams(window.location.search).get("sid") ? { searchId: new URLSearchParams(window.location.search).get("sid") } : {}),
+      // Customer search tracking: the API links the booking to the search it came from (the booking itself ignores it).
+      ...(isUuid(new URLSearchParams(window.location.search).get("se")) ? { searchEventId: new URLSearchParams(window.location.search).get("se") } : {}),
       ...(leadAgentNumber ? { leadAgentNumber } : {}),
       passengers:    passengers.map((p) => ({
         type:           p.type,

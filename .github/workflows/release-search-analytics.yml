@@ -1,0 +1,441 @@
+name: Release - Search analytics (migration 0015 + API + Admin)
+
+# Manual, scoped release of Phase 1 customer search tracking + Admin analytics (docs/search-analytics.md).
+#
+#   Database        = migration 0015_search_analytics.sql ONLY: two NEW tables (search_events,
+#                     site_visits). No existing table, column, index or enum is changed.
+#   API (zamra-api) = live API tree (api_base_sha) + this PR's API / DB-schema files only
+#   Admin           = live Admin tree (admin_base_sha + the Akbar Admin files at admin_files_base_sha
+#                     + the Group fares Admin page) + this PR's two Admin files only
+#
+# The website deploys through deploy-web.yml when the PR is merged; it works with the old and the new API
+# (tracking travels in a body field the old API ignores). Search tracking ships OFF: nothing is recorded
+# until a full admin turns it on in Admin → Analytics.
+#
+# mode=deploy               : verify, test, confirm the database snapshot, migrate 0015, deploy API, then Admin.
+# mode=rollback             : `wrangler rollback` each selected component to the given version ID (printed as
+#                             "ROLLBACK TARGET" by the deploy run). The 0015 tables stay (unused).
+# mode=drop-analytics-tables: removes the two analytics tables and their data ONLY
+#                             (packages/db/drizzle/rollback/0015_search_analytics_down.sql). Separate
+#                             authorization; run only after the code has been rolled back.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'deploy, rollback or drop-analytics-tables'
+        required: true
+        type: choice
+        options: [deploy, rollback, drop-analytics-tables]
+        default: deploy
+      components:
+        description: 'Which Workers (deploy / rollback)'
+        required: true
+        type: choice
+        options: [api-and-admin, api, admin]
+        default: api-and-admin
+      api_base_sha:
+        description: 'Commit the live zamra-api was built from (latest deploy message "… <sha> on …")'
+        required: true
+      admin_base_sha:
+        description: 'Commit the live zamra-admin was built from (last full deploy)'
+        required: true
+        default: '1402e86570d1698b4e1f080dae4009da2405c364'
+      admin_files_base_sha:
+        description: 'Commit whose Akbar Admin files are live (deploy message "Akbar-API-booking-admin-<sha>-on-<admin_base_sha>")'
+        required: true
+      pr_base_sha:
+        description: 'Search analytics PR base commit'
+        required: true
+      pr_head_sha:
+        description: 'Search analytics PR head commit (must be on main)'
+        required: true
+      database_snapshot:
+        description: 'deploy only: the database snapshot / branch taken just before this run (e.g. Neon branch name)'
+        required: false
+        default: ''
+      api_rollback_version:
+        description: 'rollback only: zamra-api version ID to restore'
+        required: false
+        default: ''
+      admin_rollback_version:
+        description: 'rollback only: zamra-admin version ID to restore'
+        required: false
+        default: ''
+      authorization:
+        description: 'DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015 (deploy), ROLLBACK_SEARCH_ANALYTICS (rollback) or DROP_SEARCH_ANALYTICS_TABLES (drop)'
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # Admin paths contain ( ) [ ]: no shell globbing, literal git pathspecs.
+    shell: bash --noprofile --norc -eo pipefail -f {0}
+
+concurrency:
+  group: zamra-production-api
+  cancel-in-progress: false
+
+env:
+  GIT_LITERAL_PATHSPECS: '1'
+  MIGRATION: packages/db/drizzle/migrations/0015_search_analytics.sql
+  DOWN_MIGRATION: packages/db/drizzle/rollback/0015_search_analytics_down.sql
+  API_FILES: >-
+    packages/db/drizzle/migrations/0015_search_analytics.sql
+    packages/db/src/schema/analytics.ts
+    packages/db/src/schema/index.ts
+    apps/api/src/index.ts
+    apps/api/src/lib/search-analytics.ts
+    apps/api/src/lib/analytics-reports.ts
+    apps/api/src/lib/admin-access.ts
+    apps/api/src/routes/analytics.ts
+    apps/api/src/routes/admin/analytics.ts
+    apps/api/src/routes/admin/index.ts
+    apps/api/test/search-analytics.test.ts
+  ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/layout.tsx
+    apps/admin/app/(dashboard)/analytics/page.tsx
+  # The live Admin's Akbar files (release-akbar-booking.yml), restored at admin_files_base_sha.
+  AKBAR_ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/bookings/[id]/AkbarApiBooking.tsx
+    apps/admin/app/(dashboard)/bookings/[id]/page.tsx
+    apps/admin/app/(dashboard)/integrations/AkbarIntegration.tsx
+    apps/admin/app/(dashboard)/supplier-logs/page.tsx
+    apps/admin/app/(dashboard)/supplier-logs/AkbarTrace.tsx
+    apps/admin/app/(dashboard)/markup/page.tsx
+    apps/admin/app/(dashboard)/bookings/[id]/AkbarCancellation.tsx
+    apps/admin/app/(dashboard)/cancellations/page.tsx
+    apps/admin/app/(dashboard)/integrations/AkbarCancellationSettings.tsx
+  # The Group fares Admin page as it is live (release-group-fares.yml).
+  GROUP_FARES_ADMIN_SHA: e675b92c912a5601236478a2984878a3df53b3a1
+  GROUP_FARES_ADMIN_FILES: >-
+    apps/admin/app/(dashboard)/manual-fares/page.tsx
+  # Deployed by deploy-web.yml on merge, or never deployed.
+  NOT_DEPLOYED: >-
+    packages/db/drizzle/rollback/0015_search_analytics_down.sql
+    apps/web/middleware.ts
+    apps/web/app/lib/visitor.ts
+    apps/web/app/search/page.tsx
+    apps/web/app/search/journey/page.tsx
+    apps/web/app/book/page.tsx
+    apps/web/test/visitor.test.cjs
+    docs/search-analytics.md
+    .github/workflows/release-search-analytics.yml
+
+jobs:
+  verify:
+    name: Verify PR scope and inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authorization
+        env:
+          MODE: ${{ inputs.mode }}
+          AUTH: ${{ inputs.authorization }}
+          REF: ${{ github.ref }}
+          SNAPSHOT: ${{ inputs.database_snapshot }}
+        run: |
+          [ "$REF" = "refs/heads/main" ] || { echo "Run this workflow from main"; exit 1; }
+          case "$MODE" in
+            deploy)
+              [ "$AUTH" = DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015 ] || { echo "Wrong authorization"; exit 1; }
+              [ -n "${SNAPSHOT// /}" ] || { echo "::error::database_snapshot is required: take a database snapshot / branch first and name it here"; exit 1; }
+              echo "Database snapshot taken before this release: $SNAPSHOT" ;;
+            rollback) [ "$AUTH" = ROLLBACK_SEARCH_ANALYTICS ] || { echo "Wrong authorization"; exit 1; } ;;
+            drop-analytics-tables) [ "$AUTH" = DROP_SEARCH_ANALYTICS_TABLES ] || { echo "Wrong authorization"; exit 1; } ;;
+          esac
+      - uses: actions/checkout@v4
+        if: inputs.mode == 'deploy'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: PR diff only touches allowlisted files
+        if: inputs.mode == 'deploy'
+        env:
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git merge-base --is-ancestor "$HEAD" origin/main || { echo "pr_head_sha is not on main"; exit 1; }
+          git merge-base --is-ancestor "$BASE" "$HEAD" || { echo "pr_base_sha is not an ancestor of pr_head_sha"; exit 1; }
+          git diff --name-only "$BASE" "$HEAD" | tee "$RUNNER_TEMP/changed.txt"
+          allowed=" $API_FILES $ADMIN_FILES $NOT_DEPLOYED "
+          bad=0
+          while IFS= read -r f; do
+            case "$allowed" in *" $f "*) ;; *) echo "::error::Not part of this release: $f"; bad=1;; esac
+          done < "$RUNNER_TEMP/changed.txt"
+          [ "$bad" = 0 ] || exit 1
+          # Belt and braces: no other migration; no booking, payment, pricing, supplier or portal code.
+          if grep -E '^packages/db/drizzle/migrations/' "$RUNNER_TEMP/changed.txt" | grep -v -x "$MIGRATION"; then
+            echo "::error::Release contains another migration"; exit 1
+          fi
+          if grep -E '^apps/portal/|^packages/suppliers/|phonepe|nomod|payment|wallet|checkout|markup|routes/book\.ts|routes/search\.ts|queue-consumer' "$RUNNER_TEMP/changed.txt"; then
+            echo "::error::Release touches booking / payment / pricing / supplier / portal files"; exit 1
+          fi
+          # The migration only creates new objects.
+          if grep -E -i '^\s*(ALTER|DROP|TRUNCATE|DELETE|UPDATE|INSERT|GRANT|REVOKE)\b' "$MIGRATION"; then
+            echo "::error::0015 must only CREATE new tables / indexes"; exit 1
+          fi
+
+  test:
+    name: Build the API release tree and run the tests (no deploy)
+    needs: verify
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $API_FILES > "$RUNNER_TEMP/api.patch"
+          git checkout --detach "$LIVE"
+          git apply --index "$RUNNER_TEMP/api.patch"
+          git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
+          for f in $(cat "$RUNNER_TEMP/applied.txt"); do
+            case " $API_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
+          done
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/api typecheck
+      - name: Search analytics (real Postgres engine, migrations 0001-0015) + booking / payment / search regression tests (mocked, no live calls)
+        run: >-
+          node --import ./packages/db/node_modules/tsx/dist/loader.mjs --test
+          apps/api/test/search-analytics.test.ts apps/api/test/group-fares.test.ts
+          apps/api/test/akbar-booking.test.ts apps/api/test/flight-sources.test.ts apps/api/test/akbar-journey-booking.test.ts
+          apps/api/test/certification-pack.test.ts apps/api/test/log-stop-labels.test.ts apps/api/test/baggage-request.test.ts
+          apps/api/test/phonepe.test.ts apps/api/test/wallet-recharge.test.ts apps/api/test/tripjack-reviewed-total.test.ts
+          apps/api/test/eticket-pdf.test.ts apps/api/test/email.test.ts apps/api/test/akbar-roundtrip.test.ts apps/api/test/akbar-trace.test.ts
+          apps/api/test/akbar-failed-booking.test.ts apps/api/test/akbar-auto-check.test.ts apps/api/test/markup-per-pax.test.ts
+          apps/api/test/akbar-baggage.test.ts apps/api/test/akbar-cancellation.test.ts apps/api/test/recent-searches.test.ts
+          apps/api/test/search-route-timing.test.ts apps/api/test/admin-access.test.ts
+
+  migrate:
+    name: Apply migration 0015 only (two new analytics tables)
+    needs: test
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.pr_head_sha }}
+          persist-credentials: false
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply 0015_search_analytics.sql (one transaction, stops on any error); existing tables unchanged
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          [ -n "$DATABASE_URL" ] || { echo "::error::DATABASE_URL secret is not set"; exit 1; }
+          shape="SELECT md5(string_agg(table_name || '.' || column_name || ':' || data_type || ':' || is_nullable || ':' || coalesce(column_default, ''), ',' ORDER BY table_name, column_name)) FROM information_schema.columns WHERE table_schema = 'public' AND table_name NOT IN ('search_events', 'site_visits')"
+          before=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "$shape")
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f "$MIGRATION"
+          after=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "$shape")
+          [ "$before" = "$after" ] || { echo "::error::An existing table changed shape — investigate before deploying"; exit 1; }
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT to_regclass('public.search_events') IS NOT NULL AND to_regclass('public.site_visits') IS NOT NULL" | grep -x t
+          echo "Migration 0015 applied and verified; existing tables unchanged."
+
+  deploy-api:
+    name: zamra-api - live tree + search analytics API files
+    needs: [verify, test, migrate]
+    if: inputs.mode == 'deploy' && inputs.components != 'admin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $API_FILES > "$RUNNER_TEMP/api.patch"
+          git checkout --detach "$LIVE"
+          git apply --index "$RUNNER_TEMP/api.patch"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/api typecheck
+      - name: Live zamra-api must still be the expected baseline (rollback target below)
+        working-directory: apps/api
+        env:
+          LIVE: ${{ inputs.api_base_sha }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
+          tail -25 "$RUNNER_TEMP/deployments.txt"
+          python3 - "$RUNNER_TEMP/deployments.txt" "$LIVE" <<'PY'
+          import re, sys
+          text, live = open(sys.argv[1]).read(), sys.argv[2]
+          blocks = []
+          for line in text.splitlines():
+              if line.startswith("Created:"):
+                  blocks.append({"top": None, "versions": []})
+              elif blocks and line.startswith("Message:"):
+                  blocks[-1]["top"] = line[len("Message:"):].strip()
+              elif blocks and line.strip().startswith("Message:"):
+                  blocks[-1]["versions"].append(line.strip()[len("Message:"):].strip())
+          # The live code must have been built FROM api_base_sha ("… <api_base_sha> on <older base>").
+          built_from = re.compile(r"(?:^|\s)" + re.escape(live) + r" on [0-9a-f]{7,40}$")
+          ours = [i for i, b in enumerate(blocks) if b["top"] and built_from.search(b["top"])]
+          if not ours:
+              sys.exit(f"::error::The live zamra-api was not built from api_base_sha {live} (latest: {blocks[-1]['top'] if blocks else '?'}). Use the commit in the latest deploy message (\"… <commit> on …\").")
+          later = blocks[ours[-1] + 1:]
+          secret = re.compile(r"^(Add|Added|Update|Updated|Delete|Deleted) secrets?: ")
+          for b in later:
+              if not b["versions"] or not all(secret.match(v) for v in b["versions"]):
+                  sys.exit(f"::error::Live zamra-api is not the expected baseline {live} — deployed since: {b['top']} / {b['versions']}. Re-check api_base_sha.")
+          print(f"Baseline {live} is live" + (f"; later secret-only changes: {[v for b in later for v in b['versions']]}" if later else ""))
+          PY
+          echo "ROLLBACK TARGET (zamra-api): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
+      - name: Deploy zamra-api (no other migrations)
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MSG: Search analytics ${{ inputs.pr_head_sha }} on ${{ inputs.api_base_sha }}
+        run: pnpm exec wrangler deploy --message "$MSG"
+
+  deploy-admin:
+    name: zamra-admin - live tree + Analytics page
+    needs: [verify, deploy-api]
+    # Admin calls the new API routes, so it goes out after the API (or alone when asked).
+    if: always() && inputs.mode == 'deploy' && inputs.components != 'api' && needs.verify.result == 'success' && (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build release tree
+        env:
+          LIVE: ${{ inputs.admin_base_sha }}
+          FILES_BASE: ${{ inputs.admin_files_base_sha }}
+          BASE: ${{ inputs.pr_base_sha }}
+          HEAD: ${{ inputs.pr_head_sha }}
+        run: |
+          git diff --binary "$BASE" "$HEAD" -- $ADMIN_FILES > "$RUNNER_TEMP/admin.patch"
+          git checkout --detach "$LIVE"
+          # The live Admin: admin_base_sha + the Akbar Admin files at FILES_BASE + the Group fares page.
+          git checkout "$FILES_BASE" -- $AKBAR_ADMIN_FILES
+          git checkout "$GROUP_FARES_ADMIN_SHA" -- $GROUP_FARES_ADMIN_FILES
+          git -c user.name=release -c user.email=release@localhost commit -q --allow-empty -m "live admin"
+          git apply --index "$RUNNER_TEMP/admin.patch"
+          git diff --cached --name-only | tee "$RUNNER_TEMP/applied.txt"
+          while IFS= read -r f; do
+            case " $ADMIN_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
+          done < "$RUNNER_TEMP/applied.txt"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zamrabooking/admin typecheck
+      - name: Build Admin
+        working-directory: apps/admin
+        run: pnpm exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.zamrabooking.com' }}
+      - name: Live zamra-admin must still be the expected release (rollback target below)
+        working-directory: apps/admin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FILES_BASE: ${{ inputs.admin_files_base_sha }}
+          LIVE: ${{ inputs.admin_base_sha }}
+        run: |
+          pnpm exec wrangler deployments list > "$RUNNER_TEMP/deployments.txt"
+          tail -25 "$RUNNER_TEMP/deployments.txt"
+          latest=$(grep '^Message:' "$RUNNER_TEMP/deployments.txt" | tail -1)
+          echo "Latest deployment: $latest"
+          case "$latest" in
+            *" Akbar-API-booking-admin-$FILES_BASE-on-$LIVE") ;;
+            *" Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-$FILES_BASE-on-$LIVE") ;;
+            *) echo "::error::Live zamra-admin is not Akbar-API-booking-admin-$FILES_BASE-on-$LIVE (or Group-fares-admin-$GROUP_FARES_ADMIN_SHA-on-…) — someone deployed since. Re-check the inputs."; exit 1;;
+          esac
+          echo "ROLLBACK TARGET (zamra-admin): $(grep -o '(100%) [0-9a-f-]*' "$RUNNER_TEMP/deployments.txt" | tail -1 | cut -d' ' -f2)"
+      - name: Deploy zamra-admin
+        working-directory: apps/admin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # One shell-safe word (OpenNext re-runs wrangler through a shell without quoting).
+          MSG: Search-analytics-admin-${{ inputs.pr_head_sha }}-on-${{ inputs.admin_files_base_sha }}-on-${{ inputs.admin_base_sha }}
+        run: |
+          [[ "$MSG" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::Deploy message must be a single shell-safe word: $MSG"; exit 1; }
+          pnpm exec wrangler deploy --message "$MSG"
+
+  rollback:
+    name: Roll back to the given versions
+    needs: verify
+    if: inputs.mode == 'rollback'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Roll back zamra-api
+        if: inputs.components != 'admin'
+        working-directory: apps/api
+        env:
+          VERSION: ${{ inputs.api_rollback_version }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-f-]{36}$ ]] || { echo "api_rollback_version must be a version ID"; exit 1; }
+          pnpm exec wrangler rollback "$VERSION" --message "Rollback of search analytics release" --yes
+      - name: Roll back zamra-admin
+        if: inputs.components != 'api'
+        working-directory: apps/admin
+        env:
+          VERSION: ${{ inputs.admin_rollback_version }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-f-]{36}$ ]] || { echo "admin_rollback_version must be a version ID"; exit 1; }
+          pnpm exec wrangler rollback "$VERSION" --message "Rollback of search analytics admin release" --yes
+
+  drop-analytics-tables:
+    name: Drop the two analytics tables (search_events, site_visits) — data loss of analytics only
+    needs: verify
+    if: inputs.mode == 'drop-analytics-tables'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply the 0015 rollback (DROP TABLE search_events, site_visits only)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          [ -n "$DATABASE_URL" ] || { echo "::error::DATABASE_URL secret is not set"; exit 1; }
+          # Only the two analytics tables may be named in the file.
+          if grep -E -i '^\s*[A-Z]' "$DOWN_MIGRATION" | grep -v -E -i '^\s*DROP TABLE IF EXISTS (search_events|site_visits);\s*$'; then
+            echo "::error::The rollback file may only drop search_events / site_visits"; exit 1
+          fi
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f "$DOWN_MIGRATION"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc "SELECT to_regclass('public.search_events') IS NULL AND to_regclass('public.site_visits') IS NULL" | grep -x t
+          echo "Analytics tables removed."
