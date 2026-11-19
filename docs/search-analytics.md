@@ -62,7 +62,7 @@ The website sends tracking in the JSON body (`tracking: { client: "web", visitor
 
 - **Where the data lives.** The production database is **Postgres hosted on Neon**:
   - `packages/db` uses the Neon driver with the `DATABASE_URL` secret;
-  - the Worker's Cloudflare **Hyperdrive** config (`32010b9c…`) fronts it as a connection pooler only — Hyperdrive stores no data and has no backups;
+  - the Worker reaches it **directly** through its own `DATABASE_URL` Worker secret (`neon-http`, see `apps/api/src/middleware/tenant.ts`). A Cloudflare **Hyperdrive** config (`32010b9c…`) is bound to the Worker but the code does not use it; Hyperdrive stores no data and has no backups. Its origin host is still the best read-only evidence that the GitHub `DATABASE_URL` is the same database, because the Worker's own secret can't be read back;
   - there is no Cloudflare D1 database for the API.
 - **Backup.** The release workflow takes the backup itself, on Cloudflare R2 (nothing is done in Neon):
   - a full `pg_dump` (custom format, read-only), checked with `pg_restore --list`;
@@ -89,6 +89,19 @@ The website sends tracking in the JSON body (`tracking: { client: "web", visitor
 
 ## Release (separate approvals)
 
+0. **Validate first (changes nothing).** Run the same workflow with `mode` = `validate` and `authorization` = `VALIDATE_SEARCH_ANALYTICS_NO_CHANGES`. The other inputs have the current values as defaults. It may run from a review branch; the other modes run from `main` only.
+
+   | Job | What it checks (no migration, no deploy, no setting changed) |
+   |---|---|
+   | verify | Release scope (allowlist, only 0015, `CREATE`-only SQL) and `scripts/check-release-workflow-modes.py`: no job that migrates, deploys, rolls back or writes settings can run in validate. |
+   | test | API release tree: typecheck and the search-analytics + regression tests. |
+   | test-admin | Admin release tree: typecheck and build. Not deployed. |
+   | backup | Every secret is present and usable: R2 bucket, passphrase, deploy token (read-only deployment lists), backup token (Hyperdrive read). `DATABASE_URL` host = Hyperdrive origin. A **real encrypted backup** in R2 under `search-analytics-0015-validate/`, then downloaded again, decrypted, checksum-matched and **restored into a throwaway Postgres on the runner**; bookings / users / payments row counts must match production. Every production database session is read-only (`default_transaction_read_only=on`). |
+   | live-check | API `/health`; the live API and Admin are the builds named by the inputs (prints their version IDs = the release's rollback targets); search tracking OFF; 0014 present, 0015 not applied; tenant `zamra` present and the latest booking time (evidence it is the live database). |
+   | validation-report | One table in the run summary. Fails if any check failed. |
+
+   The only thing validate writes is the backup in R2.
+
 1. **Merge the PR.** The website deploys through `deploy-web.yml`. It behaves the same until the API is released, and records nothing until tracking is switched on.
 2. **Run Actions → "Release - Search analytics (migration 0015 + API + Admin)"** with:
 
@@ -110,6 +123,9 @@ The website sends tracking in the JSON body (`tracking: { client: "web", visitor
    | migrate | **0015 only**, in one transaction. Checks that no existing table changed shape and that the new tables are empty. |
    | deploy-api, deploy-admin | Each checks that the live version is the expected baseline, then deploys, printing the **ROLLBACK TARGET** versions. |
    | verify-off | `/health` is OK, the Admin switch is absent or `false` (**tracking OFF**), and both analytics tables are still empty. |
+   | release-report | Run summary: new API / Admin version IDs, rollback targets, backup location, rollback inputs. |
+
+   The backup job in deploy mode also downloads, decrypts and restores the backup before anything is migrated.
 
 3. **Admin → Analytics → Turn on** — only when you decide.
 
