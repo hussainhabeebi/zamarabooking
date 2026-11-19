@@ -223,6 +223,9 @@ jobs:
           for f in $(cat "$RUNNER_TEMP/applied.txt"); do
             case " $API_FILES " in *" $f "*) ;; *) echo "::error::Unexpected file: $f"; exit 1;; esac
           done
+          # Test tree only (deploy-api does not do this): the tests check the 0015 rollback SQL, which is
+          # never deployed or applied by the API.
+          git checkout "$HEAD" -- "$DOWN_MIGRATION"
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
