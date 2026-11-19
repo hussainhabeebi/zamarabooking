@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { CURRENCY_EVENT, readPrefCurrency, savePrefCurrency } from "../lib/currency-pref";
 import { AED_PAYMENTS_ENABLED, SHOWN_CURRENCIES, type DisplayCurrency } from "../lib/fx";
 import RecentSearches from "./RecentSearches";
-import { DateCalendar } from "./DateCalendar";
+import { DateCalendar, type CalendarRoute } from "./DateCalendar";
 import { searchDatePassed, searchUrl, type RecentSearch } from "../lib/recent-searches";
 
 const AIRPORTS = [
@@ -199,9 +199,9 @@ export function openDatePicker(id: string) {
   window.dispatchEvent(new CustomEvent(OPEN_DATE_EVENT, { detail: id }));
 }
 
-function DateField({ id, label, value, min, onChange, empty, onOpen, rangeStart }: {
+function DateField({ id, label, value, min, onChange, empty, onOpen, rangeStart, route }: {
   id: string; label: string; value: string; min: string; onChange: (v: string) => void;
-  empty?: React.ReactNode; onOpen?: () => void; rangeStart?: string;
+  empty?: React.ReactNode; onOpen?: () => void; rangeStart?: string; route?: CalendarRoute | null;
 }) {
   const [open, setOpen] = useState(false);
   const field = useRef<HTMLDivElement>(null);
@@ -228,7 +228,7 @@ function DateField({ id, label, value, min, onChange, empty, onOpen, rangeStart 
         ) : empty ?? <span className="bf-date-empty">Select date</span>}
       </div>
       <DateCalendar open={open} anchor={field.current} title={`${label} date`} value={value} min={min} rangeStart={rangeStart}
-        onClose={close} onPick={(v) => { setOpen(false); onChange(v); }} />
+        route={route} onClose={close} onPick={(v) => { setOpen(false); onChange(v); }} />
     </div>
   );
 }
@@ -451,6 +451,7 @@ export default function SearchWidget() {
           </div>
           <div className="bf-dates">
             <DateField id="sw-depart" label="Depart" value={departDate} min={today}
+              route={origin && dest ? { origin: origin.code, destination: dest.code } : null}
               onChange={(v) => {
                 setDepartDate(v);
                 const keepReturn = returnDate && returnDate >= v;
@@ -460,6 +461,7 @@ export default function SearchWidget() {
             {tripType !== "Multi-city" && (
               <DateField id="sw-return" label="Return" value={tripType === "Round Trip" ? returnDate : ""} min={departDate || today}
                 rangeStart={departDate || undefined}
+                route={origin && dest ? { origin: dest.code, destination: origin.code } : null}
                 onOpen={() => { if (tripType !== "Round Trip") setTripType("Round Trip"); }}
                 onChange={(v) => { setReturnDate(v); setTripType("Round Trip"); }}
                 empty={<span className="bf-date-hint">Book a round trip to save more</span>} />

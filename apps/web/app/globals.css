@@ -2910,6 +2910,18 @@ body .site-nav :is(a, summary):focus-visible { outline: 2px solid #1C63B9; outli
 .bf-cal-day.is-sel.has-range-l { border-radius: 0 12px 12px 0; }
 .bf-cal-day.is-sel::after { background: #fff; }
 
+/* Fares under the day number (recently seen, from our own searches). */
+.bf-cal-day.has-fares { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; height: 54px; }
+.bf-cal-root.is-pop .bf-cal-day.has-fares { height: 50px; }
+.bf-cal-num { line-height: 1.1; }
+.bf-cal-fare { font-size: 10.5px; font-weight: 600; line-height: 1.1; color: #94a3b8; letter-spacing: -.01em; white-space: nowrap; }
+.bf-cal-fare.is-low { color: #15803d; font-weight: 700; }
+.bf-cal-day.is-sel .bf-cal-fare { color: #dbeafe; }
+.bf-cal-day.has-fares.is-today::after { bottom: 3px; }
+.bf-cal-note { padding: 10px 18px 14px; color: #64748b; font-size: 12px; text-align: center; }
+.bf-cal-root.is-pop .bf-cal-note { padding: 12px 0 0; }
+@media (max-width: 380px) { .bf-cal-fare { font-size: 9.5px; } }
+
 .bf-cal-pages { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
 .bf-cal-nav { position: absolute; top: 8px; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #dbe3ec; border-radius: 50%; background: #fff; color: #0D4B96; font-size: 20px; line-height: 1; cursor: pointer; }
 .bf-cal-nav.is-prev { left: 0; }
