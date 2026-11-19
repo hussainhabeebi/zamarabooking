@@ -9,7 +9,8 @@ import { FareTools } from "./FareTools";
 import FareOptionsList from "./FareOptionsList";
 import GroupFareResultCard from "./GroupFareResultCard";
 import { fetchGroupFares, sameFlight, type SearchGroupFare } from "./group-fare-results";
-import { altOptions, fareLabel, flightKey, groupFareOptions, optionPerks, optionPrice } from "../lib/fare-options";
+import { altOptions, cabinPerk, checkedPerk, fareLabel, flightKey, groupFareOptions, optionPerks, optionPrice } from "../lib/fare-options";
+import { allowanceLabel, checkedTag, fareBaggageView } from "../lib/baggage";
 import { matchesStops, stopCount, stopsLabel, viaText } from "../lib/stops";
 import { convertInr, currencyMeta, fetchFxRates, formatIn, isShownCurrency, type FxRates } from "../lib/fx";
 
@@ -332,7 +333,8 @@ function filterAndSortFares(fares: any[], params: SearchParams): any[] {
   const filtered = fares.filter((fare) => {
     if (!matchesStops(fare, params.stops)) return false;
     if (params.refundable === "1" && !fare.isRefundable) return false;
-    if (params.baggage === "1" && !fare.baggage?.checked) return false;
+    // "With baggage": only fares whose check-in bag is confirmed (not "No check-in bag", not unknown).
+    if (params.baggage === "1" && fareBaggageView(fare).checked.status !== "INCLUDED") return false;
     if (airlineFilter.length > 0 && !airlineFilter.includes(fare.airlineName)) return false;
     if (params.depBand) {
       const dep = new Date(fare.departureTime);
@@ -423,7 +425,7 @@ function buildBookUrl(fare: any, fareCurrency: string, price: number, adults: nu
     price:    String(price),
     cur:      fareCurrency,
     ref:      fare.isRefundable ? "1" : "0",
-    bag:      fare.baggage?.checked ?? "",
+    bag:      fareBaggageView(fare).checked.text,
   });
   if (payCurrency) p.set("pc", payCurrency);
   if (searchId) p.set("sid", searchId);   // links the booking to this search's TripJack logs
@@ -434,7 +436,7 @@ function buildBookUrl(fare: any, fareCurrency: string, price: number, adults: nu
 // This option's own perks + the flight's other fare options, so the booking page
 // can show what's included and offer a switch / upgrade.
 function optionLinkParams(fare: any, options: any[]): Record<string, string> {
-  const extra: Record<string, string> = { cab: fare.baggage?.cabin ?? "", fl: fareLabel(fare.fareIdentifier || fare.fareClass) };
+  const extra: Record<string, string> = { cab: fareBaggageView(fare).cabin.text, fl: fareLabel(fare.fareIdentifier || fare.fareClass) };
   if (typeof fare.mealIncluded === "boolean") extra.meal = fare.mealIncluded ? "1" : "0";
   if (fare.cabinClass) extra.cls = String(fare.cabinClass);
   // Each flight of the itinerary, so checkout can show the full schedule.
@@ -473,6 +475,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
   };
   const arrNextDay = dep.getUTCDate() !== arr.getUTCDate();
 
+  const bag = fareBaggageView(fare);
   const cabinLabel = String(fare.cabinClass ?? "ECONOMY").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
   const badgeColor = fare.__badge === "Best overall" ? "#0D4B96" : fare.__badge === "Lowest fare" ? "#0f172a" : "#0369a1";
 
@@ -525,7 +528,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
           {fare.fareIdentifier && fare.fareIdentifier !== "PUBLISHED" && (
             <span className="fare-card-v2-tag">{({ STUDENT: "Student fare", SENIOR_CITIZEN: "Senior citizen fare", TJ_FLEX: "Flex fare", SPECIAL_RETURN: "Special Return" } as Record<string, string>)[fare.fareIdentifier] ?? fareLabel(fare.fareIdentifier)}</span>
           )}
-          {fare.baggage?.checked && <span className="fare-card-v2-tag tag-baggage">🧳 {fare.baggage.checked}</span>}
+          {checkedTag(bag) && <span className="fare-card-v2-tag tag-baggage">🧳 {checkedTag(bag)}</span>}
           {fare.seatsLeft > 0 && fare.seatsLeft <= 5 && (
             <span className="fare-card-v2-tag tag-seats">🔥 {fare.seatsLeft} left</span>
           )}
@@ -563,7 +566,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
               label: fareLabel(o.fareIdentifier || o.fareClass),
               price: formatMoney(oShown.amount, oShown.currency),
               diff: diff > 0 ? formatMoney(inChosenCurrency(diff, fareCurrency, requestedCurrency, aedRate).amount, oShown.currency) : undefined,
-              perks: [perks.refund, cabinLabel, perks.meal, perks.checked && `${perks.checked} check-in`, perks.cabin && `${perks.cabin} cabin`].filter(Boolean).join(" · "),
+              perks: [perks.refund, cabinLabel, perks.meal, checkedPerk(perks.checked), cabinPerk(perks.cabin)].filter(Boolean).join(" · "),
               bookUrl: buildBookUrl(o, fareCurrency, op, adults, children, infants, oShown.converted ? oShown.currency : undefined, searchId, optionLinkParams(o, options)),
             };
           })}
@@ -578,11 +581,11 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, adults,
         <div className="fare-card-v2-detail">
           <div className="fare-card-v2-detail-item">
             <label>Cabin baggage</label>
-            <span>{fare.baggage?.cabin || "Cabin baggage allowance not provided"}</span>
+            <span>{allowanceLabel(bag.cabin)}</span>
           </div>
           <div className="fare-card-v2-detail-item">
             <label>Check-in baggage</label>
-            <span>{fare.baggage?.checked || "Checked baggage allowance not provided"}</span>
+            <span>{allowanceLabel(bag.checked)}</span>
           </div>
           <div className="fare-card-v2-detail-item">
             <label>Refundable</label>

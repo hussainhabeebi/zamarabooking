@@ -170,32 +170,43 @@ test('actual results filter and booking handoff preserve unknown baggage', async
   const stopsFile = path.resolve(__dirname, '../../../apps/web/app/lib/stops.ts');
   const stopsJs = ts.transpileModule(fs.readFileSync(stopsFile, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const stops = {}; new Function('exports', stopsJs)(stops);
-  const { filterAndSortFares, buildBookUrl } = new Function('matchesStops', js + ';return { filterAndSortFares, buildBookUrl };')(stops.matchesStops);
+  // ...and the shared baggage reader (lib/baggage.ts).
+  const bagJs = ts.transpileModule(fs.readFileSync(path.resolve(__dirname, '../../../apps/web/app/lib/baggage.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const bag = {}; new Function('exports', bagJs)(bag);
+  const { filterAndSortFares, buildBookUrl } = new Function('matchesStops', 'fareBaggageView', js + ';return { filterAndSortFares, buildBookUrl };')(stops.matchesStops, bag.fareBaggageView);
   const unknown = normalizeTripjackFare({ id: 'unknown', totalPriceInfo: {} });
   const known = normalizeTripjackFare({ id: 'known', totalPriceInfo: { fd: { ADULT: { bI: { iB: '20 KG' } } } } });
   assert.deepEqual(filterAndSortFares([unknown, known], { baggage: '1' }).map((f) => f.id), ['known']);
   assert.equal(filterAndSortFares([unknown, known], {}).length, 2);
   for (const fare of [unknown, { id: 'absent', supplier: 'TRIPJACK' }, known]) {
     const url = new URL(buildBookUrl(fare, 'INR', 100, 1), 'https://test.example');
-    assert.equal(url.searchParams.get('bag'), fare.baggage?.checked ?? '');
+    // The cleaned allowance ("20 kg"), or empty when unknown — never a made-up value.
+    assert.equal(url.searchParams.get('bag'), fare.id === 'known' ? '20 kg' : '');
     assert.equal(url.searchParams.get('fareId'), fare.id);
   }
   const book = fs.readFileSync(path.resolve(__dirname, '../../../apps/web/app/book/page.tsx'), 'utf8');
   const bookAst = ts.createSourceFile('book.tsx', book, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let allowance;
+  const decl = {};
   function visit(node) {
     if (ts.isPropertyAssignment(node) && node.name.getText(bookAst) === 'cabinChecked') allowance = node.initializer.getText(bookAst);
+    if (ts.isVariableDeclaration(node) && ['akbar', 'urlBagView', 'urlBag'].includes(node.name.getText(bookAst))) decl[node.name.getText(bookAst)] = node.initializer.getText(bookAst);
     ts.forEachChild(node, visit);
   }
   visit(bookAst);
-  assert.ok(allowance);
-  const read = new Function('q', `return ${allowance}`);
-  for (const query of ['', 'bag=']) assert.equal(read(new URLSearchParams(query)), '');
-  assert.equal(read(new URLSearchParams('bag=20+KG')), '20 KG');
+  assert.equal(allowance, 'urlBag.checked');
+  // The booking page reads bag/cab from the link through the same baggage reader.
+  const read = new Function('q', 'supplier', 'fareId', 'baggageView',
+    `const akbar = ${decl.akbar}; const urlBagView = ${decl.urlBagView}; const urlBag = ${decl.urlBag}; return ${allowance};`);
+  const r = (query) => read(new URLSearchParams(query), 'TRIPJACK', 'x', bag.baggageView);
+  for (const query of ['', 'bag=', 'bag=As+per+airline']) assert.equal(r(query), '');
+  assert.equal(r('bag=20+KG'), '20 kg');
+  assert.equal(read(new URLSearchParams('bag=25+Kg%2C7+Kg'), 'AKBAR', 'AK|t|1', bag.baggageView), '25 kg');   // older Akbar link
   // The checkout itinerary (FlightItinerary.tsx since the full-itinerary checkout) says an unknown
-  // allowance is not provided; neither file invents one.
+  // allowance is not confirmed (lib/baggage.ts allowanceLabel); neither file invents one.
   const itinerary = fs.readFileSync(path.resolve(__dirname, '../../../apps/web/app/book/FlightItinerary.tsx'), 'utf8');
-  assert.match(itinerary, /Check-in: <b>\{leg\.checked \|\| "Not provided"\}<\/b>/);
+  assert.match(itinerary, /Check-in: <b>\{allowanceLabel\(normalizeAllowance\(leg\.checked, "checked"\)\)\}<\/b>/);
+  assert.equal(bag.allowanceLabel(bag.normalizeAllowance('', 'checked')), 'Allowance not confirmed');
   assert.doesNotMatch(book, /15 KG/);
   assert.doesNotMatch(itinerary, /15 KG/);
 });

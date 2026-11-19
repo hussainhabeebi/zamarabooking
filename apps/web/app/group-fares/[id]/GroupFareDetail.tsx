@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { CABIN, groupFaresUrl, HEADERS, inr, saleEnds, seatsText, travelDay, type GroupFare } from "../group-fares";
 import { RouteLine, seatsClass } from "../GroupFaresList";
 import styles from "../group-fares.module.css";
+import { allowanceLabel, normalizeAllowance } from "../../lib/baggage";
 
 interface Quote {
   pax: { adults: number; children: number; infants: number };
@@ -79,7 +80,7 @@ export default function GroupFareDetail({ id }: { id: string }) {
         <p className={styles.lead}>{fare.origin} → {fare.destination} · {travelDay(fare.travelDate)}</p>
         <div className={styles.heroMeta}>
           <span className={styles.heroChip}>{CABIN[fare.cabinClass] ?? fare.cabinClass}</span>
-          <span className={styles.heroChip}>Baggage {fare.baggage.checked}</span>
+          <span className={styles.heroChip}>Baggage {allowanceLabel(normalizeAllowance(fare.baggage.checked, "checked"))}</span>
           {fare.pricePerAdult != null && <span className={styles.heroChip}>From {inr(fare.pricePerAdult)} per adult</span>}
           {fare.saleEndsAt && <span className={styles.heroChip}>Sale ends {saleEnds(fare.saleEndsAt)}</span>}
         </div>
@@ -95,8 +96,8 @@ export default function GroupFareDetail({ id }: { id: string }) {
               <div><dt>Date</dt><dd>{travelDay(fare.travelDate)}</dd></div>
               <div><dt>Arrives</dt><dd>{fare.arrivalDayOffset ? `${fare.arrivalTime} (+${fare.arrivalDayOffset} day)` : fare.arrivalTime}</dd></div>
               <div><dt>Cabin</dt><dd>{CABIN[fare.cabinClass] ?? fare.cabinClass}</dd></div>
-              <div><dt>Checked baggage</dt><dd>{fare.baggage.checked}</dd></div>
-              <div><dt>Cabin baggage</dt><dd>{fare.baggage.cabin}</dd></div>
+              <div><dt>Checked baggage</dt><dd>{allowanceLabel(normalizeAllowance(fare.baggage.checked, "checked"))}</dd></div>
+              <div><dt>Cabin baggage</dt><dd>{allowanceLabel(normalizeAllowance(fare.baggage.cabin, "cabin"))}</dd></div>
               <div><dt>Cancellation</dt><dd>{fare.isRefundable ? "Refundable (airline rules apply)" : "Non-refundable"}</dd></div>
               <div><dt>Seats</dt><dd><span className={seatsClass(fare)}>{seatsText(fare)}</span></dd></div>
             </dl>

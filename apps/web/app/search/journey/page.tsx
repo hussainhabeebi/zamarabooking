@@ -20,6 +20,7 @@ const place = (code: string) => { const city = airportCity(code); return city ? 
 import { journeyResponse } from "./response";
 import { filterJourneyFares } from "./filters";
 import { stopsLabel, viaText } from "../../lib/stops";
+import { NO_CHECKED_BAG_TEXT, carriedBaggage, checkedTag, fareBaggageView } from "../../lib/baggage";
 import { readPrefCurrency } from "../../lib/currency-pref";
 import { convertInr, fetchFxRates, formatIn, type FxRates } from "../../lib/fx";
 
@@ -193,7 +194,7 @@ function Journey() {
     if (!selection.length || timesConflict) return;
     const firstFare = selection[0];
     const lastFare = selection[selection.length - 1];
-    const summary = selection.map((f) => ({ id: f.id, tripKey: f.tripKey, airlineName: f.airlineName, flightNumber: f.flightNumber, origin: f.origin, destination: f.destination, departureTime: f.departureTime, arrivalTime: f.arrivalTime, stops: f.stops, fareIdentifier: f.fareIdentifier, segments: f.segments, baggage: f.baggage }));
+    const summary = selection.map((f) => ({ id: f.id, tripKey: f.tripKey, airlineName: f.airlineName, flightNumber: f.flightNumber, origin: f.origin, destination: f.destination, departureTime: f.departureTime, arrivalTime: f.arrivalTime, stops: f.stops, fareIdentifier: f.fareIdentifier, segments: f.segments, baggage: carriedBaggage(fareBaggageView(f)) }));
     try { sessionStorage.setItem(`journey:${selection.map((f) => f.id).join(",")}`, JSON.stringify(summary)); } catch {}
     const p = new URLSearchParams({
       fareId: firstFare.id, priceIds: selection.map((f) => f.id).join(","), supplier: firstFare.supplier, tripType,
@@ -202,7 +203,7 @@ function Journey() {
       from: legs[0].origin, to: tripType === "ROUNDTRIP" ? legs[0].destination : legs[legs.length - 1].destination,
       dep: firstFare.departureTime, arr: lastFare.arrivalTime, dur: String(firstFare.duration ?? 0), stops: String(firstFare.stops ?? 0),
       price: String(Math.round(total * 100) / 100), cur: currency, ref: selection.every((f) => f.isRefundable) ? "1" : "0",
-      bag: firstFare.baggage?.checked ?? "", cab: firstFare.baggage?.cabin ?? "", ...(q.get("cabinClass") ? { cls: q.get("cabinClass")! } : {}), ...(searchId ? { sid: searchId } : {}), ...(q.get("pc") ? { pc: q.get("pc")! } : {}),
+      bag: fareBaggageView(firstFare).checked.text, cab: fareBaggageView(firstFare).cabin.text, ...(q.get("cabinClass") ? { cls: q.get("cabinClass")! } : {}), ...(searchId ? { sid: searchId } : {}), ...(q.get("pc") ? { pc: q.get("pc")! } : {}),
     });
     window.location.href = `/book?${p}`;
   }
@@ -304,6 +305,7 @@ function Journey() {
 }
 
 function FareRow({ fare, selected, onPick, showSegments, travellers = 1, show = money }: { fare: Fare; selected: boolean; onPick: () => void; showSegments?: boolean; travellers?: number; show?: (n: number, cur: string) => string }) {
+  const bagTag = checkedTag(fareBaggageView(fare));
   const segs = fare.segments ?? [];
   const outbound = segs.filter((s) => !s.isReturn);
   const inbound = segs.filter((s) => s.isReturn);
@@ -338,7 +340,7 @@ function FareRow({ fare, selected, onPick, showSegments, travellers = 1, show = 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 11 }}>
         {fare.fareIdentifier && <span style={chip(fare.fareIdentifier === "SPECIAL_RETURN" ? "#fef3c7" : "#f1f5f9")}>{FARE_LABEL[fare.fareIdentifier] ?? fare.fareIdentifier}</span>}
         <span style={chip(fare.isRefundable ? "#ecfdf3" : "#f1f5f9")}>{fare.isRefundable ? "Refundable" : "Non-refundable"}</span>
-        {fare.baggage?.checked && <span style={chip("#f1f5f9")}>Check-in {fare.baggage.checked}</span>}
+        {bagTag && <span style={chip("#f1f5f9")}>{bagTag === NO_CHECKED_BAG_TEXT ? bagTag : `Check-in ${bagTag}`}</span>}
       </div>
     </button>
   );
