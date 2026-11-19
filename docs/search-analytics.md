@@ -58,36 +58,64 @@ The website sends tracking in the JSON body (`tracking: { client: "web", visitor
 
 > To improve our service we record, on our own servers, the flight searches made on ZamraBooking.com (route, dates, number of travellers, cabin, the lowest fare shown) together with a random identifier stored in a first-party cookie ("zb_vid", kept for 12 months), the type of device and the country. We do not record your IP address or browser details, and we do not link searches to your name, email or phone unless you are signed in to your account. Browsers that send a "Global Privacy Control" or "Do Not Track" signal are not given the identifier. Search records are deleted after 13 months. We use them only to understand which routes and dates our customers look for and to improve our service.
 
+## Database and backup
+
+- **Where the data lives.** The production database is **Postgres hosted on Neon**:
+  - `packages/db` uses the Neon driver with the `DATABASE_URL` secret;
+  - the Worker's Cloudflare **Hyperdrive** config (`32010b9c…`) fronts it as a connection pooler only — Hyperdrive stores no data and has no backups;
+  - there is no Cloudflare D1 database for the API.
+- **Backup.** The release workflow takes the backup itself, on Cloudflare R2 (nothing is done in Neon):
+  - a full `pg_dump` (custom format, read-only), checked with `pg_restore --list`;
+  - encrypted with `DB_BACKUP_PASSPHRASE` (AES-256), checked to decrypt back to the same archive;
+  - uploaded with a manifest (sha256, size, server version, time) to the private R2 bucket `zamra-db-backups`;
+  - read back from R2 and compared, all **before** the migration. If any step fails, nothing is migrated.
+- **Wrong-database guard.** The workflow refuses to run if the GitHub `DATABASE_URL` host is not the origin of the Worker's Hyperdrive config.
+- **Restore (only if ever needed, with separate approval):**
+  1. Download the `.dump.enc` from R2.
+  2. Decrypt it: `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:PASSPHRASE`.
+  3. Run `pg_restore` into a new, empty database, and check it before any switch.
+  4. This migration only adds two tables, so the normal rollback never needs a restore.
+
+### One-time setup before the first run (needs your approval)
+
+1. **R2 bucket:** Cloudflare dashboard → R2 → create a **private** bucket `zamra-db-backups`, with no public access. A lifecycle rule (e.g. delete after 90 days) is optional.
+2. **Token permissions:** the GitHub secret `CLOUDFLARE_API_TOKEN` must also have **R2 edit** permission and **Hyperdrive read** permission. The workflow checks both and stops before touching the database if either is missing.
+3. **Passphrase:** add a GitHub Actions secret `DB_BACKUP_PASSPHRASE` (24+ random characters) and keep a copy in your password manager. Without it the backup can't be decrypted.
+
 ## Release (separate approvals)
 
 1. **Merge the PR.** The website deploys through `deploy-web.yml`. It behaves the same until the API is released, and records nothing until tracking is switched on.
-2. **Take a database snapshot** (e.g. a Neon branch) and note its name.
-3. **Run Actions → "Release - Search analytics (migration 0015 + API + Admin)"** with:
+2. **Run Actions → "Release - Search analytics (migration 0015 + API + Admin)"** with:
 
    | Input | Value |
    |---|---|
    | `mode` | `deploy` |
-   | `api_base_sha` | The commit in the latest zamra-api deploy message ("… <sha> on …") |
-   | `admin_files_base_sha` | The sha in the latest zamra-admin message ("Akbar-API-booking-admin-<sha>-on-…") |
-   | `pr_base_sha`, `pr_head_sha` | This PR's base and head (the head must be on main) |
-   | `database_snapshot` | The snapshot or branch name from step 2 |
+   | `api_base_sha` | The commit in the latest zamra-api deploy message |
+   | `admin_files_base_sha` | The sha in the latest zamra-admin deploy message |
+   | `pr_base_sha`, `pr_head_sha` | This PR's base and head |
    | `authorization` | `DEPLOY_SEARCH_ANALYTICS_WITH_MIGRATION_0015` |
 
-   The run:
-   - checks every file is on the allowlist, and that the migration only creates objects;
-   - runs the tests on the live API tree;
-   - applies **only** 0015 in one transaction, checking that no existing table changed shape;
-   - deploys the API, then Admin;
-   - prints the **ROLLBACK TARGET** versions.
-4. **Admin → Analytics → Turn on** when ready.
+   It runs these jobs in order:
+
+   | Job | What it does |
+   |---|---|
+   | verify | Every file is on the allowlist; the migration contains only `CREATE` statements. |
+   | test | The test suites on the live API tree. |
+   | backup | Checks the R2 bucket, the passphrase, and that `DATABASE_URL` is the Hyperdrive origin. Then dumps, verifies, encrypts, uploads and reads back. |
+   | migrate | **0015 only**, in one transaction. Checks that no existing table changed shape and that the new tables are empty. |
+   | deploy-api, deploy-admin | Each checks that the live version is the expected baseline, then deploys, printing the **ROLLBACK TARGET** versions. |
+   | verify-off | `/health` is OK, the Admin switch is absent or `false` (**tracking OFF**), and both analytics tables are still empty. |
+
+3. **Admin → Analytics → Turn on** — only when you decide.
 
 ## Rollback
 
 | What | How |
 |---|---|
 | Stop recording | Admin → Analytics → **Turn off** (immediate). |
-| Code | Run the same workflow with `mode=rollback`, the printed version IDs and `ROLLBACK_SEARCH_ANALYTICS`. Revert the website merge if wanted; it is harmless either way. The two tables stay, unused. |
-| Analytics data | `mode=drop-analytics-tables` with `DROP_SEARCH_ANALYTICS_TABLES` runs `packages/db/drizzle/rollback/0015_search_analytics_down.sql`, which drops only the two analytics tables. That file lives outside `migrations/`, so no workflow ever applies it automatically. |
+| Code | Run the same workflow with `mode=rollback`, the printed version IDs and `ROLLBACK_SEARCH_ANALYTICS`. The two tables stay, unused. |
+| Analytics data | `mode=drop-analytics-tables` with `DROP_SEARCH_ANALYTICS_TABLES` drops only the two analytics tables. |
+| Whole database | Restore from the R2 backup above. Not expected: 0015 changes no existing data. |
 
 ## Follow-up after the Admin release
 
