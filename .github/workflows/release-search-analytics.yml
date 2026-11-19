@@ -14,7 +14,8 @@ name: Release - Search analytics (migration 0015 + API + Admin)
 #
 # Database: the production database is Postgres (Neon), reached by the Worker through DATABASE_URL and the
 # Cloudflare Hyperdrive config 32010b9c… (a connection pooler — it stores no data and has no backups).
-# Before migrating, this workflow itself takes the backup: pg_dump of the whole database, encrypted with
+# The backup and OFF checks use their own Cloudflare token, CLOUDFLARE_BACKUP_TOKEN (R2 edit, Hyperdrive read,
+# KV read); deploys keep using CLOUDFLARE_API_TOKEN. Before migrating, this workflow itself takes the backup: pg_dump of the whole database, encrypted with
 # DB_BACKUP_PASSPHRASE, stored in the private Cloudflare R2 bucket BACKUP_BUCKET and read back to verify.
 #
 # mode=deploy               : verify (incl. that DATABASE_URL is the database behind the Worker's Hyperdrive),
@@ -244,10 +245,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PASSPHRASE: ${{ secrets.DB_BACKUP_PASSPHRASE }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_BACKUP_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           [ -n "$DATABASE_URL" ] || { echo "::error::DATABASE_URL secret is not set"; exit 1; }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::Set the CLOUDFLARE_BACKUP_TOKEN secret (Account: Workers R2 Storage Edit, Hyperdrive Read, Workers KV Storage Read)"; exit 1; }
           [ "${#PASSPHRASE}" -ge 24 ] || { echo "::error::Set the DB_BACKUP_PASSPHRASE secret (24+ characters) — the backup is encrypted with it"; exit 1; }
           pnpm exec wrangler r2 bucket info "$BACKUP_BUCKET" >/dev/null || { echo "::error::R2 bucket $BACKUP_BUCKET is missing or the Cloudflare token can't use R2 — create it (private) first"; exit 1; }
           # Host only — never the user name or password.
@@ -259,6 +261,19 @@ jobs:
           # Neon pooled / direct hosts differ only by "-pooler"; compare without it.
           norm() { echo "$1" | sed 's/-pooler\././'; }
           [ -n "$hd_host" ] && [ "$(norm "$db_host")" = "$(norm "$hd_host")" ] || { echo "::error::DATABASE_URL ($db_host) is not the Hyperdrive origin ($hd_host) — refusing to migrate a database the Worker may not use"; exit 1; }
+      - name: The deploy token works (read-only deployment lists) — checked before anything touches the database
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          COMPONENTS: ${{ inputs.components }}
+        run: |
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN (the deploy token) is not set"; exit 1; }
+          pnpm exec wrangler deployments list > /dev/null || { echo "::error::CLOUDFLARE_API_TOKEN can't read zamra-api deployments — fix the deploy token before migrating"; exit 1; }
+          if [ "$COMPONENTS" != api ]; then
+            (cd ../admin && pnpm exec wrangler deployments list > /dev/null) || { echo "::error::CLOUDFLARE_API_TOKEN can't read zamra-admin deployments — fix the deploy token before migrating"; exit 1; }
+          fi
+          echo "Deploy token OK."
       - name: Install a pg_dump matching the server version
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -294,7 +309,7 @@ jobs:
         id: upload
         working-directory: apps/api
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_BACKUP_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           key="search-analytics-0015/$(date -u +%Y%m%dT%H%M%SZ)-${{ github.run_id }}"
@@ -492,7 +507,7 @@ jobs:
         working-directory: apps/api
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_BACKUP_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           TENANT_CACHE_KV_ID: 3dc6b342af8f4d479d755da91cd6a89b
         run: |

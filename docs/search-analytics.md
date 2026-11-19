@@ -79,7 +79,12 @@ The website sends tracking in the JSON body (`tracking: { client: "web", visitor
 ### One-time setup before the first run (needs your approval)
 
 1. **R2 bucket:** Cloudflare dashboard → R2 → create a **private** bucket `zamra-db-backups`, with no public access. A lifecycle rule (e.g. delete after 90 days) is optional.
-2. **Token permissions:** the GitHub secret `CLOUDFLARE_API_TOKEN` must also have **R2 edit** permission and **Hyperdrive read** permission. The workflow checks both and stops before touching the database if either is missing.
+2. **Backup token:** create a separate Cloudflare API token ("Start from scratch") with these permissions, all on the zamra account, and no IP filtering:
+   - Account · Workers R2 Storage · Edit
+   - Account · Hyperdrive · Read
+   - Account · Workers KV Storage · Read
+
+   Save it as the GitHub Actions secret `CLOUDFLARE_BACKUP_TOKEN`. Deploys keep using `CLOUDFLARE_API_TOKEN`. The workflow checks the token before touching the database.
 3. **Passphrase:** add a GitHub Actions secret `DB_BACKUP_PASSPHRASE` (24+ random characters) and keep a copy in your password manager. Without it the backup can't be decrypted.
 
 ## Release (separate approvals)
