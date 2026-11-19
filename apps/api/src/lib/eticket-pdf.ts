@@ -9,6 +9,7 @@
 // The PDF is written directly (PDF 1.4, A4, the standard Helvetica / Courier fonts), so it needs
 // no library and runs in the Worker.
 
+import { allowanceLabel, baggageView } from "@zamrabooking/suppliers";
 import { isOfflineSupplier } from "./flight-sources.js";
 
 export interface ETicketSegment {
@@ -75,7 +76,8 @@ export function eticketDocument(b: BookingLike, pax: PassengerLike[], tenant: Te
   const segments = bookingSegments(b, fd);
   if (!segments.length) return null;
   const legBaggage = Array.isArray(fd.offline?.legs) ? fd.offline.legs.find((l: any) => l?.baggage)?.baggage : undefined;
-  const baggage = fd.baggage ?? legBaggage ?? {};
+  // Akbar bookings saved before baggage was split keep "25 Kg,7 Kg" in check-in: split here as well.
+  const bag = baggageView(fd.baggage ?? legBaggage ?? {}, { akbar: b.supplier === "AKBAR" });
   const tickets = b.ticketNumbers ?? [];
   return {
     brandName: str(tenant?.name) || "Zamra Travels",
@@ -84,7 +86,7 @@ export function eticketDocument(b: BookingLike, pax: PassengerLike[], tenant: Te
     pnr, bookingRef: b.id, status: b.status, ...(b.createdAt ? { bookedAt: iso(b.createdAt) } : {}),
     segments,
     passengers: pax.map((p, i) => ({ name: `${str(p.firstName)} ${str(p.lastName)}`.trim(), type: str(p.passengerType), ticketNumber: str(tickets[i]) || null })),
-    baggage: { cabin: str(baggage.cabin) || "As per airline", checked: str(baggage.checked) || "As per airline" },
+    baggage: { cabin: allowanceLabel(bag.cabin), checked: allowanceLabel(bag.checked) },
     isRefundable: fd.isRefundable === true,
     totalAmount: Number(b.totalAmount) || 0,
     currency: str(b.currency) || "INR",

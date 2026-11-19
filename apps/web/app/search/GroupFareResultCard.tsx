@@ -2,6 +2,7 @@
 // which opens the normal booking page for the MANUAL group fare (seats held at checkout).
 import { groupFareBookUrl, groupFareDetailsUrl, type SearchGroupFare } from "./group-fare-results";
 import styles from "./group-fare-card.module.css";
+import { allowanceLabel, normalizeAllowance } from "../lib/baggage";
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 const CABIN: Record<string, string> = { ECONOMY: "Economy", PREMIUM_ECONOMY: "Premium economy", BUSINESS: "Business", FIRST: "First" };
@@ -38,7 +39,7 @@ export default function GroupFareResultCard({ fare, sameFlightAsAbove, payCurren
       </div>
       <div className={styles.foot}>
         <span className={styles.title}>{fare.title}</span>
-        <span className={styles.chip}>🧳 {fare.baggage.checked}</span>
+        <span className={styles.chip}>🧳 {allowanceLabel(normalizeAllowance(fare.baggage.checked, "checked"))}</span>
         {fare.isRefundable && <span className={styles.chip}>✓ Refundable</span>}
         {fare.minPax > 1 && <span className={styles.chip}>Min {fare.minPax} travellers</span>}
         {payCurrency && payCurrency !== "INR" && <span className={styles.chip}>Paid in INR</span>}

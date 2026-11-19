@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CABIN, groupFaresUrl, HEADERS, inr, saleEnds, seatsText, travelDay, type GroupFare } from "./group-fares";
 import { Check } from "./Icons";
 import styles from "./group-fares.module.css";
+import { allowanceLabel, normalizeAllowance } from "../lib/baggage";
 
 export function RouteLine({ f }: { f: Pick<GroupFare, "origin" | "destination" | "departureTime" | "arrivalTime" | "arrivalDayOffset" | "stops"> }) {
   return (
@@ -80,7 +81,7 @@ export default function GroupFaresList() {
                 <RouteLine f={f} />
                 <div className={styles.chips}>
                   <span className={styles.chip}>{travelDay(f.travelDate)}</span>
-                  <span className={styles.chip}>Baggage {f.baggage.checked}</span>
+                  <span className={styles.chip}>Baggage {allowanceLabel(normalizeAllowance(f.baggage.checked, "checked"))}</span>
                   {f.minPax > 1 && <span className={styles.chip}>Min {f.minPax} travellers</span>}
                   {f.isRefundable && <span className={`${styles.chip} ${styles.chipGood}`}>Refundable</span>}
                 </div>

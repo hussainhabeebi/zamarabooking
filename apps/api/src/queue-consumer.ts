@@ -912,7 +912,8 @@ async function bookPaidBooking(
         arrivalTime:   fd.arrivalTime ?? departureTime,
         cabinClass:    fd.cabinClass ?? booking.cabinClass,
         isRefundable:  fd.isRefundable ?? false,
-        baggage:       fd.baggage ?? { cabin: "As per airline", checked: "As per airline" },
+        baggage:       fd.baggage ?? { cabin: "", checked: "" },
+        supplier:      booking.supplier,
         passengers:    paxRows.map((p, i) => ({
           name:         `${p.firstName} ${p.lastName}`,
           type:         p.passengerType,

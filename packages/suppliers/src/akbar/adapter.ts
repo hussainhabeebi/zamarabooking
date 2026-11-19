@@ -1,5 +1,6 @@
 import type { NormalizedFare, SearchParams, StopDetail, SupplierAdapter, SupplierCredentials } from "../base.js";
 import { AkbarClient, AkbarError, searchTui, type AkbarCredentials, type AkbarSearchTiming, type AkbarToken } from "./client.js";
+import { akbarBaggage } from "../baggage.js";
 import { akbarRoundTripJourneys, akbarSpecialFarePairs, type AkbarRoundTripFareType } from "./roundtrip.js";
 
 // GetExpSearch every 1 s for the first 12 s of a search (most finish by then), then every 2 s, up to
@@ -102,7 +103,8 @@ export function normalizeAkbarJourney(j: Raw, tui: string, cabinClass: string): 
     totalFare:     netFare,
     currency:      "INR",
     isRefundable:  yes(j.Refundable),
-    baggage:       { cabin: str(inclusions.Cabin) || "As per airline", checked: str(inclusions.Baggage) || "As per airline" },
+    // Inclusions.Baggage is "check-in,cabin" ("25 Kg,7 Kg", "N,7 kg + Personal item(max 3 kg)"); see ../baggage.ts.
+    baggage:       akbarBaggage(inclusions.Baggage),
     fareClass:     str(first(j, ["RBD", "FareClass"])),
     ...(seats > 0 ? { seatsLeft: seats } : {}),
     ...(str(j.FCType) ? { fareIdentifier: str(j.FCType) } : {}),

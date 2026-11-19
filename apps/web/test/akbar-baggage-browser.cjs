@@ -31,8 +31,9 @@ const { build } = qaRequire('esbuild');
         window.calls = [];
         window.fetch = async (url) => { window.calls.push(String(url)); return Response.json({}); };
         sessionStorage.setItem(`journey:${ids}`, JSON.stringify([
-          { origin: 'BOM', destination: 'DXB', baggage: { checked: '30 Kg', cabin: '7 Kg' } },
-          { origin: 'DXB', destination: 'BOM', baggage: { checked: '', cabin: '7 Kg' } },
+          // Saved before baggage was split: Akbar's "check-in,cabin" text in check-in.
+          { origin: 'BOM', destination: 'DXB', baggage: { checked: '30 Kg,7 Kg', cabin: 'As per airline' } },
+          { origin: 'DXB', destination: 'BOM', baggage: { checked: '', cabin: '' } },
         ]));
       }, ids);
       await page.route('**/*', (route) => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
@@ -41,9 +42,12 @@ const { build } = qaRequire('esbuild');
       const card = page.getByRole('region', { name: 'Baggage' });
       await expect(card).toBeVisible();
       await expect(card.getByText('BOM → DXB')).toBeVisible();
-      await expect(card.getByText('Check-in: 30 Kg')).toBeVisible();
+      await expect(card.getByText('Check-in: 30 kg')).toBeVisible();
+      await expect(card.getByText('Cabin: 7 kg')).toBeVisible();
       // A leg Akbar gave no allowance for is never filled in with a made-up value.
-      await expect(card.getByText('Check-in: As per airline')).toBeVisible();
+      await expect(card.getByText('Check-in: Allowance not confirmed')).toBeVisible();
+      await expect(card.getByText('Cabin: Allowance not confirmed')).toBeVisible();
+      await expect(card.getByText(/As per airline/)).toHaveCount(0);
       await expect(card.getByText(/can't be bought online for this fare/)).toBeVisible();
       await expect(card.getByRole('link', { name: /WhatsApp/ })).toHaveAttribute('href', /wa\.me/);
       // Each traveller must choose with or without additional baggage.

@@ -8,6 +8,7 @@ import { bookingError } from "./booking-error";
 import BaggageSelection, { availableBaggage } from "./BaggageSelection";
 import FlightItinerary, { itinCss, legsFromJourney, legsFromSegments, type ItinLeg } from "./FlightItinerary";
 import { BUSINESS } from "../lib/business";
+import { allowanceLabel, baggageView, normalizeAllowance } from "../lib/baggage";
 import { WALLET_ENABLED } from "../lib/features";
 import { passengerNameProblem } from "./passenger-names";
 import PassengerDateInput from "../components/PassengerDateInput";
@@ -110,14 +111,15 @@ function withRebookTravellers(list: Passenger[], from: string, to: string): Pass
   }
 }
 
-// Included baggage for each flight, as the supplier's search returned it.
+// Included baggage for each flight, as the supplier's search returned it (cleaned: "25 kg",
+// "No check-in bag", or "" when not confirmed — see lib/baggage.ts).
 type LegBaggage = { origin: string; destination: string; checked: string; cabin: string };
+const bagLabel = (text: string, kind: "checked" | "cabin") => allowanceLabel(normalizeAllowance(text, kind));
 
 // Fares ticketed by Zamra staff (Akbar, Poomas, manual): the supplier API offers no
 // online baggage purchase in this flow, so show what is included and how to add more.
 // No baggage options or prices are shown here: staff confirm the airline's price.
 function StaffBaggageNotice({ legs }: { legs: LegBaggage[] }) {
-  const shown = (v: string) => v.trim() || "As per airline";
   return (
     <section className="card staffBaggage" aria-label="Baggage">
       <h2>Baggage</h2>
@@ -125,8 +127,8 @@ function StaffBaggageNotice({ legs }: { legs: LegBaggage[] }) {
         {legs.map((l, i) => (
           <li key={i}>
             <b>{l.origin} → {l.destination}</b>
-            <span>Check-in: {shown(l.checked)}</span>
-            <span>Cabin: {shown(l.cabin)}</span>
+            <span>Check-in: {bagLabel(l.checked, "checked")}</span>
+            <span>Cabin: {bagLabel(l.cabin, "cabin")}</span>
           </li>
         ))}
       </ul>
@@ -213,8 +215,8 @@ function FareOptionSwitcher({ money, currentPrice, disabled }: { money: (n: numb
             <button key={o.id} type="button" disabled={disabled || on} onClick={() => choose(o)}
               style={{ textAlign: "left", border: on ? "2px solid #0D4B96" : "1px solid #eaecf0", background: on ? "#EEF4FB" : "#fff", borderRadius: 12, padding: 10, cursor: on ? "default" : "pointer", display: "flex", flexDirection: "column", gap: 4, font: "inherit", color: "#101828" }}>
               <b style={{ fontSize: 13 }}>{o.label}{on ? " ✓" : ""}</b>
-              <span style={{ fontSize: 12, color: o.checked ? "#344054" : "#98a2b3" }}>🧳 {o.checked || "No check-in bag"}</span>
-              {o.cabin && <span style={{ fontSize: 12, color: "#344054" }}>👜 {o.cabin} cabin</span>}
+              <span style={{ fontSize: 12, color: normalizeAllowance(o.checked, "checked").status === "INCLUDED" ? "#344054" : "#98a2b3" }}>🧳 {bagLabel(o.checked, "checked")}</span>
+              {normalizeAllowance(o.cabin, "cabin").status !== "UNKNOWN" && <span style={{ fontSize: 12, color: "#344054" }}>👜 {bagLabel(o.cabin, "cabin")}{normalizeAllowance(o.cabin, "cabin").status === "INCLUDED" ? " cabin" : ""}</span>}
               {o.meal && <span style={{ fontSize: 12, color: o.meal === "Free meal" ? "#344054" : "#98a2b3" }}>🍽 {o.meal}</span>}
               <span style={{ fontSize: 12, color: o.ref === "Non-refundable" ? "#98a2b3" : "#067647" }}>{o.ref}</span>
               <b style={{ fontSize: 14, marginTop: 2 }}>{on ? money(base) : diff > 0 ? `+ ${money(diff)}` : `− ${money(-diff)}`}</b>
@@ -335,6 +337,10 @@ export default function BookPage() {
     const fareId   = q.get("fareId") ?? "";
     const supplier = q.get("supplier") ?? "";
     if (!fareId || !supplier) return;
+    // Included baggage from the results link, cleaned (older Akbar links carry "25 Kg,7 Kg" in bag).
+    const akbar = supplier.toUpperCase() === "AKBAR" || fareId.startsWith("AK|");
+    const urlBagView = baggageView({ checked: q.get("bag") ?? "", cabin: q.get("cab") ?? "" }, { akbar });
+    const urlBag = { checked: urlBagView.checked.text, cabin: urlBagView.cabin.text };
     const count = (t: Passenger["type"]) => handoff?.passengers.filter((p) => p.type === t).length ?? 0;
     const adults   = Math.min(9, Math.max(1, handoff ? count("ADULT") : Number(q.get("adults")) || 1));
     const children = Math.min(6, Math.max(0, handoff ? count("CHILD") : Number(q.get("children")) || 0));
@@ -375,7 +381,7 @@ export default function BookPage() {
       totalFare:     priceKnown ? parseFloat(q.get("price")!) : 0,
       currency:      fareCurrency,
       isRefundable:  q.get("ref") === "1",
-      cabinChecked:  q.get("bag") ?? "",
+      cabinChecked:  urlBag.checked,
     });
 
     const tt = q.get("tripType");
@@ -385,17 +391,17 @@ export default function BookPage() {
     let itin: ItinLeg[] = [];
     try {
       const ids = q.get("priceIds");
-      const saved = ids ? JSON.parse(sessionStorage.getItem(`journey:${ids}`) ?? "null") as { origin: string; destination: string; baggage?: { checked?: string; cabin?: string } }[] | null : null;
-      if (Array.isArray(saved)) legs = saved.map((l) => ({ origin: l.origin, destination: l.destination, checked: l.baggage?.checked ?? "", cabin: l.baggage?.cabin ?? "" }));
+      const saved = ids ? JSON.parse(sessionStorage.getItem(`journey:${ids}`) ?? "null") as { origin: string; destination: string; baggage?: { checked?: string; cabin?: string; checkedStatus?: string } }[] | null : null;
+      if (Array.isArray(saved)) legs = saved.map((l) => { const v = baggageView(l.baggage, { akbar }); return { origin: l.origin, destination: l.destination, checked: v.checked.text, cabin: v.cabin.text }; });
       itin = legsFromJourney(saved);
     } catch {}
     if (!itin.length) {
-      try { itin = legsFromSegments(JSON.parse(q.get("seg") ?? "[]"), q.get("bag") ?? "", q.get("cab") ?? ""); } catch {}
+      try { itin = legsFromSegments(JSON.parse(q.get("seg") ?? "[]"), urlBag.checked, urlBag.cabin); } catch {}
     }
     setLinkLegs(itin);
     const meal = q.get("meal");
     setFareExtras({ cabinClass: q.get("cls") ?? "", fareLabel: q.get("fl") ?? "", meal: meal === "1" ? "Free meal included" : meal === "0" ? "Meal at cost" : "" });
-    if (!legs.length) legs = [{ origin: q.get("from") ?? "", destination: q.get("to") ?? "", checked: q.get("bag") ?? "", cabin: q.get("cab") ?? "" }];
+    if (!legs.length) legs = [{ origin: q.get("from") ?? "", destination: q.get("to") ?? "", checked: urlBag.checked, cabin: urlBag.cabin }];
     setLegBaggage(legs);
     if (supplier.toUpperCase() === "TRIPJACK") {
       const priceIds = (q.get("priceIds") ?? fareId).split(",").filter(Boolean);
@@ -1127,7 +1133,7 @@ export default function BookPage() {
                     {p.bagChoice === "WITH" && <>
                       {legBaggage.map((leg, l) => (
                         <label key={l} className="bagLeg">
-                          <span>{leg.origin} → {leg.destination}<small>Included check-in: {leg.checked.trim() || "As per airline"} (kept)</small></span>
+                          <span>{leg.origin} → {leg.destination}<small>Included check-in: {bagLabel(leg.checked, "checked")} (kept)</small></span>
                           <select aria-label={`Traveller ${i + 1} extra baggage request ${leg.origin} to ${leg.destination}`} value={p.bagRequest[l] ?? ""} onChange={(e) => updBagRequest(i, l, e.target.value)}>
                             <option value="">No extra on this flight</option>
                             {BAGGAGE_REQUEST_KG.map((kg) => <option key={kg} value={kg}>+{kg} kg extra (price to be confirmed)</option>)}
@@ -1145,7 +1151,7 @@ export default function BookPage() {
                     <div className="ssrHead">
                       <b>Add Baggage &amp; Meals</b>
                       <span>Optional · per traveller and flight segment</span>
-                      <p style={{fontSize:12,margin:"4px 0",width:"100%"}}>Fare summary checked baggage: {fare?.cabinChecked || "Allowance not provided; check the fare details"}. Choose extra baggage for this traveller below.</p>
+                      <p style={{fontSize:12,margin:"4px 0",width:"100%"}}>Fare summary checked baggage: {bagLabel(fare?.cabinChecked ?? "", "checked")}. Choose extra baggage for this traveller below.</p>
                     </div>
                     {tripjackBaggageOffered && (
                       <fieldset className="bagChoice" aria-label={`Traveller ${i + 1} additional baggage`}>

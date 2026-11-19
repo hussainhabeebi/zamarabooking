@@ -1,9 +1,10 @@
+import { NO_CABIN_BAG_TEXT, NO_CHECKED_BAG_TEXT, fareBaggageView } from "./baggage";
 // Same flight, several airline fare options (Saver / Standard / Flexi / SME…):
 // TripJack returns one price per option. Group them so a flight is shown once
 // with its options side by side.
 
 export interface FareOptionLike {
-  id: string;
+  id: string; supplier?: string;
   airline?: string; flightNumber?: string; departureTime?: string; arrivalTime?: string; stops?: number;
   totalFare?: number; displayPrice?: number; isRefundable?: boolean; refundableType?: number;
   baggage?: { cabin?: string; checked?: string }; mealIncluded?: boolean; fareIdentifier?: string; fareClass?: string;
@@ -46,10 +47,12 @@ export function groupFareOptions<T extends FareOptionLike>(fares: T[]): FlightGr
 }
 
 // Short benefits line, e.g. "30 kg · meal · refundable".
+// checked / cabin: the clean allowance ("25 kg", "No check-in bag") or "" when not confirmed.
 export function optionPerks(f: FareOptionLike) {
+  const bag = fareBaggageView(f);
   return {
-    checked: f.baggage?.checked || "",
-    cabin: f.baggage?.cabin || "",
+    checked: bag.checked.text,
+    cabin: bag.cabin.text,
     meal: f.mealIncluded === true ? "Free meal" : f.mealIncluded === false ? "Meal at cost" : "",
     refund: f.refundableType === 2 ? "Partly refundable" : f.isRefundable ? "Refundable" : "Non-refundable",
   };
@@ -64,3 +67,7 @@ export function altOptions(options: FareOptionLike[], exceptId: string): AltOpti
     return { id: o.id, label: fareLabel(o.fareIdentifier || o.fareClass), price: optionPrice(o), checked: p.checked, cabin: p.cabin, meal: p.meal, ref: p.refund };
   });
 }
+
+// "25 kg check-in" / "No check-in bag"; "7 kg cabin" / "No cabin bag"; "" when not confirmed.
+export const checkedPerk = (t: string) => (!t ? "" : t === NO_CHECKED_BAG_TEXT ? t : `${t} check-in`);
+export const cabinPerk = (t: string) => (!t ? "" : t === NO_CABIN_BAG_TEXT ? t : `${t} cabin`);

@@ -1,5 +1,9 @@
 export * from "./base.js";
 export * from "./router.js";
+export {
+  akbarBaggage, splitAkbarBaggage, normalizeAllowance, baggageView, allowanceLabel, BAGGAGE_UNKNOWN_TEXT, NO_CHECKED_BAG_TEXT, NO_CABIN_BAG_TEXT,
+  type BaggageStatus, type BaggageAllowance, type BaggageView, type StructuredBaggage,
+} from "./baggage.js";
 export { RiyaAdapter }          from "./riya/adapter.js";
 export { TripjackAdapter }      from "./tripjack/adapter.js";
 export { TripjackClient }       from "./tripjack/client.js";

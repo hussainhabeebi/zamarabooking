@@ -2,6 +2,8 @@
 // Only RIYA and TRIPJACK implement book/PNR/cancel flows.
 // GOOGLE_SERP implements search only and always returns isBookable: false.
 
+import type { BaggageStatus } from "./baggage.js";
+
 // Flight sources with an adapter. MANUAL fares come from the Zamra database instead.
 export type SupplierName = "RIYA" | "TRIPJACK" | "GOOGLE_SERP" | "DUFFEL" | "POOMAS" | "AKBAR";
 
@@ -84,6 +86,9 @@ export interface StopDetail {
 export interface BaggageInfo {
   cabin:   string;   // "7 KG" | "Hand bag only"
   checked: string;   // "15 KG" | "20 KG" | "Not included"
+  // Set by suppliers whose text is read with ./baggage.ts (Akbar): INCLUDED | NONE | UNKNOWN.
+  checkedStatus?: BaggageStatus;
+  cabinStatus?:   BaggageStatus;
 }
 
 export interface FareRule {

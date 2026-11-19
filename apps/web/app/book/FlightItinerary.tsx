@@ -2,6 +2,8 @@
 // itinerary with dates, times, airports, flight numbers, layovers, included
 // baggage and the fare's conditions.
 
+import { allowanceLabel, baggageView, normalizeAllowance } from "../lib/baggage";
+
 export type ItinSegment = {
   airline?: string; airlineName?: string; flightNumber: string;
   origin: string; destination: string;
@@ -30,7 +32,8 @@ export function legsFromJourney(saved: unknown): ItinLeg[] {
       airlineName: l.airlineName, flightNumber: l.flightNumber ?? "", origin: l.origin, destination: l.destination,
       departureTime: l.departureTime ?? "", arrivalTime: l.arrivalTime ?? "",
     }];
-    return [{ origin: l.origin, destination: l.destination, segments, checked: l.baggage?.checked ?? "", cabin: l.baggage?.cabin ?? "", stops: typeof l.stops === "number" ? l.stops : undefined }];
+    const bag = baggageView(l.baggage, { akbar: String(l.id ?? "").startsWith("AK|") });
+    return [{ origin: l.origin, destination: l.destination, segments, checked: bag.checked.text, cabin: bag.cabin.text, stops: typeof l.stops === "number" ? l.stops : undefined }];
   });
 }
 
@@ -112,8 +115,8 @@ export default function FlightItinerary({ legs, tripType, cabinClass, fareLabel,
               );
             })}
             <div className="itinBags">
-              <span>🧳 Check-in: <b>{leg.checked || "Not provided"}</b></span>
-              <span>👜 Cabin: <b>{leg.cabin || "Not provided"}</b></span>
+              <span>🧳 Check-in: <b>{allowanceLabel(normalizeAllowance(leg.checked, "checked"))}</b></span>
+              <span>👜 Cabin: <b>{allowanceLabel(normalizeAllowance(leg.cabin, "cabin"))}</b></span>
             </div>
           </div>
         );
