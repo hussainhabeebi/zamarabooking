@@ -556,9 +556,11 @@ export class AkbarClient {
     return this.post(`${this.flightsBase()}${endpoint}`, endpoint, fareRuleBody(trips, auth.clientId), auth.token);
   }
 
-  async ssr(trip: { tui: string; orderId: number | string; index?: string }, paidSsr: boolean, auth: AkbarToken): Promise<unknown> {
+  // opts (optional, search-time baggage only): the request Source and a shorter timeout. Existing callers
+  // (the booking run) pass nothing and send exactly what they sent before.
+  async ssr(trip: { tui: string; orderId: number | string; index?: string }, paidSsr: boolean, auth: AkbarToken, opts: { source?: "CF" | "LV"; timeoutMs?: number } = {}): Promise<unknown> {
     const endpoint = "/flights/ssr";
-    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, ssrBody(trip, auth.clientId, paidSsr), auth.token);
+    return this.post(`${this.flightsBase()}${endpoint}`, endpoint, ssrBody(trip, auth.clientId, paidSsr, opts.source), auth.token, opts.timeoutMs);
   }
 
   async seatLayout(trip: { tui: string; orderId: number | string }, auth: AkbarToken): Promise<unknown> {

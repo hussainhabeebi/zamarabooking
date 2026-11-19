@@ -17,6 +17,7 @@ import { apiKeysAdminRoutes }      from "./api-keys.js";
 import { markupAdminRoutes }       from "./markup.js";
 import { supplierLogsAdminRoutes } from "./supplier-logs.js";
 import { customerWalletsAdminRoutes } from "./customer-wallets.js";
+import { akbarSearchBaggageAdminRoutes } from "./akbar-search-baggage.js";
 import { cancellationsAdminRoutes, supportAdminRoutes } from "./post-booking.js";
 import { agentProgramAdminRoutes } from "./agent-program.js";
 import { leadvyneAgentsAdminRoutes } from "./leadvyne-agents.js";
@@ -67,6 +68,7 @@ adminRoutes.route("/api-keys",       apiKeysAdminRoutes);
 adminRoutes.route("/markup",         markupAdminRoutes);
 adminRoutes.route("/supplier-logs",  supplierLogsAdminRoutes);
 adminRoutes.route("/customer-wallets", customerWalletsAdminRoutes);
+adminRoutes.route("/akbar-search-baggage", akbarSearchBaggageAdminRoutes);   // full admins only (not a STAFF section)
 adminRoutes.route("/cancellations", cancellationsAdminRoutes);
 adminRoutes.route("/akbar-cancellation", akbarCancellationAdminRoutes);   // full admins only (not a STAFF section)
 adminRoutes.route("/support-requests", supportAdminRoutes);

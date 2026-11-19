@@ -8,10 +8,11 @@ import { redirect } from "next/navigation";
 import SearchResultControls, { ChangeDatesAction } from "./SearchResultControls";
 import { FareTools } from "./FareTools";
 import FareOptionsList from "./FareOptionsList";
+import { LiveBaggageTag, LiveBaggageText } from "./LiveBaggage";
 import GroupFareResultCard from "./GroupFareResultCard";
 import { fetchGroupFares, sameFlight, type SearchGroupFare } from "./group-fare-results";
 import { altOptions, cabinPerk, checkedPerk, fareLabel, flightKey, groupFareOptions, optionPerks, optionPrice } from "../lib/fare-options";
-import { allowanceLabel, checkedTag, fareBaggageView } from "../lib/baggage";
+import { fareBaggageView } from "../lib/baggage";
 import { matchesStops, stopCount, stopsLabel, viaText } from "../lib/stops";
 import { convertInr, currencyMeta, fetchFxRates, formatIn, isShownCurrency, type FxRates } from "../lib/fx";
 
@@ -323,6 +324,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
                   aedRate={aedRate}
                   searchId={result.searchId}
                   searchEventId={result.searchEventId}
+                  autoBaggage={i < 6}
                   adults={adults}
                   children={children}
                   infants={infants}
@@ -463,7 +465,7 @@ function optionLinkParams(fare: any, options: any[]): Record<string, string> {
   return extra;
 }
 
-function FareCard({ fare, options, requestedCurrency, aedRate, searchId, searchEventId, adults, children = 0, infants = 0 }: { fare: any; options: any[]; requestedCurrency: string | null; aedRate: FxRates; searchId?: string; searchEventId?: string; adults: number; children?: number; infants?: number }) {
+function FareCard({ fare, options, requestedCurrency, aedRate, searchId, searchEventId, autoBaggage = false, adults, children = 0, infants = 0 }: { fare: any; options: any[]; requestedCurrency: string | null; aedRate: FxRates; searchId?: string; searchEventId?: string; autoBaggage?: boolean; adults: number; children?: number; infants?: number }) {
   // Customer search tracking: the booking page links its booking to this search (se).
   const linkParams = (o: any) => ({ ...optionLinkParams(o, options), ...(searchEventId ? { se: searchEventId } : {}) });
   const dep = new Date(fare.departureTime);
@@ -488,6 +490,13 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, searchE
   const arrNextDay = dep.getUTCDate() !== arr.getUTCDate();
 
   const bag = fareBaggageView(fare);
+  // Akbar fares without a confirmed allowance: the page may ask Akbar's free SSR (LiveBaggage.tsx) —
+  // the first cards straight away, any card when its "Baggage & details" is opened.
+  const liveBag = {
+    fareId: String(fare.id ?? ""), pax: { adults, children, infants },
+    initialChecked: bag.checked.text, initialCabin: bag.cabin.text,
+    needed: fare.supplier === "AKBAR" && (bag.checked.status === "UNKNOWN" || bag.cabin.status === "UNKNOWN"),
+  };
   const cabinLabel = String(fare.cabinClass ?? "ECONOMY").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
   const badgeColor = fare.__badge === "Best overall" ? "#0D4B96" : fare.__badge === "Lowest fare" ? "#0f172a" : "#0369a1";
 
@@ -540,7 +549,7 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, searchE
           {fare.fareIdentifier && fare.fareIdentifier !== "PUBLISHED" && (
             <span className="fare-card-v2-tag">{({ STUDENT: "Student fare", SENIOR_CITIZEN: "Senior citizen fare", TJ_FLEX: "Flex fare", SPECIAL_RETURN: "Special Return" } as Record<string, string>)[fare.fareIdentifier] ?? fareLabel(fare.fareIdentifier)}</span>
           )}
-          {checkedTag(bag) && <span className="fare-card-v2-tag tag-baggage">🧳 {checkedTag(bag)}</span>}
+          <LiveBaggageTag {...liveBag} auto={autoBaggage} />
           {fare.seatsLeft > 0 && fare.seatsLeft <= 5 && (
             <span className="fare-card-v2-tag tag-seats">🔥 {fare.seatsLeft} left</span>
           )}
@@ -593,11 +602,11 @@ function FareCard({ fare, options, requestedCurrency, aedRate, searchId, searchE
         <div className="fare-card-v2-detail">
           <div className="fare-card-v2-detail-item">
             <label>Cabin baggage</label>
-            <span>{allowanceLabel(bag.cabin)}</span>
+            <LiveBaggageText {...liveBag} kind="cabin" />
           </div>
           <div className="fare-card-v2-detail-item">
             <label>Check-in baggage</label>
-            <span>{allowanceLabel(bag.checked)}</span>
+            <LiveBaggageText {...liveBag} kind="checked" />
           </div>
           <div className="fare-card-v2-detail-item">
             <label>Refundable</label>

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { API, apiHeaders } from "@/lib/api";
 import { AkbarCancellationSettings } from "./AkbarCancellationSettings";
+import { AkbarSearchBaggageSettings } from "./AkbarSearchBaggageSettings";
 
 type Akbar = {
   enabled: boolean; environment: "UAT" | "PRODUCTION"; utilsUrl: string; flightsUrl: string;
@@ -155,6 +156,8 @@ export function AkbarIntegration() {
     </Section>
     {/* One company-wide setting for cancelling Akbar API bookings (not per booking). */}
     <AkbarCancellationSettings />
+    {/* Baggage on search results from Akbar's free SSR (off by default). */}
+    <AkbarSearchBaggageSettings />
     </>
   );
 }
